@@ -107,7 +107,7 @@ def check_docs(rs_out=None, cs_rows=None):
         if bias50 not in rs_out:
             errors.append("run_scoring: %s ppm bias %s nT missing" % (ppm, bias50))
     # estimator table rows in docs (xCRB columns)
-    for est, want_ratio in (("zoom", 1.02), ("FFT + log-parabolic", 1.05)):
+    for est, want_ratio in (("zoom", 1.02), ("FFT \+ log-parabolic", 1.05)):
         m = re.search(rf"\|[^|]*{est}[^|]*\|\s*([\d.]+)\s*\|", text)
         if m is None or abs(float(m.group(1)) - want_ratio) > 0.05:
             errors.append("docs xCRB for %s: %s vs %.2f"
@@ -123,7 +123,9 @@ def check_docs(rs_out=None, cs_rows=None):
     for label, b_pol, n_turns, radius in coils:
         v0 = fid.estimate_v0(b_pol=b_pol, n_turns=n_turns, coil_radius_m=radius)
         m = re.search(rf"\| {re.escape(label)} \| ([\d.]+) µV \|", text)
-        if m is None or abs(float(m.group(1)) - v0 * 1e6) > 0.01 * v0 * 1e6:
+        if m is None or abs(float(m.group(1)) - v0 * 1e6) \
+                > max(0.01 * v0 * 1e6, 0.006):
+            # 0.006 uV covers the table's 2-decimal display rounding
             errors.append("docs V0 for %s: %s vs %.3f uV"
                           % (label, m and m.group(1), v0 * 1e6))
 
@@ -132,9 +134,26 @@ def check_docs(rs_out=None, cs_rows=None):
         fam = card["spec"].split(" + ")[0]
         m = re.search(rf"\|\s*{re.escape(fam)}[^|]*\|\s*([\d.]+) µV \| "
                       rf"([\d.]+) nV \| ([\d.+-]+) dB \| ([\d.]+) ms \| "
-                      rf"\*{0,1}\*{0,1}([\d.]+) nT", text)
+                      rf"([^|]+)\|", text)
         if m is None:
             errors.append("docs: analog table row for %s not parsed" % fam)
+            continue
+        j_raw = m.group(5).strip().strip("*")
+        if "fails" in j_raw or "gate" in j_raw:
+            # the doc row reports a gated-out candidate: the fixture card
+            # must agree (J = inf) and the failing gate must be named
+            if card["J_nt"] != float("inf"):
+                errors.append("docs says %s fails a gate but code J = %.4f"
+                              % (fam, card["J_nt"]))
+            gate_ok = any(card["gates"].get(g) is False
+                          for g in card["gates"])
+            if not gate_ok:
+                errors.append("docs says %s fails a gate but no gate failed"
+                              % fam)
+            continue
+        if not re.match(r"^[\d.]+$", j_raw):
+            errors.append("docs: analog J cell for %s unparsable: %r"
+                          % (fam, j_raw))
             continue
         v0_doc, sigma_doc, tau_doc, j_doc = (float(m.group(1)),
                                              float(m.group(2)),

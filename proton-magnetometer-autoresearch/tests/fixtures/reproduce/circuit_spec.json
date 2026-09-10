@@ -10,17 +10,20 @@
   "snr_rms_db": -7.915335840826745,
   "snr_rms_band_db": -2.7272555315948694,
   "crb_nt": 0.23790959823349864,
-  "rms_zoom_fit": 0.2504757958898141,
+  "rms_zoom_fit": 0.24249359764686568,
   "gross_zoom_fit": 0.0,
-  "rms_zc_fit": 8757.546018145153,
+  "rms_zc_fit": 2172.235159193046,
   "gross_zc_fit": 1.0,
-  "clip_margin": 0.006544325086805555,
+  "clip_margin": 0.007392035590277777,
+  "ripple_margin": 1.2334603855208282,
   "gates": {
    "no_clipping": true,
    "recovery_inside_blanking": true,
-   "gross_errors": true
+   "gross_errors": true,
+   "rail_ripple_survivable": false
   },
-  "J_nt": 0.2504757958898141
+  "J_nt": Infinity,
+  "b_earth_uT": 50.0
  },
  {
   "spec": "untuned + TL072-class (18 nV)",
@@ -33,17 +36,20 @@
   "snr_rms_db": -15.945495448300465,
   "snr_rms_band_db": -10.758731397005963,
   "crb_nt": 0.5998295792381002,
-  "rms_zoom_fit": 0.6449571503292036,
+  "rms_zoom_fit": 0.6341944743902267,
   "gross_zoom_fit": 0.0,
-  "rms_zc_fit": 11581.263628987457,
+  "rms_zc_fit": 3820.0500877743225,
   "gross_zc_fit": 1.0,
-  "clip_margin": 0.015665690104166664,
+  "clip_margin": 0.01732720269097222,
+  "ripple_margin": 1.2334603855208282,
   "gates": {
    "no_clipping": true,
    "recovery_inside_blanking": true,
-   "gross_errors": true
+   "gross_errors": true,
+   "rail_ripple_survivable": false
   },
-  "J_nt": 0.6449571503292036
+  "J_nt": Infinity,
+  "b_earth_uT": 50.0
  },
  {
   "spec": "tuned series-resonant + JFET (1.4 nV, 0.1 pA)",
@@ -56,16 +62,19 @@
   "snr_rms_db": 8.382319134266197,
   "snr_rms_band_db": 32.519891951349976,
   "crb_nt": 0.0009545041361871529,
-  "rms_zoom_fit": 0.0269103783268185,
+  "rms_zoom_fit": 0.0009743863511686863,
   "gross_zoom_fit": 0.0,
-  "rms_zc_fit": 0.9899901432127699,
+  "rms_zc_fit": 0.6694920244696418,
   "gross_zc_fit": 0.0,
-  "clip_margin": 0.0973171657986111,
+  "clip_margin": 0.1251559787326389,
+  "ripple_margin": 0.04358226695506926,
   "gates": {
    "no_clipping": true,
    "recovery_inside_blanking": true,
-   "gross_errors": true
+   "gross_errors": true,
+   "rail_ripple_survivable": true
   },
-  "J_nt": 0.0269103783268185
+  "J_nt": 0.0009743863511686863,
+  "b_earth_uT": 50.0
  }
 ]

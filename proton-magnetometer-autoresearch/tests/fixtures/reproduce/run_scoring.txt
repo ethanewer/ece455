@@ -4,11 +4,11 @@ gamma'p = 0.0425764 Hz/nT (shielded proton in water; 1 Hz = 23.4872 nT)
 MC uncertainty on every sigma below: ~+/-3.5% (1-sigma, N=400)
 
 [1] Colored-noise CRB at the reference point: 0.0481 nT
-     estimator  RMS [nT]   xCRB  gross>1Hz
-      fft_peak    0.0503   1.05       0.0%
-      zoom_fit    0.0492   1.02       0.0%
-        zc_fit  182.8104 3803.33     100.0%
-      nlls_fit  396.9238 8257.92       2.0%
+     estimator  RMS [nT]   xCRB  gross>1Hz  cond.xCRB
+      fft_peak    0.0503   1.05       0.0%       1.05
+      zoom_fit    0.0492   1.02       0.0%       1.02
+        zc_fit  182.8104 3803.33     100.0%        nan
+      nlls_fit  396.9238 8257.92       2.0%      20.41
 
 [2] CRB [nT] on the physics V0 x T2* grid (estimate_v0; blanking 200 ms, INA-class e_n)
     coil                          V0 [uV] T2*= 0.5s T2*= 1.5s T2*= 3.0s
