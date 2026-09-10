@@ -26,7 +26,8 @@ the reviewer never edits files.
   golden netlist and a known-good ngspice output fixture.
 - [ ] **A3 [no-API]** Toolchain pins: `pip install skidl` (≥2.3.0),
   `brew install --cask kicad` (10.x); record versions in
-  `docs/architecture.md`; smoke-test `kicad-cli sch erc` on a trivial project.
+  `docs/architecture.md` and pin Python deps in a `requirements.txt`
+  (numpy/scipy float today); smoke-test `kicad-cli sch erc` on a trivial project.
 - [ ] **A4 [no-API]** `backends/kicad.py`: spec → SKiDL → `generate_schematic()`
   + `generate_pcb()` → `kicad-cli sch erc` / `pcb drc --schematic-parity
   --exit-code-violations` as machine gates. Exit criteria: one INA828-class
@@ -38,7 +39,12 @@ the reviewer never edits files.
 - [ ] **A7 [no-API]** Optimizer skeleton: mutation operators (topology swap:
   tuned/untuned, bandpass order; part swap via parts DB; parameter moves),
   scoring fan-out (subprocess pool over A2), survivor promotion. NO agent LLM
-  in the loop yet — score-guided search only.
+  in the loop yet — score-guided search only. Run-hygiene requirements for
+  real runs, in the same item: per-candidate timeout + graceful SPICE
+  failure/`sim_status` handling (a non-converging candidate is a scored
+  rejection, not a crash); provenance stamped into every score card (git SHA,
+  tool versions, seeds, full spec hash); topology-hash dedupe so mutations
+  can't rescore the same circuit; elite archive persisted between runs.
 
 ## B. Score completion — close the audit blind-spot list before optimizing
 
@@ -61,6 +67,13 @@ the reviewer never edits files.
 - [ ] **B7 [human]** Decide whether survey productivity (cycle time vs tow
   speed) is a scored term or stays reported-only; if scored, specify the
   requirement it is scored against.
+- [ ] **B8 [no-API]** Score across the operating field range, not one point:
+  every result today is at B = 50 µT (f_L = 2129 Hz). The mission spans
+  25–65 µT ⇒ f_L = 1064–2767 Hz, and the MFB bandpass is fixed near 2.1 kHz.
+  Score the B-sweep (amplitude ∝ B through the transducer model; filter
+  centering/rolloff at 1.1 and 2.8 kHz; ADC range use), and add either a
+  tunable/wider-band filter axis or a per-band candidate family. Without
+  this, the optimizer optimizes for one field point.
 
 ## C. Firmware core (the MCU half of the score)
 
@@ -86,8 +99,6 @@ the reviewer never edits files.
 - [ ] **D1 [no-API]** Keep `test_validation.py` green in CI; add a
   SPICE-vs-analytic noise cross-check per new candidate class (the INA-class
   check exists; generalize).
-- [ ] **D2 [no-API]** Determinism test: two clean checkouts produce
-  byte-identical score cards (fixed seeds; no wall-clock in outputs).
 - [ ] **D3 [no-API]** Round-trip invariant: the netlist KiCad exports from a
   generated project simulates to the same H(f)/noise as the emitted netlist.
 - [ ] **D4 [no-API]** One-command reproduction: a script regenerates every
@@ -150,6 +161,12 @@ hand calculation, docs-vs-code numbers, and output determinism.
   needed): `pip install numpy scipy` + `brew install ngspice` on every push →
   run `test_validation.py` + the D7–D12 suite + fixture diffs. This is what
   turns the items above from one-off checks into standing regressions.
+- [ ] **D16 [no-API]** Implement M4 from the scoring-harness spec
+  (research-frequency-estimation.md §5), specced but never built: cycle-to-
+  cycle repeatability (std of consecutive f̂ in a stationary-field run,
+  including estimator 1/f drift behavior) and the averaging-gain check
+  (σ of M-cycle averages vs σ/√M — catches correlated residuals the per-cycle
+  RMS hides). Land alongside D7 in the estimator suite.
 
 ## E. Auditing — external-review skill, before the optimizer starts
 
@@ -167,7 +184,7 @@ hand calculation, docs-vs-code numbers, and output determinism.
   audit that caught the γp and V₀ problems.
 - [ ] **E4 [no-API]** Triage discipline per skill "Treating results": every
   finding independently verified (agree with evidence or refute) before any
-  edit; unfixed confirmed findings block G1.
+  edit; unfixed confirmed findings block G2.
 - [ ] **E5 [human]** Read the E3 audit verdict and sign off.
 - [ ] **E6 [no-API]** Re-review the already-completed work: run Review 1
   (bugbot) and Review 2 (scientific correctness) — separately — over the
@@ -176,6 +193,11 @@ hand calculation, docs-vs-code numbers, and output determinism.
   Scope Review 2 explicitly at: shielded-γp value and its uses, the Curie-law
   transducer model, the e_n/i_n resistor-noise modeling, the tuned-network
   netlist physics, and the M5 ablation interpretations. Treat findings per E4.
+- [ ] **E7 [no-API]** Checkpoint re-audits after the optimizer starts: the
+  skill's review table says the deep audit also runs "periodically as a
+  checkpoint". Schedule: after the first 50 scored candidates, then every
+  order-of-magnitude of candidate count — verifies the optimizer hasn't
+  drifted into exploiting a residual score blind spot (E4 triage applies).
 
 ## F. Bench — the parts no simulation replaces (human/hardware)
 
@@ -197,11 +219,23 @@ hand calculation, docs-vs-code numbers, and output determinism.
   model access — e.g. Claude Code session, no separate key — but candidates
   must still pass the identical scorer).
 - [ ] **G2 [human]** GO: optimizer unlocked only when A–D are checked, E3 has
-  no unresolved high-severity findings, and F2 anchors the coil model.
+  no unresolved high-severity findings, and F2 anchors the coil model. Part of
+  the GO action: flip the "do not run a search agent against the PoC score"
+  caveats in README.md/architecture.md to the unlocked state, with the E7
+  checkpoint cadence recorded.
+
+## H. Repo housekeeping (do first — cheapest, removes ambiguity)
+
+- [ ] **H1 [no-API]** Add a LICENSE (the docs claim "open source end to end";
+  the repo itself has none — pick MIT or GPL to match the SKiDL/KiCad stack).
+- [ ] **H2 [no-API]** Resolve untracked files: `.claude/`, `.codex/`, `.pi/`,
+  `AGENTS.md`, `CLAUDE.md` — commit the harness config deliberately or extend
+  `.gitignore`; ambiguous workspace state breaks reproducibility claims
+  (D11's "clean checkout" needs a defined tree).
 
 ---
 
-Dependency spine: A1→A2→A4→A7 · B1–B6 before A7 · C1→C2→C3 before G ·
-D7–D13 + E6 (verify the completed round) can start immediately and block G2 ·
-D5 + D8 + E3 before G2. A, B, C, D, E are fully parallelizable except where
-noted; F can start anytime hardware is available.
+Dependency spine: H first (defines the tree) · A1→A2→A4→A7 · B1–B8 before A7 ·
+C1→C2→C3 before G · D7–D13 + D16 + E6 (verify the completed round) start
+immediately and block G2 · D5 + D8 + E3 before G2. A, B, C, D, E are fully
+parallelizable except where noted; F can start anytime hardware is available.
