@@ -117,9 +117,12 @@ def test_ringdown_tau_recovers_known_tau():
 
 
 def test_ringdown_tau_flat_signal_returns_zero():
+    """Fail-closed semantics (D5): a flat (never-decaying) envelope must
+    return the LARGE tau ceiling -- a non-decaying ring is the worst case
+    for the recovery gate -- while a degenerate record returns 0."""
     t = np.arange(0, 0.12, 1.0 / 20_000.0)
     v = np.ones_like(t)                            # no decay
-    assert cs.ringdown_tau((t, v)) == 0.0
+    assert cs.ringdown_tau((t, v)) == pytest.approx(1.0)
     assert cs.ringdown_tau((t[:10], np.zeros(10))) == 0.0
 
 

@@ -209,7 +209,16 @@ def parse_tables(stdout: str) -> dict:
 
 
 def ringdown_tau(tab, t_min=1.5e-3):
-    """Fit the ring-down decay constant from the transient envelope."""
+    """Fit the ring-down decay constant from the transient envelope.
+
+    Fail-closed (D5): if the envelope is still above the 2% floor at the
+    END of the measured window, the fit only sees a TRUNCATED decay and
+    its slope underestimates tau (a 400 ms tank measured over a 120 ms
+    window fits tau = 149 ms). Returning the truncated value would let a
+    catastrophic tank squeeze past the 5*tau < 0.5*T2* recovery gate, so
+    an incomplete decay returns the 1 s ceiling instead -- the recovery
+    gate then fails the candidate, which is the honest verdict for a
+    ring the .tran window cannot even see finish."""
     t, v = tab
     m = t > t_min
     if m.sum() < 20:
@@ -222,6 +231,9 @@ def ringdown_tau(tab, t_min=1.5e-3):
     keep = be > 0.02 * be.max()
     if keep.sum() < 5:
         return 0.0
+    # Fail-closed: decay did not complete inside the window.
+    if bt[keep][-1] >= 0.95 * t[-1]:
+        return 1.0
     slope = np.polyfit(bt[keep], np.log(be[keep]), 1)[0]
     return float(np.clip(-1.0 / slope, 0.0, 1.0)) if slope < 0 else 0.0
 

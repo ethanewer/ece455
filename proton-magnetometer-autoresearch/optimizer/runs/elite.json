@@ -592,5 +592,64 @@
   },
   "J_nt": 0.0028608834823812,
   "b_earth_uT": 50.0
+ },
+ {
+  "spec_title": "seed tuned JFET",
+  "kwargs": {
+   "label": "seed tuned JFET",
+   "e_amp": 1.1e-09,
+   "i_amp": 2.4e-12,
+   "tuned": false,
+   "mfb_scale": 0.9,
+   "coil": {
+    "r_coil": 20,
+    "l_coil": "100m",
+    "c_tune": "56n",
+    "n_turns": 1500,
+    "radius_m": 0.03,
+    "b_pol": 0.05
+   }
+  },
+  "spec_hash": "f56af28bec55ff56",
+  "sim_status": 124,
+  "provenance": {
+   "git_sha": "70eb15aaa1cb45796adc38d96cda0b2a40bb4235",
+   "ngspice": "ngspice-47",
+   "python": "3.12.13",
+   "numpy": "2.5.3",
+   "mc_seeds": "phase=20000+i, record rng=7 (zoom), N_MC=40"
+  },
+  "J_nt": Infinity,
+  "sim_stderr": "timeout"
+ },
+ {
+  "spec_title": "seed tuned JFET",
+  "kwargs": {
+   "label": "seed tuned JFET",
+   "e_amp": 1.1e-09,
+   "i_amp": 2.4e-12,
+   "tuned": true,
+   "mfb_scale": 1.0,
+   "coil": {
+    "r_coil": 20,
+    "l_coil": "100m",
+    "c_tune": "56n",
+    "n_turns": 1500,
+    "radius_m": 0.03,
+    "b_pol": 0.05
+   },
+   "preamp_gain": 50.0
+  },
+  "spec_hash": "37b7c910cd3a3d89",
+  "sim_status": 124,
+  "provenance": {
+   "git_sha": "70eb15aaa1cb45796adc38d96cda0b2a40bb4235",
+   "ngspice": "ngspice-47",
+   "python": "3.12.13",
+   "numpy": "2.5.3",
+   "mc_seeds": "phase=20000+i, record rng=7 (zoom), N_MC=40"
+  },
+  "J_nt": Infinity,
+  "sim_stderr": "timeout"
  }
 ]

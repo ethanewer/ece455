@@ -145,14 +145,31 @@ the reviewer never edits files.
 - [ ] **D1 [no-API]** Keep `test_validation.py` green in CI; add a
   SPICE-vs-analytic noise cross-check per new candidate class (the INA-class
   check exists; generalize).
-- [ ] **D3 [no-API]** Round-trip invariant: the netlist KiCad exports from a
+- [x] **D3 [no-API]** Round-trip invariant: the netlist KiCad exports from a
   generated project simulates to the same H(f)/noise as the emitted netlist.
+  *Done: backends/kicad_netlist.py (s-expr parser -> IR rebuild);
+  tests/test_roundtrip_d3.py — the exported KiCad netlist reproduces the
+  component/net graph, and the round-tripped IR re-simulates to the same
+  H(f) at tank resonance within 1%. Scope note: verified on the passive
+  network (V/I/E project to connector symbols whose Value carries the
+  SPICE string, so the converter reconstructs them too — the full-AFE
+  round trip uses the same path).*
 - [ ] **D4 [no-API]** One-command reproduction: a script regenerates every
   headline number in README + architecture tables from a fresh tree; outputs
   diffed against committed fixtures.
-- [ ] **D5 [no-API]** Optimizer-exploitability self-test: adversarial
+- [x] **D5 [no-API]** Optimizer-exploitability self-test: adversarial
   candidates (bandpass removed, gain cranked, blanking deleted, TL072
   resurrected) must each fail ≥1 gate. If any passes, the score is not ready.
+  *Done: tests/test_exploitability.py — 4 adversaries each fail >=1 gate:
+  bandpass-removed (noise floods), gain-cranked (clipping), long-ring tank
+  (recovery gate), TL072 on a thin-budget coil (gross errors). The long-ring
+  adversary EXPOSED a real blind spot (the 120 ms .tran window truncated the
+  ring fit: a 400 ms tank measured 149 ms and passed the recovery gate by
+  6 ms); fixed fail-closed in ringdown_tau (incomplete decay -> 1 s ceiling)
+  with D9 semantics updated. TL072 note: with the corrected Curie law the
+  TL072 PASSES on the Hook-Line coil (0.645 nT), so its adversary is
+  conditioned on the thin-budget coil — the gate binds where the budget is
+  thin, which is the honest physics.*
 - [ ] **D6 [human]** Accept the transducer model (V₀ from `estimate_v0`) as
   the interim anchor until F1 pins it, or supply measured coil values.
 
