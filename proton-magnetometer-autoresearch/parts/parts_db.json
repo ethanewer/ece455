@@ -1,0 +1,105 @@
+{
+  "_meta": {
+    "purpose": "Parts database for the AFE optimizer (B5). Noise/GBW values from vendor datasheets; prices HAND-ENTERED approximations for 1ku quantities from distributor catalog pages at compilation time (2026-09) -- verify at order time, do not scrape.",
+    "conventions": {
+      "e_n": "input voltage noise density [V/sqrt(Hz)] at 1 kHz unless noted",
+      "i_n": "input current noise density [A/sqrt(Hz)] at 1 kHz",
+      "e_nO": "output-stage voltage noise density, referred to input by dividing by G",
+      "gbw_hz": "gain-bandwidth product [Hz]",
+      "price_usd": "indicative 1ku price; refresh before any real order"
+    }
+  },
+  "parts": [
+    {
+      "mpn": "INA828AIDR",
+      "class": "instrumentation-amplifier",
+      "e_n": 7e-9,
+      "i_n": 170e-15,
+      "e_nO": 90e-9,
+      "gbw": 1.0e6,
+      "flicker_corner_hz": 10.0,
+      "price_usd": 2.40,
+      "footprint": "SOIC-8",
+      "gain_min": 1.0,
+      "gain_max": 10000.0,
+      "psrr_db_at_1khz": 100.0,
+      "cmrr_db_at_1khz": 100.0,
+      "rail_v": [4.6, 36.0],
+      "source": "TI INA828 datasheet (SBOS759)",
+      "notes": "reference INA-class part; e_nI=7nV, i_n=170fA at 1 kHz"
+    },
+    {
+      "mpn": "ADA4898-1ARDZ",
+      "mpn_class": "ADA4898",
+      "e_n": 1.1e-9,
+      "i_n": 2.4e-12,
+      "e_nO": null,
+      "gbw": 63e6,
+      "flicker_corner_hz": 20.0,
+      "price_usd": 9.20,
+      "footprint": "SOIC-8",
+      "rail_v": [4.5, 36.0],
+      "source": "ADI ADA4898 datasheet",
+      "notes": "unity-gain-stable opamp, 0.9-1.1 nV class; high i_n (2.4 pA) matters only for kOhm sources"
+    },
+    {
+      "mpn": "2N6550",
+      "mpn_class": "2N6550-class JFET",
+      "e_n": 1.4e-9,
+      "i_n": 0.1e-12,
+      "e_nO": null,
+      "gbw": null,
+      "flicker_corner_hz": 100.0,
+      "price_usd": 1.80,
+      "footprint": "TO-92",
+      "source": "2N6550 datasheet; Overhauser noise-modeling paper (Sensors 2025) device class",
+      "notes": "discrete JFET input stage; gain set by surrounding network; the tuned-input favorite"
+    },
+    {
+      "mpn": "ADS131M04IPBS",
+      "mpn_class": "ADS131M04",
+      "e_n": null,
+      "i_n": null,
+      "gbw": null,
+      "noise_uv_rms": {"fs_4ksps_gain1": 5.35, "fs_4ksps_gain128": 1.20},
+      "bits": 24,
+      "channels": 4,
+      "price_usd": 4.60,
+      "footprint": "VQFN-32",
+      "source": "TI ADS131M04 datasheet Table 7-1 (VREF = 1.2 V)",
+      "notes": "delta-sigma; referred through G=1000 ~ 5 nV -- ADC non-issue at G>=1000"
+    },
+    {
+      "mpn": "DG419DY",
+      "mpn_class": "DG419",
+      "ron_ohm": 35.0,
+      "t_on_ns": 175.0,
+      "t_off_ns": 145.0,
+      "charge_injection_pc": 60.0,
+      "off_isolation_db": 70.0,
+      "off_cap_pF": 8.0,
+      "price_usd": 1.90,
+      "footprint": "SOIC-8",
+      "source": "Vishay DG417-419 datasheet",
+      "notes": "blanking switch; charge injection 60 pC -> 60 mV into 1 nF node: blank through the glitch"
+    },
+    {
+      "mpn_class": "TCXO-0.5ppm",
+      "description": "±0.5 ppm TCXO, 10 MHz (e.g. ECS-TXO-2520 class)",
+      "ppm": 0.5,
+      "price_usd": 3.10,
+      "footprint": "SMD-2520",
+      "source": "distributor catalog (hand-entered)",
+      "notes": "0.025 nT scale bias at 50 uT (run_scoring [3c]); the precision floor of the mission"
+    },
+    {
+      "mpn_class": "TCXO-2ppm",
+      "description": "±2 ppm TCXO (e.g. JPM-4's 4 MHz TCXO class)",
+      "ppm": 2.0,
+      "price_usd": 1.30,
+      "footprint": "SMD-3225",
+      "source": "JPM-4 paper (doi:10.18494/SAM3719) uses 2 ppm TCXO",
+      "notes": "0.1 nT scale bias at 50 uT; adequate for 1 nT anomaly contrast"
+    }
+  ]
+}

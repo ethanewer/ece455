@@ -77,7 +77,7 @@ def main():
     print(f"SNR conventions at the reference point: "
           f"eta_ps (A_peak/sigma) = {eta_db:.1f} dB | "
           f"SNR_rms = {snr_rms_db:.1f} dB")
-    print(f"gamma'p = {fid.GAMMA_HZ_PER_NT*1e3:.6f} Hz/nT "
+    print(f"gamma'p = {fid.GAMMA_HZ_PER_NT:.7f} Hz/nT "
           f"(shielded proton in water; 1 Hz = {fid.NT_PER_HZ:.4f} nT)")
     print(f"MC uncertainty on every sigma below: ~+/-{MC_SIGMA_REL*100:.1f}% "
           f"(1-sigma, N={N_MONTE})")
@@ -147,6 +147,53 @@ def main():
                        ("TCXO +/-0.5ppm", 0.5)]:
         print(f"    {label:>18} {50.0*ppm/1e3:>10.3f}nT "
               f"{25.0*ppm/1e3:>10.3f}nT")
+
+    # ---- 3d. Comparator time-walk (B2): the zero-crossing front end's
+    #         deterministic systematic -------------------------------
+    print(f"\n[3d] Comparator time-walk (crossing shift = V_n/(2 pi f A(t))), "
+          f"V_n = sigma_in = {sigma_in*1e6:.2f} uV; {N_MONTE} runs):")
+    for name in ("zoom_fit", "zc_fit"):
+        errs = []
+        for i in range(N_MONTE):
+            phase = np.random.default_rng(10_000 + i).uniform(-np.pi, np.pi)
+            rec = fid.generate_record(rng=i, phase=phase, **base,
+                                      comparator_walk_vn=sigma_in)
+            errs.append(ESTIMATORS[name](rec) - rec["f_larmor"])
+        rms_nt = float(np.sqrt(np.mean(np.square(errs)))) / fid.GAMMA_HZ_PER_NT
+        gross = float(np.mean(np.abs(np.asarray(errs)) > ERR_HZ_THRESHOLD))
+        print(f"    {name:>10} with time-walk: RMS = {rms_nt:.4f} nT "
+              f"(gross {gross:.1%})")
+
+    # ---- 3e. Rail ripple through PSRR (B3) + CMRR (B4) ---------------
+    # Parametrized by the POST-AFE input-referred tone amplitude (the DSP
+    # layer sits behind the AFE; its bandpass already shaped whatever got
+    # through). The physical chain is: rail ripple * 10^(-PSRR/20) * H(f_r).
+    print(f"\n[3e] Supply-rail ripple through PSRR and CMRR pickup "
+          f"(zoom_fit; {N_MONTE} runs; reference V0 = 2 uV):")
+    import systematics
+    bud = systematics.budget()
+    print(f"    analytic budget: white {bud['sigma_white_v']*1e6:.2f} uV | "
+          f"1/f excess +{bud['flicker_excess_fraction']*100:.2f}% | "
+          f"CMRR 50Hz referred {bud['cmrr_referred_v']*1e6:.1f} uV | "
+          f"rail ripple referred {bud['rail_ripple_referred_v']*1e6:.1f} uV")
+    v0_ref = base["v0"]
+    cases = [
+        ("buck 2.0 kHz, 50 mV @ PSRR 60 dB -> 50 uV",
+         (2000.0, 0.05, 60.0)),
+        ("buck 2.0 kHz, 50 mV @ PSRR 80 dB -> 5 uV",
+         (2000.0, 0.05, 80.0)),
+        ("buck 2.0 kHz, 50 mV @ PSRR 100 dB -> 0.5 uV",
+         (2000.0, 0.05, 100.0)),
+    ]
+    for label, rr in cases:
+        errs = []
+        for i in range(N_MONTE):
+            phase = np.random.default_rng(10_000 + i).uniform(-np.pi, np.pi)
+            rec = fid.generate_record(rng=i, phase=phase, **base,
+                                      rail_ripple=rr)
+            errs.append(ESTIMATORS["zoom_fit"](rec) - rec["f_larmor"])
+        rms_nt = float(np.sqrt(np.mean(np.square(errs)))) / fid.GAMMA_HZ_PER_NT
+        print(f"    {label:<42}: RMS = {rms_nt:.4f} nT")
 
     # ---- 4. Blanking sweep (info-theoretic; recovery physics is scored
     #         separately by the .tran check in circuit_spec.py) ----------

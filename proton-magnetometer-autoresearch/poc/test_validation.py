@@ -90,20 +90,25 @@ def test_zoom_sits_on_colored_crb():
 
 def test_estimate_v0_sensible():
     # Koehler: "induced voltage of the order of microvolts" for realistic
-    # PPM coils; a Hook-Line-class coil at 20 mT should give 0.05-1 uV.
+    # PPM coils. The spin-1/2 Curie law (M0 = n mu_p^2 B_pol / kT, 3x the
+    # classical Langevin form an earlier revision used) gives 0.4054 uV for
+    # a Hook-Line-class coil at 20 mT -- locked exactly here so a revert to
+    # the Langevin form (0.1351 uV) fails loudly (audit E6 round 2).
     v0 = fid.estimate_v0(b_pol=0.02, n_turns=530, coil_radius_m=0.015)
-    assert 0.03e-6 < v0 < 2e-6, v0
+    assert abs(v0 / 0.4054e-6 - 1.0) < 0.01, v0
     # Monotone in each driver.
     assert fid.estimate_v0(b_pol=0.05) > fid.estimate_v0(b_pol=0.01)
     assert fid.estimate_v0(n_turns=1000) > fid.estimate_v0(n_turns=500)
 
 
 def test_gamma_constants_consistent():
-    # Shielded-proton value; the bare proton (42.577478e6) is 25.7 ppm higher.
-    assert abs(fid.GAMMA_HZ_PER_T - 42.57638507e6) < 1.0
-    assert abs(fid.GAMMA_HZ_PER_NT - 0.04257638507) < 1e-9
+    # Shielded-proton value (CODATA 2018, 42.57638474 MHz/T); the bare
+    # proton (42.577478e6) is 25.7 ppm higher. Tolerances tight enough to
+    # distinguish 2018 from 2014 (7.8 ppb apart).
+    assert abs(fid.GAMMA_HZ_PER_T - 42.57638474e6) < 0.05
+    assert abs(fid.GAMMA_HZ_PER_NT - 0.04257638474) < 1e-11
     assert abs(fid.NT_PER_HZ - 23.4872) < 1e-3
-    assert abs(fid.larmor_hz(50e-6) - 2128.82) < 0.01
+    assert abs(fid.larmor_hz(50e-6) - 2128.8192) < 0.01
 
 
 if __name__ == "__main__":

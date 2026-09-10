@@ -6,15 +6,15 @@
 
 ## 1. ppm → nT math (the acceptance numbers everything hangs on)
 
-γ′p/2π = 42.57638507 MHz/T (shielded proton in water; the bare-proton value
+γ′p/2π = 42.57638474 MHz/T, CODATA 2018 (shielded proton in water; the bare-proton value
 42.577478 MHz/T is 25.7 ppm higher — wrong for absolute field values)
-⇒ f = 42.57638507e6·B, so **relative frequency error
+⇒ f = 42.57638474e6·B, so **relative frequency error
 maps 1:1 to relative field error**:
 
 | Field B | FID frequency | 1 ppm | 20 ppm (0.04 Hz @ 2 kHz) | ±0.5 ppm TCXO | ±2 ppm TCXO | ±20 ppm crystal |
 |---|---|---|---|---|---|---|
 | 25 µT | 1064.4 Hz | 0.025 nT | 0.5 nT | 0.0125 nT | 0.05 nT | 0.5 nT |
-| 50 µT | 2132.9 Hz | 0.05 nT | 1.0 nT | 0.025 nT | 0.1 nT | 1.0 nT |
+| 50 µT | 2128.8 Hz | 0.05 nT | 1.0 nT | 0.025 nT | 0.1 nT | 1.0 nT |
 | 65 µT | 2767.5 Hz | 0.065 nT | 1.3 nT | 0.0325 nT | 0.13 nT | 1.3 nT |
 
 - The 0.04 Hz requirement ≈ 20 ppm ≈ ~1 nT — the normal spec for a good PPM.
@@ -126,7 +126,7 @@ emulators only prove the plumbing moves timestamps.
   NumPy wrapper — the precedent for same-DSP-code-on-host-and-target:
   [ARM-software/CMSIS-DSP](https://github.com/ARM-software/CMSIS-DSP/)
 
-**Scoring matrix (CI):** FID at 1064/2133/2767 Hz; T2* 0.3–3 s; SNR sweep;
+**Scoring matrix (CI):** FID at 1064/2128.8/2767 Hz; T2* 0.3–3 s; SNR sweep;
 zero-crossing timestamps quantized at 5.9 ns (STM32 G4), 6.7 ns (Teensy 4.1),
 8 ns (RP2040 PIO @125 MHz); modeled comparator time-walk; missing edges; TCXO
 ppm offsets (0.5/2/20 ppm) as deterministic gain error; harmonic + 50/60 Hz

@@ -1,0 +1,73 @@
+# D15: standing regression CI (GitHub Actions, included minutes, no keys).
+# Runs the full verification suite on every push/PR:
+#   - poc/test_validation.py (CRB vs closed forms, estimator-vs-bound, constants)
+#   - the D7-D13 + D16 suite in tests/ (estimator reference table, SPICE
+#     parser + fixtures, fid units, ensemble CRB, M4 repeatability, SPICE
+#     score-card regression, determinism + docs-vs-code)
+# Gates: exit code 0.
+name: ci
+
+on:
+  push:
+    branches: [main, autoresearch]
+  pull_request:
+
+jobs:
+  validation:
+    # macOS runner per TODO D15 (brew install ngspice); ngspice also exists
+    # on ubuntu-latest via apt if minutes get tight.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ngspice + deps
+        run: |
+          brew install ngspice
+          python -m pip install --upgrade pip
+          pip install numpy scipy pytest
+
+      - name: Run poc test_validation.py
+        working-directory: proton-magnetometer-autoresearch/poc
+        run: python3 test_validation.py
+
+      - name: Run D-suite (fast: units, parser, fixtures, CRB, M4)
+        working-directory: proton-magnetometer-autoresearch
+        run: |
+          python3 -m pytest tests/test_ngspice_layer.py \
+                             tests/test_fid_units.py \
+                             tests/test_crb_ensemble.py \
+                             tests/test_repeatability_m4.py -q
+
+      - name: Run D7 estimator reference locks
+        working-directory: proton-magnetometer-autoresearch
+        run: python3 -m pytest tests/test_estimator_reference.py -q
+
+      - name: Run D8 SPICE score-card regression
+        working-directory: proton-magnetometer-autoresearch
+        run: python3 -m pytest tests/test_circuit_spec_regression.py -q
+
+      - name: Run D11/D12 determinism + docs-vs-code
+        working-directory: proton-magnetometer-autoresearch
+        run: python3 -m pytest tests/test_determinism_docs.py -q
+
+  firmware:
+    # C-phase: portable C estimator core, host build + golden vectors (C1-C3)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build firmware core (host, float + fixed-point) and run tests
+        working-directory: proton-magnetometer-autoresearch
+        run: |
+          pip install numpy scipy
+          make -C firmware/core test CC=gcc

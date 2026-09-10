@@ -70,29 +70,33 @@ B [T] ──γ′p──> f_L [Hz] ──coil──> FID EMF [µV]
 Unit warnings (both v0.0 audits caught variants of this): 42.5764 **MHz/T**
 = 42.5764 **Hz/µT** = **0.0425764 Hz/nT** — not 42.5764 Hz/nT. And the
 42.577478 MHz/T often quoted is the **bare** proton; a water PPM measures the
-**shielded** proton, 42.57638507 MHz/T (CODATA) — 25.7 ppm lower, worth
+**shielded** proton, 42.57638474 MHz/T (CODATA 2018; the 2014 value
+42.57638507 differs by 7.8 ppb) — 25.7 ppm lower than the bare value, worth
 ~1.3 nT of scale bias at 50 µT if you use the wrong one for absolute values.
 `poc/fid.py` holds the single source of truth.
 
 **What the score means — the conditional headline.** The DSP result people
 quote from this repo ("~0.05 nT/cycle") is a *Cramér–Rao bound conditional on
 the assumed transducer amplitude*. The transducer model
-(`fid.estimate_v0`, Curie law: M₀ = n·µ_p²·B_pol/(3kT), EMF = µ₀·M₀·A·ω·N)
-says a Hook-Line-class coil (530 turns, 3 cm bore, 20 mT polarization)
-produces only **V₀ ≈ 0.14 µV** — not the 2 µV the first revision assumed.
-The honest grid (`run_scoring.py` §2, INA-class e_n, blanking 200 ms):
+(`fid.estimate_v0`, spin-1/2 Curie law: M₀ = n·µ_p²·B_pol/(kT) — 3× the
+classical Langevin n·µ_p²·B_pol/(3kT) an earlier revision coded; audit E6),
+EMF = µ₀·M₀·A·ω·N) says a Hook-Line-class coil (530 turns, 3 cm bore,
+20 mT polarization) produces **V₀ ≈ 0.41 µV** — not the 2 µV the first
+revision assumed. The honest grid (`run_scoring.py` §2, INA-class e_n,
+blanking 200 ms):
 
 | coil model | V₀ | CRB @ T2*=0.5 s | 1.5 s | 3.0 s |
 |---|---|---|---|---|
-| N=300, r=1.0 cm, 10 mT | 0.02 µV | 19.7 nT | 5.7 nT | 4.1 nT |
-| N=530, r=1.5 cm, 20 mT | 0.14 µV | 2.5 nT | **0.71 nT** | 0.51 nT |
-| N=1500, r=3.0 cm, 50 mT | 3.8 µV | 0.087 nT | 0.025 nT | 0.018 nT |
+| N=300, r=1.0 cm, 10 mT | 0.05 µV | 6.6 nT | 1.9 nT | 1.4 nT |
+| N=530, r=1.5 cm, 20 mT | 0.41 µV | 0.83 nT | **0.24 nT** | 0.17 nT |
+| N=1500, r=3.0 cm, 50 mT | 11.5 µV | 0.029 nT | 0.008 nT | 0.006 nT |
 
 Read this as: **the analog front end and the polarization chain decide the
-mission.** A small coil barely meets 1 nT/cycle; a large coil has 40× margin
-for the DSP. The first wet capture (week-2 problem 1) is what pins V₀ and
-T2*; treat 2 µV-class amplitudes as achievable only with the bigger
-coil/polarization row.
+mission.** A small coil has ~4× margin on 1 nT/cycle at T2* = 1.5 s but only
+~1.2× at T2* = 0.5 s (and none at 0.3 s); a large coil has 100× margin for
+the DSP. The first
+wet capture (week-2 problem 1) is what pins V₀ and T2*; treat 2 µV-class
+amplitudes as achievable only with the bigger coil/polarization row.
 
 ---
 
@@ -178,12 +182,21 @@ Per candidate netlist (ngspice, batch; implemented in `poc/circuit_spec.py`):
    (aliasing folding approximated by the full-band integral; noted residual).
 4. **Tuned vs untuned is a first-class axis** (v0.0 audit: it can reorder
    which amplifier is optimal). The demo scores untuned-INA, untuned-TL072,
-   and tuned-series-resonant-JFET candidates on the same harness. Measured
-   result (physics V₀, N_MC=150, zoom_fit):
-   untuned INA 0.731 nT; untuned TL072 **fails gross-error gate**; tuned JFET
-   0.0057 nT — the tuned input lifts signal and coil noise together relative
-   to amplifier noise, exactly as the Overhauser noise-modeling literature
-   predicts, and it *reorders* the amplifier ranking.
+   and tuned-series-resonant-JFET candidates on the same harness. The tuned
+   input is a real series-resonant tank (audit E6: an earlier revision put
+   `C_tune` in series toward the high-Z amp tap, Q collapsed to ~1e-3 and
+   the step-up vanished; corrected netlist: `C_tune` shunts the amp input
+   node — tank gain ≈ 61× loaded Q, τ_ring ≈ 11 ms). Measured result
+   (physics V₀, N_MC=150, zoom_fit, in-band σ):
+   untuned INA 0.251 nT; untuned TL072 0.645 nT; tuned JFET 0.027 nT — the
+   tuned input lifts signal and coil noise together relative to amplifier
+   noise, exactly as the Overhauser noise-modeling literature predicts, and
+   it *reorders* the amplifier ranking. The tuned JFET's J is limited by a
+   scored physical systematic (the fixed tank, detuned +2.0 Hz from f_L,
+   pulls the estimate +1.2 mHz — verified against an analytic Lorentzian;
+   the scoring path applies the chain causally from t = 0 and slices at
+   blanking), and its x100 preamp staging fails the clipping gate —
+   `preamp_gain` is a scored candidate axis.
 5. **Blanking/recovery as physics, not deleted samples** (v0.0 audit): the
    netlist carries a polarization-coupled current pulse (1 mA collapsing at
    400–500 µs); a `.tran` run measures the input network's ring-down decay
@@ -191,15 +204,18 @@ Per candidate netlist (ngspice, batch; implemented in `poc/circuit_spec.py`):
    `max(chosen, 5·τ_ring)` — gated to stay inside half of T2*. The
    information-theoretic blanking curve (below) complements this; it does
    not replace it.
-6. **Clipping gate**: peak ADC excursion (signal at H(f_L) + 6σ noise) vs
-   0.9·FS — irrelevant at today's gains, decisive once candidates vary gain.
+6. **Clipping gate**: peak ADC excursion vs 0.9·FS/2, enforced in the MC
+   (records clip at the rails before quantization) — irrelevant at today's
+   gains, decisive once candidates vary gain.
 7. **Monte Carlo tolerance sweep** via ngspice `.control` loops with
    `alter`/`sgauss` (no `.step` in ngspice); worst-case via corner limits —
    designed, not yet wired into the demo.
 
 Output: shaped noise σ_in, H(f) on the FFT grid, τ_ring — the numbers the DSP
 layer consumes. Standing validation: analytic coil+e_n integration matches
-ngspice `inoise_total` to <1% (regression-tested).
+ngspice `inoise_total` to <1% on this machine (0.65% measured for the INA
+candidate); regression-tested via the committed ngspice fixture
+(`tests/test_ngspice_layer.py`, D1/D9).
 
 **Known blind spots of the current score** (from the audits — the optimizer
 must not be run until these are scored): gain split/CMRR/PSRR/1-f/GBW,
@@ -229,7 +245,7 @@ Measured at the reference point (2 µV, T2* = 1.5 s, η_ps = 14.2 dB):
 
 | estimator | × CRB | gross >1 Hz | verdict |
 |---|---|---|---|
-| NLLS (staged, zoom-seeded) | reference | 1.5% | practical bound; 4-param LSQ is threshold-limited below ~15 dB |
+| NLLS (staged, zoom-seeded) | ~22 (conditioned runs; RMS incl. divergences is tail-dominated and chaotic) | 2% | practical reference; 4-param LSQ is threshold-limited below ~15 dB |
 | zoom/matched filter (exp-weighted, FIR-decimated) | 1.02 | 0% | **recommended** |
 | zero-padded FFT + log-parabolic | 1.05 | 0% | cheap fallback |
 | zero-crossing (interp crossings + WLS mean period) | ~3800 | 100% | **ruled out, in-repo regression** |
@@ -255,9 +271,18 @@ intuition suggests: 500 ms of blanking costs only ~1.2× in σ_f
 
 Per candidate estimator: RMS nT error and bias over an SNR × T2* × blanking
 matrix; gross-error rate `P(|err| > 1 Hz)` (gate < 1%); the M5 ablations —
-τ-misspecification (zoom at 0.5×/2× wrong τ: ≤1.05× CRB, measured), in-band
-narrowband interferers (60 Hz and its 30th harmonic at 1.8 kHz: ≤1.05× CRB at
-−40/−20 dB, measured), and the clock-ppm *deterministic* scale error (below);
+τ-misspecification (zoom at 0.5×/2× wrong τ: ≤1.07× CRB, measured), in-band
+narrowband tones (60 Hz and its 30th harmonic at 1.8 kHz: measured identical
+to baseline within MC — 1.8 kHz sits 329 Hz from f_L, outside zoom's ±20 Hz
+residual grid), comparator time-walk (B2, scored: zoom 0.049 → 0.89 nT with
+V_n = σ_in — the deterministic cost of a ZC front end), supply-rail ripple
+through PSRR (B3, scored: a 2.0 kHz buck ripple referred at 50/5 µV destroys
+the cycle by hijacking the coarse FFT seed — 3026 nT — while 0.5 µV referred
+(PSRR 100 dB) survives at 0.055 nT; design rule: referred ripple ≲ V₀
+requires PSRR ≳ 100 dB against 50 mV ripple), and the clock-ppm
+*deterministic* scale error (below); the 1/f and CMRR terms are analytic
+(`poc/systematics.py`: 1/f excess +0.31% in-band for a 10 Hz corner; 1 V
+common-mode at CMRR 100 dB → 10 µV referred — SPICE sees neither);
 phase randomized; common seeds; ~3.5% MC CI. Pass bar: ≤ 1.2× CRB, |bias|
 < 0.2·σ, gross < 1%.
 
@@ -358,7 +383,7 @@ physics loop, and not yet a layout/coupling simulator. Mapping:
 | 2. Leave breadboards; layout/EMI | Future KiCad backend with ERC/DRC gates | Pulse-to-receiver coupling, star grounding, shielding — layout physics are not in the score |
 | 3. Blanking knife-edge | Two halves: `.tran` ring-down τ (recovery physics, gated) + CRB-vs-blanking curve (bias long: 500 ms costs 1.2×) | Switch charge injection, snubber/dummy-coil design |
 | 4. Power rails, modular boards | Future KiCad backend + gates | Rail ripple inside the FID band is not modeled yet |
-| 5. Gain and noise budget | Directly scored (e_n AND i_n, real bandpass, tuned axis; TL072-class fails gates at physics V₀) | CMRR/PSRR, gain-split optimization, 1/f |
+| 5. Gain and noise budget | Directly scored (e_n AND i_n, real bandpass, real tuned tank, preamp_gain axis with a clipping gate) | CMRR/PSRR, gain-split optimization, 1/f (TODO B3/B4/B6) |
 | 6. Frequency-estimator precision | Estimator family scored against CRB in-repo; crossing family ruled out with a reproducible regression | Real-record validation still requires the wet capture |
 | 7. Coil geometry | Coil parameters (R, L, N, tuning C) are scored experiment axes; V₀ derived from the transducer model | Winding/sealing/housing engineering; V₀ anchoring |
 | 8. Schedule/procurement | Out of scope | — |

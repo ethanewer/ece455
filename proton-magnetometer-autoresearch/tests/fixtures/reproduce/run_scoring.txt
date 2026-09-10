@@ -1,0 +1,50 @@
+Input-referred RMS noise in band (500.0, 3500.0): 0.39 uV
+SNR conventions at the reference point: eta_ps (A_peak/sigma) = 14.2 dB | SNR_rms = 11.2 dB
+gamma'p = 0.0425764 Hz/nT (shielded proton in water; 1 Hz = 23.4872 nT)
+MC uncertainty on every sigma below: ~+/-3.5% (1-sigma, N=400)
+
+[1] Colored-noise CRB at the reference point: 0.0481 nT
+     estimator  RMS [nT]   xCRB  gross>1Hz
+      fft_peak    0.0503   1.05       0.0%
+      zoom_fit    0.0492   1.02       0.0%
+        zc_fit  182.8104 3803.33     100.0%
+      nlls_fit  396.9238 8257.92       2.0%
+
+[2] CRB [nT] on the physics V0 x T2* grid (estimate_v0; blanking 200 ms, INA-class e_n)
+    coil                          V0 [uV] T2*= 0.5s T2*= 1.5s T2*= 3.0s
+    N=300,  r=1.0cm, Bpol=10mT       0.05    6.556    1.885    1.360
+    N=530,  r=1.5cm, Bpol=20mT       0.41    0.825    0.237    0.171
+    N=1500, r=3.0cm, Bpol=50mT      11.47    0.029    0.008    0.006
+
+[3a] tau-misspec ablation (zoom_fit fed a WRONG tau; true tau = 1.5 s, 400 runs):
+    tau x0.5 : RMS = 0.0512 nT
+    tau x2.0 : RMS = 0.0493 nT
+
+[3b] In-band narrowband interferers (zoom_fit; input amplitude relative to V0):
+    60 Hz @ -20 dB (out of band)          : RMS = 0.0492 nT
+    1.8 kHz @ -40 dB (= 30th of 60 Hz)    : RMS = 0.0492 nT
+    1.8 kHz @ -20 dB                      : RMS = 0.0492 nT
+
+[3c] Sampling-clock scale error (deterministic bias; does NOT average down):
+                 clock  bias @ 50uT  bias @ 25uT
+      crystal +/-20ppm      1.000nT      0.500nT
+          TCXO +/-2ppm      0.100nT      0.050nT
+        TCXO +/-0.5ppm      0.025nT      0.013nT
+
+[3d] Comparator time-walk (crossing shift = V_n/(2 pi f A(t))), V_n = sigma_in = 0.39 uV; 400 runs):
+      zoom_fit with time-walk: RMS = 0.8924 nT (gross 0.0%)
+        zc_fit with time-walk: RMS = 182.4637 nT (gross 100.0%)
+
+[3e] Supply-rail ripple through PSRR and CMRR pickup (zoom_fit; 400 runs; reference V0 = 2 uV):
+    analytic budget: white 0.39 uV | 1/f excess +0.31% | CMRR 50Hz referred 10.0 uV | rail ripple referred 50.0 uV
+    buck 2.0 kHz, 50 mV @ PSRR 60 dB -> 50 uV : RMS = 3025.6034 nT
+    buck 2.0 kHz, 50 mV @ PSRR 80 dB -> 5 uV  : RMS = 3025.6034 nT
+    buck 2.0 kHz, 50 mV @ PSRR 100 dB -> 0.5 uV: RMS = 0.0498 nT
+
+[4] Blanking sweep (CRB + all estimators, reference V0):
+     blanking  CRB [nT]   fft_peak   zoom_fit     zc_fit   nlls_fit
+         50ms    0.0435     0.0427     0.0420   145.6591    17.7853
+        100ms    0.0450     0.0447     0.0439   155.9193   128.0009
+        200ms    0.0481     0.0503     0.0492   182.8104   396.9238
+        300ms    0.0514     0.0538     0.0526   215.9387   151.5688
+        500ms    0.0587     0.0580     0.0570   304.7393   273.9111

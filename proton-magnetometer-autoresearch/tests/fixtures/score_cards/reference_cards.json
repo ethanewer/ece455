@@ -1,0 +1,71 @@
+[
+ {
+  "spec": "untuned + INA828-class (7 nV, 170 fA)",
+  "v0_uV": 0.40536364675293185,
+  "sigma_in_uV": 0.7130115952003588,
+  "sigma_in_band_uV": 0.39236709317738006,
+  "gain_fl": 4770.526493853061,
+  "tau_ring_ms": 0.43590160408872214,
+  "blank_eff_ms": 200.0,
+  "snr_rms_db": -7.915335840826745,
+  "snr_rms_band_db": -2.7272555315948694,
+  "crb_nt": 0.23790959823349864,
+  "rms_zoom_fit": 0.2504757958898141,
+  "gross_zoom_fit": 0.0,
+  "rms_zc_fit": 8757.546018145153,
+  "gross_zc_fit": 1.0,
+  "clip_margin": 0.006544325086805555,
+  "gates": {
+   "no_clipping": true,
+   "recovery_inside_blanking": true,
+   "gross_errors": true
+  },
+  "J_nt": 0.2504757958898141
+ },
+ {
+  "spec": "untuned + TL072-class (18 nV)",
+  "v0_uV": 0.40536364675293185,
+  "sigma_in_uV": 1.7972337804271135,
+  "sigma_in_band_uV": 0.989159600161047,
+  "gain_fl": 4795.573938557551,
+  "tau_ring_ms": 0.4470694154999124,
+  "blank_eff_ms": 200.0,
+  "snr_rms_db": -15.945495448300465,
+  "snr_rms_band_db": -10.758731397005963,
+  "crb_nt": 0.5998295792381002,
+  "rms_zoom_fit": 0.6449571503292036,
+  "gross_zoom_fit": 0.0,
+  "rms_zc_fit": 11581.263628987457,
+  "gross_zc_fit": 1.0,
+  "clip_margin": 0.015665690104166664,
+  "gates": {
+   "no_clipping": true,
+   "recovery_inside_blanking": true,
+   "gross_errors": true
+  },
+  "J_nt": 0.6449571503292036
+ },
+ {
+  "spec": "tuned series-resonant + JFET (1.4 nV, 0.1 pA)",
+  "v0_uV": 11.472556040177317,
+  "sigma_in_uV": 3.0905034534921234,
+  "sigma_in_band_uV": 0.19193341578006887,
+  "gain_fl": 12056.38359104489,
+  "tau_ring_ms": 11.149205954334418,
+  "blank_eff_ms": 200.0,
+  "snr_rms_db": 8.382319134266197,
+  "snr_rms_band_db": 32.519891951349976,
+  "crb_nt": 0.0009545041361871529,
+  "rms_zoom_fit": 0.0269103783268185,
+  "gross_zoom_fit": 0.0,
+  "rms_zc_fit": 0.9899901432127699,
+  "gross_zc_fit": 0.0,
+  "clip_margin": 0.0973171657986111,
+  "gates": {
+   "no_clipping": true,
+   "recovery_inside_blanking": true,
+   "gross_errors": true
+  },
+  "J_nt": 0.0269103783268185
+ }
+]

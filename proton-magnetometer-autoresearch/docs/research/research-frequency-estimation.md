@@ -48,8 +48,9 @@ t₀ = −(N−1)/2 trick); omitting it is optimistic by up to 2×. Limiting cas
   (matches [RASER-NMR scaling](https://doi.org/10.1007/s00723-023-01597-w),
   [arXiv:1305.3676](https://ar5iv.labs.arxiv.org/html/1305.3676) — note that
   source's Eq. 25 differs only by a √2 convention factor).
-- Record ≪ τ: var(f̂) = 24σ²/(A²Δ²N(N²−1)) — exactly 2× the Rife–Boorstyn
-  complex-tone bound (real tone = half the information):
+- Record ≪ τ: var(ω̂) = 24σ²/(A²Δ²N(N²−1)) on **angular** frequency — exactly
+  2× the Rife–Boorstyn complex-tone bound (real tone = half the information);
+  in Hz, var(f̂) = 24σ²/(A²(2π)²Δ²N(N²−1)) —
   [Rife & Boorstyn 1974](https://doi.org/10.1109/TIT.1974.1055282)
 - Frequency information is weighted by **t²·e^(−2t/τ)** — concentrated *late*
   in the record, so dead time hurts less than expected, but the late low-SNR
