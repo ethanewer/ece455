@@ -28,15 +28,25 @@ the score as a hardware objective until F2 anchors the coil model.
   — white CRB vs Rife–Boorstyn closed form, colored CRB vs an independent
   dense-covariance Fisher, estimator-vs-bound, γp constants.
 
-## Run the PoC
+## Run the pipeline
 
 ```sh
-brew install ngspice          # once
+pip install -r requirements.txt   # (or python3.12 -m venv .venv for skidl)
+brew install ngspice              # once
 cd poc
-python3 test_validation.py    # ~1 min: bound/estimator regression tests
-python3 run_scoring.py        # CRB validation, V0xT2* grid, ablations
-python3 circuit_spec.py       # JSON circuit spec -> ngspice -> J (nT)
+python3 test_validation.py        # ~1 min: bound/estimator regression tests
+python3 run_scoring.py            # CRB validation, V0xT2* grid, ablations
+python3 circuit_spec.py           # SPICE candidates -> J (nT)
+python3 circuit_spec.py --bsweep  # B8: score across 25-65 uT
+
+cd ..                             # standing verification suite
+python3 -m pytest tests/ -q       # D-suite + gates + exploitability canary
+make -C firmware/core test        # C core: golden vectors + sensitivity job
+python3 tools/reproduce.py        # D4/D11/D12: regenerate + diff fixtures/docs
 ```
+
+The optimizer entry point and the pre-GO gate checklist live in
+[`docs/runbook.md`](docs/runbook.md).
 
 ## Results snapshot
 

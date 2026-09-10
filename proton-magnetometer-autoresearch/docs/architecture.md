@@ -8,12 +8,15 @@ estimate. Goal sensitivity: **< 1 nT per cycle ⇒ frequency precision
 < 0.0426 Hz** (shielded-proton γ′p = 0.0425764 Hz/nT) on a 1–3 kHz decaying
 sinusoid of µV amplitude.
 
-**Status: scoring prototype.** What exists and runs today is the objective
-function and its three evaluation layers (below), validated by regression
-tests (`poc/test_validation.py`). The optimizer loop, part database, SKiDL→KiCad
-backend, and C firmware core are designed but not built — do not start a
-search agent on the PoC score alone; it is honest about noise but still blind
-to several real failure modes (see §2.1 caveats and §4).
+**Status: gated pre-optimizer.** The objective function and its three
+evaluation layers (below), the frozen circuit IR, the SPICE and KiCad
+backends (ERC/DRC machine gates), the parts DB, the score-guided optimizer
+skeleton, and the portable C estimator core (float + fixed, emulator-checked)
+all exist and run, under the standing regression suite in `tests/` and CI.
+The E3 deep audit's verified blind spots are fixed (V₀↔coil coupling,
+rail-ripple gate, causal `.tran` impulse response); the score is a validated
+noise/CRB prior but NOT yet a hardware objective until the bench capture
+anchors the coil model (see docs/runbook.md for the remaining pre-GO gates).
 
 This document answers the two framing questions for the `autoresearch` branch:
 
@@ -188,15 +191,13 @@ Per candidate netlist (ngspice, batch; implemented in `poc/circuit_spec.py`):
    the step-up vanished; corrected netlist: `C_tune` shunts the amp input
    node — tank gain ≈ 61× loaded Q, τ_ring ≈ 11 ms). Measured result
    (physics V₀, N_MC=150, zoom_fit, in-band σ):
-   untuned INA 0.251 nT; untuned TL072 0.645 nT; tuned JFET 0.027 nT — the
-   tuned input lifts signal and coil noise together relative to amplifier
-   noise, exactly as the Overhauser noise-modeling literature predicts, and
-   it *reorders* the amplifier ranking. The tuned JFET's J is limited by a
-   scored physical systematic (the fixed tank, detuned +2.0 Hz from f_L,
-   pulls the estimate +1.2 mHz — verified against an analytic Lorentzian;
-   the scoring path applies the chain causally from t = 0 and slices at
-   blanking), and its x100 preamp staging fails the clipping gate —
-   `preamp_gain` is a scored candidate axis.
+   untuned INA / TL072 both fail the rail-ripple gate (referred buck
+   ripple ≳ V₀ hijacks the coarse FFT seed); tuned JFET J = 0.0010 nT =
+   its CRB. The scoring path's impulse response is the SPICE `.tran`
+   ground-truth kernel (causal; earlier mag/phase interpolations produced
+   +1.2 mHz and +16.5 mHz artifacts an optimizer would have ground
+   against). `preamp_gain` is a scored candidate axis — the tuned tank's
+   step-up fails the x100 staging on clipping.
 5. **Blanking/recovery as physics, not deleted samples** (v0.0 audit): the
    netlist carries a polarization-coupled current pulse (1 mA collapsing at
    400–500 µs); a `.tran` run measures the input network's ring-down decay
@@ -207,9 +208,12 @@ Per candidate netlist (ngspice, batch; implemented in `poc/circuit_spec.py`):
 6. **Clipping gate**: peak ADC excursion vs 0.9·FS/2, enforced in the MC
    (records clip at the rails before quantization) — irrelevant at today's
    gains, decisive once candidates vary gain.
-7. **Monte Carlo tolerance sweep** via ngspice `.control` loops with
-   `alter`/`sgauss` (no `.step` in ngspice); worst-case via corner limits —
-   designed, not yet wired into the demo.
+7. **Monte Carlo tolerance sweep** — implemented (`tolerance_sweep()`):
+   one ngspice process, `.control` loop with `alter`/`sgauss`/`setseed`
+   (no `.step` in ngspice), per-iteration in-band spectrum integrated in
+   Python (two ngspice quirks found by probe: `noise2`'s integrated scalar
+   is stale inside control loops, and re-runs need `destroy all`); the
+   card reports the p95 CRB at 2σ tolerances (R 1%, C 5%, L 10%).
 
 Output: shaped noise σ_in, H(f) on the FFT grid, τ_ring — the numbers the DSP
 layer consumes. Standing validation: analytic coil+e_n integration matches
