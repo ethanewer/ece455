@@ -170,9 +170,10 @@ hand calculation, docs-vs-code numbers, and output determinism.
 
 ## E. Auditing — external-review skill, before the optimizer starts
 
-- [ ] **E0 [no-API]** Smoke test the reviewer CLI once (`cursor-agent -p -f
+- [x] **E0 [no-API]** Smoke test the reviewer CLI once (`cursor-agent -p -f
   --trust --workspace /Users/ethanewer/ece455 "reply OK"`). If this needs a
   login/key, reclassify E1–E3 as **[API]** and do it before anything else.
+  *Done 2026-09-10: CLI authenticated, replied "OK"; reviews stay [no-API].*
 - [ ] **E1 [no-API]** Review 1 (bugbot) on the diff before every commit in
   phases A–C (separate invocation; never combined with Review 2).
 - [ ] **E2 [no-API]** Review 2 (scientific correctness) on every diff that
@@ -226,12 +227,19 @@ hand calculation, docs-vs-code numbers, and output determinism.
 
 ## H. Repo housekeeping (do first — cheapest, removes ambiguity)
 
-- [ ] **H1 [no-API]** Add a LICENSE (the docs claim "open source end to end";
+- [x] **H1 [no-API]** Add a LICENSE (the docs claim "open source end to end";
   the repo itself has none — pick MIT or GPL to match the SKiDL/KiCad stack).
-- [ ] **H2 [no-API]** Resolve untracked files: `.claude/`, `.codex/`, `.pi/`,
+  *Done: MIT at `proton-magnetometer-autoresearch/LICENSE` (matches SKiDL/MIT
+  core IR, compatible with BSD ngspice + GPL KiCad used as external tools).
+  Sits next to the architecture doc that makes the open-source claim, not at
+  the workspace root, because the root also holds third-party PDFs
+  (past-work/, resources/) this license must not cover.*
+- [x] **H2 [no-API]** Resolve untracked files: `.claude/`, `.codex/`, `.pi/`,
   `AGENTS.md`, `CLAUDE.md` — commit the harness config deliberately or extend
   `.gitignore`; ambiguous workspace state breaks reproducibility claims
   (D11's "clean checkout" needs a defined tree).
+  *Done (was already satisfied on `autoresearch`): all harness files tracked,
+  symlinks relative (`../../.pi/skills/external-review`), `git status` clean.*
 
 ---
 
