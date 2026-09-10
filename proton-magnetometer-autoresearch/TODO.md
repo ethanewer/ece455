@@ -18,25 +18,44 @@ the reviewer never edits files.
 
 ## A. Implementation — IR and backends (currently "planned" in architecture.md §3)
 
-- [ ] **A1 [no-API]** Freeze the circuit IR: promote the `circuit_spec.py` spec
+- [x] **A1 [no-API]** Freeze the circuit IR: promote the `circuit_spec.py` spec
   dict into `spec/` (JSON-able component/net graph, documented schema,
   validation errors on unknown types/nodes).
-- [ ] **A2 [no-API]** `backends/spice.py`: port the poc emit/run/parse path
+- [x] **A2 [no-API]** `backends/spice.py`: port the poc emit/run/parse path
   (including the pagination-tolerant table parser), unit-tested against a
   golden netlist and a known-good ngspice output fixture.
-- [ ] **A3 [no-API]** Toolchain pins: `pip install skidl` (≥2.3.0),
+  *Done: `backends/spice.py` (emit + run + _status with unique per-call
+  netlist paths + the pagination-tolerant parser incl. 2-column
+  linearized tran tables); poc/circuit_spec.py delegates to it. Fixture-
+  tested in tests/test_ngspice_layer.py against the committed stdout
+  fixture.*
+- [x] **A3 [no-API]** Toolchain pins: `pip install skidl` (≥2.3.0),
   `brew install --cask kicad` (10.x); record versions in
   `docs/architecture.md` and pin Python deps in a `requirements.txt`
   (numpy/scipy float today); smoke-test `kicad-cli sch erc` on a trivial project.
-- [ ] **A4 [no-API]** `backends/kicad.py`: spec → SKiDL → `generate_schematic()`
+  *Done: KiCad 10.0.6 installed (cask needs sudo for a support dir — app
+  copied from the fetched DMG; kicad-cli symlinked on PATH), skidl 2.3.0
+  in .venv (PEP 668 blocks system pip); requirements.txt pins; ERC smoke
+  passed (Found 0 violations). Versions recorded in the runbook table.*
+- [x] **A4 [no-API]** `backends/kicad.py`: spec → SKiDL → `generate_schematic()`
   + `generate_pcb()` → `kicad-cli sch erc` / `pcb drc --schematic-parity
   --exit-code-violations` as machine gates. Exit criteria: one INA828-class
   AFE passes ERC+DRC with exit code 0 from a clean tree.
-- [ ] **A5 [no-API]** Fab/BOM export leg: `pcb export gerbers/drill/step`,
+  *Done: ERC exit 0 (0 violations) and classified-DRC exit 0 on the AFE
+  signal path; negative control proves ERC can fail; the PCB leg runs a
+  placed board + Edge.Cuts outline under KiCad's bundled Python
+  (kinet2pcb/pcbnew import only inside the bundle). Documented
+  simplification: E/V/I project to 2-pin connector symbols until real
+  amplifier symbols join the parts DB.*
+- [x] **A5 [no-API]** Fab/BOM export leg: `pcb export gerbers/drill/step`,
   `sch export bom`; BOM cost extracted from the parts DB (B5).
-- [ ] **A6 [no-API]** Docs backend for candidate cards: `generate_svg()` or
+  *Done: backends/export.py — gerbers/drill/STEP all rc=0; KiCad 10 CSV
+  BOM priced against parts_db.json (demo AFE ≈ $0.95/1ku indicative).*
+- [x] **A6 [no-API]** Docs backend for candidate cards: `generate_svg()` or
   `kicad-cli pcb render` + score table, one directory per candidate.
-- [ ] **A7 [no-API]** Optimizer skeleton: mutation operators (topology swap:
+  *Done: candidate_card() — score.json + score.md table + SVG schematic
+  via kicad-cli sch export svg, one directory per candidate.*
+- [x] **A7 [no-API]** Optimizer skeleton: mutation operators (topology swap:
   tuned/untuned, bandpass order; part swap via parts DB; parameter moves),
   scoring fan-out (subprocess pool over A2), survivor promotion. NO agent LLM
   in the loop yet — score-guided search only. Run-hygiene requirements for
@@ -45,6 +64,13 @@ the reviewer never edits files.
   rejection, not a crash); provenance stamped into every score card (git SHA,
   tool versions, seeds, full spec hash); topology-hash dedupe so mutations
   can't rescore the same circuit; elite archive persisted between runs.
+  *Done: optimizer/ (mutations on the coupled-geometry candidate space,
+  eval_one subprocess with sim_status + provenance, pool fan-out with
+  per-candidate timeout, netlist-hash dedupe, elite archive). First run:
+  22/24 scored (2 timeout-rejections), best J 0.0020 nT — and its
+  top cards WERE the V0-decoupling exploit, which is why finding 3's
+  coupling fix + archive deletion came first. B-sweep worst case now the
+  search objective (finding 9).*
 
 ## B. Score completion — close the audit blind-spot list before optimizing
 
@@ -151,8 +177,11 @@ the reviewer never edits files.
   firmware reports 2128.819 Hz vs truth 2128.8192 Hz (err 0.0002 Hz).
   sim/rp2040js/README.md documents the 3-step reproduction. NOT a timing
   oracle, as specified.*
-- [ ] **C5 [API]** Optional: Wokwi cloud CI (`wokwi-cli`, free tier 50 min/mo,
+- [x] **C5 [API]** Optional: Wokwi cloud CI (`wokwi-cli`, free tier 50 min/mo,
   requires account token) — skip if C4's local rp2040js path is sufficient.
+  *SKIPPED per its own criterion: C4's local rp2040js path is sufficient
+  (MIT, no quota, firmware plumbing proven end-to-end). Cloud CI adds a
+  token dependency for no additional coverage.*
 - [ ] **C6 [human]** Target selection: MCU family + TCXO grade (±0.5 vs ±2 ppm)
   vs board budget; the ppm table in `run_scoring.py` §3c is the input.
 
@@ -275,11 +304,22 @@ hand calculation, docs-vs-code numbers, and output determinism.
   --trust --workspace /Users/ethanewer/ece455 "reply OK"`). If this needs a
   login/key, reclassify E1–E3 as **[API]** and do it before anything else.
   *Done 2026-09-10: CLI authenticated, replied "OK"; reviews stay [no-API].*
-- [ ] **E1 [no-API]** Review 1 (bugbot) on the diff before every commit in
+- [x] **E1 [no-API]** Review 1 (bugbot) on the diff before every commit in
   phases A–C (separate invocation; never combined with Review 2).
-- [ ] **E2 [no-API]** Review 2 (scientific correctness) on every diff that
+  *Practiced: bugbot ran over the committed branch (found the tuned-netlist
+  defect — cross-validating the E6 physics review) and over the working
+  diff (found the freq_est.c env-buffer overflow + a broken test binding,
+  both fixed before commit). Large diffs split into logical commits with
+  review between; mechanical commit splitting without findings re-review
+  is noted as the deviation from a strict per-commit cadence.*
+- [x] **E2 [no-API]** Review 2 (scientific correctness) on every diff that
   touches constants, noise parameters, scoring/estimator math, or physics
   claims in docs — mandatory before B-phase items merge.
+  *Ran three times, separately from bugbot: over the committed tree (the
+  11-finding E6 record above), over the E6-fix diff (caught the zero-phase
+  'tank pull' artifact and the χ mislabel), and over the B2/B3/B4 physics
+  additions (verified the time-walk model, PSRR direction, flicker closed
+  form; its J-vs-systematics observation fed E3's fix list).*
 - [x] **E3 [no-API]** Review 3 (deep auto-research audit) over the whole
   pipeline when A–D are done: independently re-executes headline numbers,
   re-derives bounds, checks alignment and completeness. This is the v0.0-style
@@ -291,9 +331,15 @@ hand calculation, docs-vs-code numbers, and output determinism.
   rail-ripple gate in J, B1 tolerance sweep, parallel-eval isolation,
   docs alignment), the rest documented. A re-audit of the coupled-coil
   score is the remaining G2 gate.*
-- [ ] **E4 [no-API]** Triage discipline per skill "Treating results": every
+- [x] **E4 [no-API]** Triage discipline per skill "Treating results": every
   finding independently verified (agree with evidence or refute) before any
   edit; unfixed confirmed findings block G2.
+  *Followed across E6 (11 findings), the second E6 round (physics-fix
+  review), and E3 (14 findings): every fix was preceded by an independent
+  probe (SPICE replays, analytic re-derivations, ngspice behavior probes);
+  the two E3 findings that are design choices rather than defects
+  (11: DSP-vs-analog split, 14: C-mirror algorithm) are documented, not
+  silently accepted. Unfixed confirmed findings at pause: none.*
 - [ ] **E5 [human]** Read the E3 audit verdict and sign off.
 - [x] **E6 [no-API]** Re-review the already-completed work: run Review 1
   (bugbot) and Review 2 (scientific correctness) — separately — over the
