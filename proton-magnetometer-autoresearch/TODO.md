@@ -197,6 +197,20 @@ the reviewer never edits files.
 - [ ] **D6 [human]** Accept the transducer model (V₀ from `estimate_v0`) as
   the interim anchor until F1 pins it, or supply measured coil values.
 
+### Pause-point status (2026-09-10, session end)
+
+Tree state at pause: E3 audit triaged and its 9 code findings fixed; B1
+implemented and verified; fixtures regenerated for the final physics; full
+suite 50/51 green with ONE known flake —
+`test_determinism_docs.py::test_run_scoring_byte_identical` passed when
+`run_scoring.py` runs standalone (nlls raw RMS reproduces 396.9238 = the
+committed fixture with single-threaded BLAS pinned) but failed inside one
+14-min pytest run where concurrent suite jobs were fighting for CPU.
+The nlls *conditioned* statistic is stable (20.41×CRB both ways); only the
+tail-dominated raw RMS flips. Next session: re-verify the byte-identity in
+isolation (the direct run already reproduces it), then the G2 gate list in
+docs/runbook.md §1 applies.
+
 ### D+. Full verification of completed work (the audit-fix round)
 
 The v0.0 audits were run against the *pre-fix* tree; the fix commit
