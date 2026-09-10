@@ -1,0 +1,116 @@
+ERC report (2026-09-10T04:12:17, Encoding UTF8)
+Report includes: Errors, Warnings
+
+***** Sheet /
+[lib_symbol_issues]: The current configuration does not include the symbol library 'power'
+    ; warning
+    @(106.68 mm, 105.41 mm): Symbol #FLG1 [PWR_FLAG]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'power'
+    ; warning
+    @(106.68 mm, 105.41 mm): Symbol #PWR005 [GND]
+[endpoint_off_grid]: Symbol pin or wire end off connection grid
+    ; warning
+    @(118.11 mm, 102.87 mm): Horizontal Wire, length 6.60 mm
+[endpoint_off_grid]: Symbol pin or wire end off connection grid
+    ; warning
+    @(124.71 mm, 104.14 mm): Vertical Wire, length 1.27 mm
+[endpoint_off_grid]: Symbol pin or wire end off connection grid
+    ; warning
+    @(124.71 mm, 104.14 mm): Horizontal Wire, length 1.02 mm
+[footprint_link_issues]: The current configuration does not include the footprint library 'Resistor_SMD'
+    ; warning
+    @(125.73 mm, 99.06 mm): Symbol Rcoil [R]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Device'
+    ; warning
+    @(125.73 mm, 99.06 mm): Symbol Rcoil [R]
+[footprint_link_issues]: The current configuration does not include the footprint library 'Inductor_SMD'
+    ; warning
+    @(125.73 mm, 111.76 mm): Symbol Lcoil [L]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Device'
+    ; warning
+    @(125.73 mm, 111.76 mm): Symbol Lcoil [L]
+[multiple_net_names]: Both fid and nc are attached to the same items; fid will be used in the netlist
+    ; warning
+    @(125.73 mm, 119.38 mm): Global Label 'fid'
+    @(130.81 mm, 102.87 mm): Global Label 'nc'
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Connector'
+    ; warning
+    @(139.70 mm, 115.57 mm): Symbol Ebp [Conn_01x02_Pin]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Connector'
+    ; warning
+    @(143.51 mm, 82.55 mm): Symbol E1 [Conn_01x02_Pin]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'power'
+    ; warning
+    @(144.78 mm, 113.03 mm): Symbol #PWR004 [GND]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'power'
+    ; warning
+    @(148.59 mm, 85.09 mm): Symbol #PWR001 [GND]
+[footprint_link_issues]: The current configuration does not include the footprint library 'Capacitor_SMD'
+    ; warning
+    @(154.94 mm, 100.33 mm): Symbol C1 [C]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Device'
+    ; warning
+    @(154.94 mm, 100.33 mm): Symbol C1 [C]
+[footprint_link_issues]: The current configuration does not include the footprint library 'Resistor_SMD'
+    ; warning
+    @(156.21 mm, 113.03 mm): Symbol R3 [R]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Device'
+    ; warning
+    @(156.21 mm, 113.03 mm): Symbol R3 [R]
+[isolated_pin_label]: Label connected to only one pin
+    ; warning
+    @(157.48 mm, 105.41 mm): Global Label 'naa'
+[footprint_link_issues]: The current configuration does not include the footprint library 'Resistor_SMD'
+    ; warning
+    @(157.48 mm, 125.73 mm): Symbol Raa [R]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Device'
+    ; warning
+    @(157.48 mm, 125.73 mm): Symbol Raa [R]
+[footprint_link_issues]: The current configuration does not include the footprint library 'Resistor_SMD'
+    ; warning
+    @(158.75 mm, 87.63 mm): Symbol R1 [R]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Device'
+    ; warning
+    @(158.75 mm, 87.63 mm): Symbol R1 [R]
+[footprint_link_issues]: The current configuration does not include the footprint library 'Capacitor_SMD'
+    ; warning
+    @(162.56 mm, 106.68 mm): Symbol C2 [C]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Device'
+    ; warning
+    @(162.56 mm, 106.68 mm): Symbol C2 [C]
+[footprint_link_issues]: The current configuration does not include the footprint library 'Resistor_SMD'
+    ; warning
+    @(165.10 mm, 97.79 mm): Symbol R2 [R]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Device'
+    ; warning
+    @(165.10 mm, 97.79 mm): Symbol R2 [R]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'power'
+    ; warning
+    @(168.91 mm, 97.79 mm): Symbol #PWR003 [GND]
+[footprint_link_issues]: The current configuration does not include the footprint library 'Resistor_SMD'
+    ; warning
+    @(191.77 mm, 102.87 mm): Symbol Rnoise [R]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Device'
+    ; warning
+    @(191.77 mm, 102.87 mm): Symbol Rnoise [R]
+[footprint_link_issues]: The current configuration does not include the footprint library 'Resistor_SMD'
+    ; warning
+    @(191.77 mm, 115.57 mm): Symbol Rin [R]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'Device'
+    ; warning
+    @(191.77 mm, 115.57 mm): Symbol Rin [R]
+[lib_symbol_issues]: The current configuration does not include the symbol library 'power'
+    ; warning
+    @(191.77 mm, 119.38 mm): Symbol #PWR002 [GND]
+[multiple_net_names]: Both np and nq are attached to the same items; np will be used in the netlist
+    ; warning
+    @(196.85 mm, 109.22 mm): Global Label 'np'
+    @(191.77 mm, 127.00 mm): Global Label 'nq'
+
+ ** ERC messages: 34  Errors 0  Warnings 34
+
+ ** Ignored checks:
+    - Global label only appears once in the schematic
+    - Four connection points are joined together
+    - SPICE model issue
+    - Assigned footprint doesn't match footprint filters

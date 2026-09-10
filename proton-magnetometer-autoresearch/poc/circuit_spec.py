@@ -239,7 +239,12 @@ def simulate(spec: dict) -> dict:
     columns. The B-sweep (B8) reuses one simulate() across the field
     range -- per-unit responses do not depend on B."""
     out = run_ngspice(emit_netlist(spec))
-    tabs = parse_tables(out)
+    return simulate_from_tabs(spec, parse_tables(out))
+
+
+def simulate_from_tabs(spec: dict, tabs: dict) -> dict:
+    """Build the simulation dict from already-parsed ngspice tables (the
+    optimizer's evaluator runs ngspice itself for sim_status capture)."""
     ac_tab = tabs["vm(adc)"]
     n_tab = tabs["inoise_spectrum"]
     f_h, mag_h = ac_tab
