@@ -32,6 +32,16 @@ import re
 import subprocess
 from pathlib import Path
 
+import os
+# Reproducibility (D11): BLAS thread scheduling makes scipy least_squares
+# trajectories non-deterministic run-to-run (the nlls divergence tail flips
+# which near-threshold records diverge -> raw RMS 397 vs 436 nT on the same
+# tree). Pin single-threaded BLAS before numpy loads; the physics is
+# unaffected and the printed tables become byte-stable.
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+           "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
 import numpy as np
 
 import crb
@@ -753,8 +763,16 @@ def main():
               f"zc={r['rms_zc_fit']:.4f}nT  clip={r['clip_margin']:.2f}")
         print(f"  gates: {g}   J = {r['J_nt']:.4f} nT\n")
     if dump_json:
-        # D8 fixture: full score card per candidate, for regression tests.
-        print(json.dumps(rows, indent=1))
+        # D8/D11 fixture: full score card per candidate. Floats are rounded
+        # to 12 significant digits: the .tran impulse response's adaptive
+        # solver lands on ULP-level different internal grids run-to-run,
+        # and byte-identity (D11) needs a stable textual form.
+        def _round(v):
+            if isinstance(v, float) and v == v and v not in (float("inf"),):
+                return float(f"{v:.12g}")
+            return v
+        rows_out = [{k: _round(v) for k, v in r.items()} for r in rows]
+        print(json.dumps(rows_out, indent=1))
 
     if "--bsweep" in sys.argv:
         # B8: score across the operating field range. One simulate() per

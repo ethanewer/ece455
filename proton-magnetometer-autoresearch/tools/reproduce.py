@@ -133,12 +133,14 @@ def check_docs(rs_out=None, cs_rows=None):
     for card in cs_rows:
         fam = card["spec"].split(" + ")[0]
         m = re.search(rf"\|\s*{re.escape(fam)}[^|]*\|\s*([\d.]+) µV \| "
-                      rf"([\d.]+) nV \| ([\d.+-]+) dB \| ([\d.]+) ms \| "
+                      rf"([\d.]+) nV \| [\d.+−-]+ dB \| ([\d.]+) ms \| "
                       rf"([^|]+)\|", text)
         if m is None:
             errors.append("docs: analog table row for %s not parsed" % fam)
             continue
-        j_raw = m.group(5).strip().strip("*")
+        j_raw = m.group(4).strip().strip("*")
+        j_raw = re.sub(r"\s*\(= CRB\)\s*$", "", j_raw).strip()  # annotation
+        j_raw = j_raw.removesuffix(" nT").strip()          # unit column text
         if "fails" in j_raw or "gate" in j_raw:
             # the doc row reports a gated-out candidate: the fixture card
             # must agree (J = inf) and the failing gate must be named
@@ -155,10 +157,9 @@ def check_docs(rs_out=None, cs_rows=None):
             errors.append("docs: analog J cell for %s unparsable: %r"
                           % (fam, j_raw))
             continue
-        v0_doc, sigma_doc, tau_doc, j_doc = (float(m.group(1)),
-                                             float(m.group(2)),
-                                             float(m.group(4)),
-                                             float(m.group(5)))
+        v0_doc, sigma_doc, tau_doc = (float(m.group(1)), float(m.group(2)),
+                                      float(m.group(3)))
+        j_doc = float(j_raw)
         if abs(v0_doc - card["v0_uV"]) > 0.02 * card["v0_uV"]:
             errors.append("docs V0 %s vs code %.2f" % (v0_doc, card["v0_uV"]))
         sigma_ref = card["sigma_in_band_uV"] * 1e3

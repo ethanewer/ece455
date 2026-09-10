@@ -21,6 +21,16 @@ Sections (post-audit-v0.0):
 
 Usage:  python3 run_scoring.py
 """
+import os
+# Reproducibility (D11): BLAS thread scheduling makes scipy least_squares
+# trajectories non-deterministic run-to-run (the nlls divergence tail flips
+# which near-threshold records diverge -> raw RMS 397 vs 436 nT on the same
+# tree). Pin single-threaded BLAS before numpy loads; the physics is
+# unaffected and the printed tables become byte-stable.
+for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
+           "NUMEXPR_NUM_THREADS"):
+    os.environ.setdefault(_v, "1")
+
 import numpy as np
 
 import crb
