@@ -38,7 +38,9 @@ extern "C" {
 #define FE_FIR_TAPS    33     /* FIR lowpass length (odd)                 */
 #define FE_SPAN_HZ     20.0   /* residual scan half-span [Hz]             */
 #define FE_STEP_HZ     0.02   /* residual grid step [Hz]                  */
-#define FE_SEED_WINDOW 8192   /* coarse-seed window [samples]             */
+#ifndef FE_SEED_WINDOW
+#define FE_SEED_WINDOW 8192
+#endif   /* coarse-seed window [samples]             */
 #define FE_MAX_N       (FE_SEED_WINDOW * 4)   /* 32768 samples max  */
 
 /*
