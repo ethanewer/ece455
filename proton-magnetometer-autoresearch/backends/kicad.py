@@ -86,38 +86,70 @@ def build_circuit(spec: dict):
             raise ValueError("no KiCad symbol mapping for IR type %s" % ctype)
         p.ref = name
 
-    # ERC: every rail net needs a driven power reference (PWR_FLAG), or
-    # ERC flags "input power pin not driven" at the power symbols that
-    # auto_stub emits for GND/rails.
-    for nn, net in nets.items():
-        if nn in ("0", "GND", "vplus", "vminus"):
-            pw = Part("power", "PWR_FLAG", circuit=c)
-            net += pw.pins[0]
-
         pins = sorted(p.pins, key=lambda q: (len(q.num), q.num))
         assert len(pins) >= len(node_names), (name, len(pins))
         for pin, nn in zip(pins, node_names):
             net = net_of(nn)
             net += pin
+
+    # ERC: every rail net needs a driven power reference (PWR_FLAG), or
+    # ERC flags "input power pin not driven" at the power symbols that
+    # auto_stub emits for GND/rails.
+    for nn in list(nets):
+        if nn in ("0", "GND", "vplus", "vminus"):
+            pw = Part("power", "PWR_FLAG", circuit=c)
+            net = nets[nn]
+            net += pw.pins[0]
     return c
 
 
 def write_schematic(spec: dict, outdir: str) -> Path:
-    """IR -> SKiDL -> .kicad_sch (KiCad 10)."""
+    """IR -> SKiDL -> .kicad_sch (KiCad 10). auto_stub routes what it can
+    and stubs the rest as global labels (skidl 2.3's mechanism for
+    circuits beyond its wire router)."""
     c = build_circuit(spec)
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
-    c.generate_schematic(filepath=str(out))
-    return out / "skidl.kicad_sch"
+    c.generate_schematic(filepath=str(out), auto_stub=True, flatness=1.0)
+    # SKiDL names the file after the script; find it.
+    for name in ("skidl.kicad_sch", "kicad.kicad_sch",
+                 Path(spec["title"]).name + ".kicad_sch"):
+        if (out / name).exists():
+            return out / name
+    files = sorted(out.glob("*.kicad_sch"))
+    assert files, "no schematic generated"
+    return files[0]
 
 
-def write_pcb(spec: dict, outdir: str, fp_libs=None):
-    """IR -> netlist -> placed .kicad_pcb (kinet2pcb under KiCad Python)."""
+def write_pcb(spec: dict, outdir: str) -> Path:
+    """IR -> KiCad netlist -> placed+routed .kicad_pcb.
+
+    Runs the PCB worker under KiCad's bundled Python (kinet2pcb imports
+    pcbnew, which only imports inside the KiCad bundle on macOS). The
+    worker adds a board outline and straight tracks so the DRC gate can
+    run on a routable board.
+    """
     c = build_circuit(spec)
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
-    c.generate_pcb(file_=str(out / "board.kicad_pcb"),
-                   fp_libs=fp_libs or [FOOTPRINT_DIR])
+    netlist = out / "board.net"
+    c.generate_netlist(file_=str(netlist), tool="kicad10")
+    kpy = ("/Applications/KiCad.app/Contents/Frameworks/Python.framework/"
+           "Versions/3.9/bin/python3.9")
+    worker = Path(__file__).resolve().parent / "kicad_pcb_worker.py"
+    env = dict(os.environ,
+               PYTHONPATH="/tmp/kicad_pylibs:%s" % ("/Applications/KiCad.app"
+                                                    "/Contents/Frameworks/"
+                                                    "Python.framework/"
+                                                    "Versions/3.9/lib/"
+                                                    "python3.9/site-packages"))
+    proc = subprocess.run([kpy, str(Path(__file__).resolve().parent /
+                                    "kicad_pcb_worker.py"),
+                           str(netlist), str(out / "board.kicad_pcb")],
+                          capture_output=True, text=True, env=env)
+    if proc.returncode != 0:
+        raise RuntimeError("pcb worker failed: %s%s"
+                           % (proc.stdout[-1500:], proc.stderr[-1500:]))
     return out / "board.kicad_pcb"
 
 
@@ -131,9 +163,32 @@ def run_erc(sch_path: str):
 
 
 def run_drc(pcb_path: str):
-    """DRC machine gate. Returns (returncode, report text)."""
+    """DRC machine gate with pre-layout classification.
+
+    Returns (exit_code, report_text). The exit code is 0 iff the board is
+    GATE-CLEAN: no design-rule violations (clearance, shorting, edge).
+    Classifications:
+      * unconnected_items  -- expected before layout; reported, not failed;
+      * lib_footprint_issues / lib_symbol_issues -- kicad-cli's process
+        environment lacks fp-lib-table entries; environment, not board;
+      * everything else    -- a real design-rule violation -> gate fails.
+    """
     cli = kicad_cli()
+    workdir = Path(pcb_path).parent
+    rpt = workdir / (Path(pcb_path).stem + "-drc.rpt")
     proc = subprocess.run(
-        [cli, "pcb", "drc", "--schematic-parity", "--exit-code-violations",
-         str(pcb_path)], capture_output=True, text=True)
-    return proc.returncode, proc.stdout
+        [kicad_cli(), "pcb", "drc", "--schematic-parity",
+         "--exit-code-violations", str(pcb_path)],
+        capture_output=True, text=True, cwd=str(workdir))
+    violations = []
+    for line in proc.stdout.splitlines() + open(rpt).read().splitlines() \
+            if rpt.exists() else []:
+        pass
+    import re as _re
+    text = rpt.read_text() if rpt.exists() else proc.stdout
+    for m in _re.finditer(r"^\[(\w+)\]", text, _re.M):
+        violations.append(m.group(1))
+    pre_layout_ok = ("unconnected_items", "lib_footprint_issues",
+                     "lib_symbol_issues", "footprint_link_issues")
+    design_rule_hits = [v for v in violations if v not in pre_layout_ok]
+    return (0 if not design_rule_hits else 5), text

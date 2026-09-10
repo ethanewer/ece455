@@ -1,0 +1,24 @@
+ERC report (2026-09-10T04:01:45, Encoding UTF8)
+Report includes: Errors
+
+***** Sheet /
+[pin_not_connected]: Pin not connected
+    ; error
+    @(138.43 mm, 102.87 mm): Symbol R2 Pin 2 [Passive, Line]
+[pin_not_connected]: Pin not connected
+    ; error
+    @(153.67 mm, 113.03 mm): Symbol J1 Pin 1 [Pin_1, Passive, Line]
+[pin_not_connected]: Pin not connected
+    ; error
+    @(153.67 mm, 115.57 mm): Symbol J1 Pin 2 [Pin_2, Passive, Line]
+[pin_not_connected]: Pin not connected
+    ; error
+    @(158.75 mm, 102.87 mm): Symbol R1 Pin 2 [Passive, Line]
+
+ ** ERC messages: 4  Errors 4  Warnings 0
+
+ ** Ignored checks:
+    - Global label only appears once in the schematic
+    - Four connection points are joined together
+    - SPICE model issue
+    - Assigned footprint doesn't match footprint filters

@@ -1,0 +1,13 @@
+WARNING: KICAD6_SYMBOL_DIR environment variable is missing, so the default KiCad symbol libraries won't be searched. @ [/Users/ethanewer/ece455/proton-magnetometer-autoresearch/<frozen importlib._bootstrap_external>:999=>/Users/ethanewer/ece455/proton-magnetometer-autoresearch/<frozen importlib._bootstrap>:488]
+WARNING: KICAD7_SYMBOL_DIR environment variable is missing, so the default KiCad symbol libraries won't be searched. @ [/Users/ethanewer/ece455/proton-magnetometer-autoresearch/<frozen importlib._bootstrap_external>:999=>/Users/ethanewer/ece455/proton-magnetometer-autoresearch/<frozen importlib._bootstrap>:488]
+WARNING: fp-lib-table file was not found. Component footprints are not available.
+WARNING: fp-lib-table file was not found. Component footprints are not available.
+WARNING: fp-lib-table file was not found. Component footprints are not available.
+WARNING: fp-lib-table file was not found. Component footprints are not available.
+WARNING: fp-lib-table file was not found. Component footprints are not available.
+WARNING: KiCad ERC found issues in /private/var/folders/0g/7b1wsj057j54tlk8zf8w612c0000gn/T/pytest-of-ethanewer/pytest-23/test_erc_gate_can_fail0/gate_cli.kicad_sch:
+ @ [/Users/ethanewer/ece455/proton-magnetometer-autoresearch/backends/gate_cli.py:76=>/Users/ethanewer/ece455/proton-magnetometer-autoresearch/backends/gate_cli.py:64]
+INFO: Schematic written to /private/var/folders/0g/7b1wsj057j54tlk8zf8w612c0000gn/T/pytest-of-ethanewer/pytest-23/test_erc_gate_can_fail0/gate_cli.kicad_sch @ [/Users/ethanewer/ece455/proton-magnetometer-autoresearch/backends/gate_cli.py:76=>/Users/ethanewer/ece455/proton-magnetometer-autoresearch/backends/gate_cli.py:64]
+INFO: 6 warnings found while generating schematic.
+INFO: 0 errors found while generating schematic.
+
