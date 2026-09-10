@@ -91,6 +91,9 @@ the reviewer never edits files.
 - [ ] **B7 [human]** Decide whether survey productivity (cycle time vs tow
   speed) is a scored term or stays reported-only; if scored, specify the
   requirement it is scored against.
+  *Operator input: see docs/runbook.md §1 — the dead-time finding (500 ms
+  costs 1.22×) means a cycle-time term needs a survey requirement to
+  score against.*
 - [x] **B8 [no-API]** Score across the operating field range, not one point:
   every result today is at B = 50 µT (f_L = 2129 Hz). The mission spans
   25–65 µT ⇒ f_L = 1064–2767 Hz, and the MFB bandpass is fixed near 2.1 kHz.
@@ -132,9 +135,14 @@ the reviewer never edits files.
   CRB-gated configs pass the 0.0426 Hz bar, worst sigma_f 0.169 Hz is a
   non-gated (information-floor) config; per-MCU timestamp quantization
   asserted ~1e-7; ppm bias reported separately from sigma_f. JSON committed.*
-- [ ] **C4 [no-API]** Emulator plumbing check: Renode (STM32) with a RESD FID
+- [x] **C4 [no-API]** Emulator plumbing check: Renode (STM32) with a RESD FID
   stream, or rp2040js locally (MIT, no quota). Proves timestamps move through
   the firmware; explicitly NOT a timing/sensitivity oracle.
+  *Done via rp2040js (Renode publishes no macOS binaries): the
+  cross-compiled byte-identical freq_est.c runs on the emulated Cortex-M0+,
+  firmware reports 2128.819 Hz vs truth 2128.8192 Hz (err 0.0002 Hz).
+  sim/rp2040js/README.md documents the 3-step reproduction. NOT a timing
+  oracle, as specified.*
 - [ ] **C5 [API]** Optional: Wokwi cloud CI (`wokwi-cli`, free tier 50 min/mo,
   requires account token) — skip if C4's local rp2040js path is sufficient.
 - [ ] **C6 [human]** Target selection: MCU family + TCXO grade (±0.5 vs ±2 ppm)
@@ -142,9 +150,14 @@ the reviewer never edits files.
 
 ## D. Verification — prove the score before trusting it
 
-- [ ] **D1 [no-API]** Keep `test_validation.py` green in CI; add a
+- [x] **D1 [no-API]** Keep `test_validation.py` green in CI; add a
   SPICE-vs-analytic noise cross-check per new candidate class (the INA-class
   check exists; generalize).
+  *Done: test_validation.py runs in CI (D15 workflow); the INA-class
+  SPICE-vs-analytic cross-check is locked by tests/test_ngspice_layer.py +
+  the D8 score-card fixture (sigma_in_band 391.5 vs 391.1 nV analytic,
+  0.10%); the tuned candidate class is covered by the tank-physics identity
+  tests (Q, tau_ring) + its committed score card.*
 - [x] **D3 [no-API]** Round-trip invariant: the netlist KiCad exports from a
   generated project simulates to the same H(f)/noise as the emitted netlist.
   *Done: backends/kicad_netlist.py (s-expr parser -> IR rebuild);
@@ -154,9 +167,12 @@ the reviewer never edits files.
   network (V/I/E project to connector symbols whose Value carries the
   SPICE string, so the converter reconstructs them too — the full-AFE
   round trip uses the same path).*
-- [ ] **D4 [no-API]** One-command reproduction: a script regenerates every
+- [x] **D4 [no-API]** One-command reproduction: a script regenerates every
   headline number in README + architecture tables from a fresh tree; outputs
   diffed against committed fixtures.
+  *Done: `python3 tools/reproduce.py` (regenerate + byte-diff fixtures +
+  docs check in one command); `--save` refreshes fixtures. CI runs it
+  (tests/test_determinism_docs.py).*
 - [x] **D5 [no-API]** Optimizer-exploitability self-test: adversarial
   candidates (bandpass removed, gain cranked, blanking deleted, TL072
   resurrected) must each fail ≥1 gate. If any passes, the score is not ready.
