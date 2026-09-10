@@ -99,6 +99,58 @@ the reviewer never edits files.
 - [ ] **D6 [human]** Accept the transducer model (V₀ from `estimate_v0`) as
   the interim anchor until F1 pins it, or supply measured coil values.
 
+### D+. Full verification of completed work (the audit-fix round)
+
+The v0.0 audits were run against the *pre-fix* tree; the fix commit
+(`2d23fb9`) and everything before it carries only partial test coverage.
+These items close that gap before any new work builds on it.
+
+Existing-work coverage status: `test_validation.py` covers the CRBs, zoom_fit,
+γp constants, and V₀ sanity. **Not yet covered**: zc_fit/nlls_fit/fft_peak
+behavior, `circuit_spec.py` end-to-end, the ngspice parser, `ringdown_tau`,
+the band-limited noise generator, the Curie-law V₀ against an independent
+hand calculation, docs-vs-code numbers, and output determinism.
+
+- [ ] **D7 [no-API]** Estimator test coverage: lock the measured reference
+  table into asserts — zoom_fit ≤1.2× CRB with 0% gross; fft_peak ≤1.2× CRB;
+  zc_fit ≥100× CRB (the ruling-out must *fail loudly* if someone "fixes" it
+  into a worse estimator or the SNR regime shifts); staged nlls_fit ≤1.2× CRB
+  on its non-divergent runs with gross rate ≤3%. Phase-randomized, fixed
+  seeds, MC CI asserted.
+- [ ] **D8 [no-API]** `circuit_spec.py` regression: commit one full score-card
+  per candidate class as a fixture; test asserts J/CRB/σ_in/τ_ring reproduce
+  within MC tolerance. Guards the SPICE→nT path against silent breakage.
+- [ ] **D9 [no-API]** ngspice layer unit tests with committed stdout fixtures:
+  pagination-tolerant table parser (repeated headers, `---` rules, trailing
+  tabs, tran `time` axis), `ringdown_tau` on a synthetic exponential of known
+  τ, `shape_transfer` interpolation at/beyond sweep edges, and the e_n/i_n
+  resistor identities (`R = e_n²/4kT` reproduces the datasheet density).
+- [ ] **D10 [no-API]** `fid.py` unit tests: `_bandlimited_noise` PSD flat in
+  band / ~zero outside, RMS = σ within tolerance; ADC quantization step and
+  saturation behavior; interferer injection lands at the requested amplitude;
+  `estimate_v0` vs an independent Curie-law implementation written in the
+  test (agreement <1e-6 relative).
+- [ ] **D11 [no-API]** Determinism: `run_scoring.py` and `circuit_spec.py`
+  outputs byte-identical across two clean checkouts (fixed seeds; no
+  wall-clock in printed tables — the ngspice timestamp lines must be
+  filtered by the parser, which they are; assert it).
+- [ ] **D12 [no-API]** Docs-vs-code consistency: a script extracts every
+  headline number from README.md + architecture.md tables and checks each
+  against regenerated output within the stated MC CI; fails CI on drift.
+  (This is the audit finding class "table says 0.044, code prints 0.0435".)
+- [ ] **D13 [no-API]** Colored-CRB second independent check: ensemble-
+  estimated covariance (Monte-Carlo realizations of the band-limited
+  process, `J = dsᵀ C⁺ ds`) alongside the existing dense-covariance test —
+  two orthogonal constructions must agree with the DFT shortcut within 10%.
+- [ ] **D14 [human]** Physics sanity pass on the completed round's headline
+  results: tuned-JFET J ≈ 0.006 nT and the V₀ grid values checked against
+  JPM-4 / Koehler / the Overhauser noise-modeling paper by a person, not
+  just by the code that produced them.
+- [ ] **D15 [no-API]** CI workflow (GitHub Actions, included minutes — no key
+  needed): `pip install numpy scipy` + `brew install ngspice` on every push →
+  run `test_validation.py` + the D7–D12 suite + fixture diffs. This is what
+  turns the items above from one-off checks into standing regressions.
+
 ## E. Auditing — external-review skill, before the optimizer starts
 
 - [ ] **E0 [no-API]** Smoke test the reviewer CLI once (`cursor-agent -p -f
@@ -117,6 +169,13 @@ the reviewer never edits files.
   finding independently verified (agree with evidence or refute) before any
   edit; unfixed confirmed findings block G1.
 - [ ] **E5 [human]** Read the E3 audit verdict and sign off.
+- [ ] **E6 [no-API]** Re-review the already-completed work: run Review 1
+  (bugbot) and Review 2 (scientific correctness) — separately — over the
+  current committed tree (the fix commit `2d23fb9` + TODO.md). The v0.0
+  audits predate the fixes; nothing external has reviewed the fixed code.
+  Scope Review 2 explicitly at: shielded-γp value and its uses, the Curie-law
+  transducer model, the e_n/i_n resistor-noise modeling, the tuned-network
+  netlist physics, and the M5 ablation interpretations. Treat findings per E4.
 
 ## F. Bench — the parts no simulation replaces (human/hardware)
 
@@ -143,5 +202,6 @@ the reviewer never edits files.
 ---
 
 Dependency spine: A1→A2→A4→A7 · B1–B6 before A7 · C1→C2→C3 before G ·
-D5 + E3 before G2. A, B, C, D, E are fully parallelizable except where noted;
-F can start anytime hardware is available.
+D7–D13 + E6 (verify the completed round) can start immediately and block G2 ·
+D5 + D8 + E3 before G2. A, B, C, D, E are fully parallelizable except where
+noted; F can start anytime hardware is available.
