@@ -263,6 +263,14 @@ def shape_transfer(ac_tab, freqs):
     return np.interp(freqs, f_h, mag)
 
 
+def ph_edge_continued(ph_u, f_h, f_below):
+    """Phase below the sweep edge, continued linearly from the first two
+    .ac points (constant group delay) -- used with the -40 dB/dec
+    magnitude continuation that makes the band-limited IR causal."""
+    slope = (ph_u[1] - ph_u[0]) / (f_h[1] - f_h[0])
+    return ph_u[0] + slope * (f_below - f_h[0])
+
+
 def simulate(spec: dict) -> dict:
     """Field-independent SPICE leg: run ngspice once, return the complex
     H(f), the EMF-referred noise spectrum, tau_ring, and the noise RMS
@@ -270,6 +278,32 @@ def simulate(spec: dict) -> dict:
     range -- per-unit responses do not depend on B."""
     out = run_ngspice(emit_netlist(spec))
     return simulate_from_tabs(spec, parse_tables(out))
+
+
+def minimum_phase_ir(mag_half: np.ndarray, n: int) -> np.ndarray:
+    """Causal minimum-phase impulse response from the half-spectrum
+    magnitude |H(f)| (length n//2+1), via the exponential cepstrum.
+
+    The analog chains this harness scores (passive RLC ladders + VCVS
+    gains) are minimum-phase, so |H| determines the causal phase exactly
+    (Kramers-Kronig). Returns the length-n causal IR.
+    """
+    L_half = np.log(np.maximum(np.asarray(mag_half, dtype=float), 1e-300))
+    L_full = np.concatenate([L_half, L_half[-2:0:-1]])
+    C = np.fft.ifft(L_full).real                    # real cepstrum
+    C_min = C.copy()
+    C_min[1:n // 2] = 2.0 * C_min[1:n // 2]
+    C_min[n // 2 + 1:] = 0.0
+    if n % 2 == 0:
+        C_min[n // 2] = C[n // 2]
+    return np.real(np.fft.ifft(np.exp(np.fft.fft(C_min))))
+
+
+def lin_spec_control(spec: dict, lin_ctrl: list) -> list:
+    """Control block for the second (linear-grid AC) pass: keep nothing
+    from the nominal control except a fresh print of the complex
+    transfer on the exact rfft bin grid."""
+    return lin_ctrl
 
 
 def simulate_from_tabs(spec: dict, tabs: dict) -> dict:
@@ -306,25 +340,69 @@ def simulate_from_tabs(spec: dict, tabs: dict) -> dict:
     # "tank pull" (audit E6 round 2: the record-start discontinuity rings
     # the resonator; a causal tank ringed out long before blanking) --
     # an artifact an optimizer would have ground against.
-    ph_h = tabs["vp(adc)"][1] if "vp(adc)" in tabs else np.zeros_like(mag_h)
-    ph_u = np.unwrap(np.deg2rad(ph_h))
     n_full = int(round((blank_eff + RECORD_S) * FS))
     n_blank = int(round(blank_eff * FS))
     n_rec = int(round(RECORD_S * FS))
     freqs_full = np.fft.rfftfreq(n_full, 1.0 / FS)
-    mag_full = shape_transfer(ac_tab, freqs_full)
-    ph_full = np.interp(freqs_full, f_h, ph_u)
-    h_c = mag_full * np.exp(1j * ph_full)
-    # Impulse response of the full chain (causal; all stage time constants
-    # are far shorter than the window, so the N-sample inverse IS h(t)).
-    h_t = np.fft.irfft(h_c, n_full)
+
+    # Causal-IR construction (E3 audit finding 1) -- GROUND TRUTH from
+    # SPICE itself, no reconstruction: a second ngspice run replaces the
+    # AC source with a unit-area impulse (amplitude 1/T = 20000 V held
+    # for one sample period T = 50 us), zeroes the polarization-pulse
+    # source, and runs .tran with `linearize` to resample the response
+    # onto the exact 20 kS/s grid. That transient IR is the true analog
+    # kernel -- all phase included -- with no reconstruction assumptions.
+    #
+    # History of this leg (each verified by probe):
+    #   v1: log-spaced .ac mag+phase edge-held onto the rfft grid ->
+    #       ~half the IR energy wrapped to negative times (not causal);
+    #   v2: exact linear .ac grid + cepstral minimum-phase from |H|
+    #       (scipy.signal.minimum_phase is UNUSABLE here: its output
+    #       does not reproduce |H| -- 0.9 vs 12063 at f_L); the cepstral
+    #       construction DOES reproduce |H| exactly but its K-K phase
+    #       disagrees with SPICE's measured phase by ~65 deg at f_L (the
+    #       vp convention is not the K-K phase), giving a +16.5 mHz
+    #       systematic the real circuit does not have;
+    #   v3 (this): .tran impulse response -- noiseless tank pull
+    #       measured 0.01-0.03 mHz (vs 1.2 mHz wrapped / 16.5 mHz
+    #       cepstral). Verified 100% of IR energy in the first 100 ms.
+    n_full = int(round((blank_eff + RECORD_S) * FS))
+    n_blank = int(round(blank_eff * FS))
+    n_rec = int(round(RECORD_S * FS))
+    freqs_full = np.fft.rfftfreq(n_full, 1.0 / FS)
+    T = 1.0 / FS
+    ir_ctrl = [f"tran {T:g} {n_full * T:.6g} 0 10u",
+               "linearize",
+               "print v(adc)"]
+    ir_spec = dict(spec)
+    ir_comps = []
+    for c in spec["components"]:
+        c2 = dict(c)
+        if c2["name"] == "V1":
+            c2["value"] = (f"PWL(0 0 1n {1.0/T:.6g} {50e-6:.6g} {1.0/T:.6g} "
+                           f"{50e-6 + 1e-9:.6g} 0 {(blank_eff + RECORD_S):.6g} 0)")
+        if c2["name"] == "Ipol":
+            c2["value"] = "DC 0"            # no polarization pulse here
+        ir_comps.append(c2)
+    ir_spec["components"] = ir_comps
+    ir_spec["control"] = ir_ctrl
+    out2 = run_ngspice(emit_netlist(ir_spec))
+    tabs2 = parse_tables(out2)
+    idx2, v2 = tabs2["v(adc)"]
+    assert len(idx2) >= n_full, (len(idx2), n_full)
+    h_t = np.asarray(v2[:n_full]) * T       # impulse-invariant scaling
+    # IR energy concentration: the analog chain's memory is ms-scale
+    # (tank tau ~ 11 ms), so the samples must carry their energy early.
+    e_tot = float(np.sum(h_t ** 2))
+    e_early = float(np.sum(h_t[:int(0.1 * FS)] ** 2))
+    ir_causal_frac = e_early / max(e_tot, 1e-300)
     e_bins = np.interp(freqs_full, f_n, e_n)
 
     return dict(tabs=tabs, h_t=h_t, e_bins=e_bins, f_h=f_h, mag_h=mag_h,
                 f_n=f_n, e_n=e_n, sigma_in=sigma_in,
                 sigma_in_band=sigma_in_band, tau_ring=tau_ring,
                 blank_eff=blank_eff, n_full=n_full, n_blank=n_blank,
-                n_rec=n_rec)
+                n_rec=n_rec, ir_causal_frac=ir_causal_frac)
 
 
 def score_at(sim: dict, spec: dict, b_earth: float = 50e-6) -> dict:
@@ -357,7 +435,7 @@ def score_at(sim: dict, spec: dict, b_earth: float = 50e-6) -> dict:
     peak_adc = 0.0
     lsb = ADC_FS / (2 ** ADC_BITS)
     v_rail = ADC_FS / 2.0
-    from scipy.signal import fftconvolve
+    from scipy.signal import fftconvolve, minimum_phase
     for i in range(N_MC):
         phase = np.random.default_rng(20_000 + i).uniform(-np.pi, np.pi)
         t_full = np.arange(n_full) / FS

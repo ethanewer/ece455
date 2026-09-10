@@ -264,8 +264,9 @@ from cycle slips); `zc_fit` is already the best-practice version.
 **Blanking finding** (information-theoretic half; the recovery half is
 Layer A's `.tran`): frequency information scales as `t²·e^(−2t/τ)` —
 concentrated *late* in the record — so dead time is far cheaper than
-intuition suggests: 500 ms of blanking costs only ~1.2× in σ_f
-(0.0435→0.0587 nT). Bias blanking *long*, provided the ring-down gate passes.
+intuition suggests: 500 ms of blanking costs 1.35× in σ_f vs 50 ms
+(0.0435→0.0587 nT) and 1.22× vs 200 ms. Bias blanking long, gated by
+ring-down.
 
 ### 2.2.1 Scoring harness spec (the estimator gate)
 
@@ -334,14 +335,17 @@ proton-magnetometer-autoresearch/
 │   ├── run_scoring.py       # CRB validation, V0xT2* grid, M5 ablations
 │   ├── circuit_spec.py      # JSON spec -> ngspice -> H(f)-shaped MC -> J
 │   └── test_validation.py   # standing regression tests (audit v0.0)
-└── (planned)
-    ├── spec/                # component/net graph JSON (the IR source of truth)
-    ├── backends/spice.py    # spec -> ngspice netlist (done in poc)
-    ├── backends/kicad.py    # spec -> SKiDL -> .kicad_sch/.kicad_pcb -> kicad-cli
-    ├── scoring/             # objective fn: sigma_B, gates, cost (J done in poc)
-    ├── parts/               # part DB: e_n, i_n, GBW, price, footprint
-    ├── firmware/core/       # portable C99 estimator (pytest/Unity, CI-scored)
-    └── experiments/         # auto-generated candidate cards (sim + render + score)
+├── spec/                    # A1: frozen JSON-able circuit IR + validation
+├── backends/                # A2/A4/A5/A6: spice.py, kicad.py(+pcb worker),
+│   │                        #   kicad_netlist.py (round-trip), export.py
+├── parts/                   # B5: parts DB (e_n, i_n, price, footprint, MPN)
+├── optimizer/               # A7: mutations + eval_one + search (subprocess
+│   │                        #   pool, dedupe, elite archive, provenance)
+├── firmware/                # C1-C4: core/freq_est.c (float+fixed), host
+│   │                        #   tests + sensitivity job, targets/rp2040
+├── sim/rp2040js/            # C4 emulator runner (not a timing oracle)
+├── tests/                   # D-suite: fixtures, gates, exploitability
+└── tools/                   # reproduce (D4/D11/D12), vectors, mirror
 ```
 
 **Data flow per candidate:** `spec → (SPICE: H(f), noise spectrum, τ_ring,
@@ -382,17 +386,17 @@ physics loop, and not yet a layout/coupling simulator. Mapping:
 | 1. Close the physics loop on the bench | Acceptance numbers for the first wet capture (expected V₀ grid, expected σ, SNR targets); V₀×T2* grid shows how much margin each coil class buys | The capture itself; V₀/T2* remain model predictions until then |
 | 2. Leave breadboards; layout/EMI | Future KiCad backend with ERC/DRC gates | Pulse-to-receiver coupling, star grounding, shielding — layout physics are not in the score |
 | 3. Blanking knife-edge | Two halves: `.tran` ring-down τ (recovery physics, gated) + CRB-vs-blanking curve (bias long: 500 ms costs 1.2×) | Switch charge injection, snubber/dummy-coil design |
-| 4. Power rails, modular boards | Future KiCad backend + gates | Rail ripple inside the FID band is not modeled yet |
-| 5. Gain and noise budget | Directly scored (e_n AND i_n, real bandpass, real tuned tank, preamp_gain axis with a clipping gate) | CMRR/PSRR, gain-split optimization, 1/f (TODO B3/B4/B6) |
+| 4. Power rails, modular boards | Rail ripple is a SCORED ablation (run_scoring [3e]: 50 mV at 2 kHz referred 50 µV destroys the cycle; PSRR 100 dB survives) and a failing GATE in J (ripple ≲ V₀) | Layout EMI/star grounding still unscored; PSRR uses a flat 100 dB model, not the part's curve |
+| 5. Gain and noise budget | Directly scored (e_n AND i_n resistors, real tank, preamp_gain axis with a clipping gate); rail-ripple gate in J | CMRR/PSRR as scored *terms* (analytic only), 1/f analytic (+0.31%), e_nO/GBW of real amplifiers, gain-split optimization |
 | 6. Frequency-estimator precision | Estimator family scored against CRB in-repo; crossing family ruled out with a reproducible regression | Real-record validation still requires the wet capture |
 | 7. Coil geometry | Coil parameters (R, L, N, tuning C) are scored experiment axes; V₀ derived from the transducer model | Winding/sealing/housing engineering; V₀ anchoring |
 | 8. Schedule/procurement | Out of scope | — |
 
 ## 5. Immediate next steps
 
-1. **Port the spec→SKiDL→KiCad backend** (spec schema exists in `circuit_spec.py`;
-   SKiDL 2.3 `generate_schematic()` is the enabler). Emit one INA828-class AFE
-   and verify `kicad-cli sch erc` + `pcb drc` pass with exit codes.
+1. **DONE — see TODO.md**: the KiCad backend passes ERC+DRC on an
+   INA828-class AFE (`tests/test_kicad_gate.py`); the remaining G2 gates
+   are bench/human items (see docs/runbook.md).
 2. **Part database** with noise/price pins (INA828, ADA4898, JFET input stage,
    ADS131M04 vs MCU ADC, DG419-class blanking switch) and the Monte-Carlo
    tolerance sweep wired into the score.

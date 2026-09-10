@@ -48,9 +48,17 @@ the reviewer never edits files.
 
 ## B. Score completion — close the audit blind-spot list before optimizing
 
-- [ ] **B1 [no-API]** Monte-Carlo tolerance sweep in the SPICE layer
+- [x] **B1 [no-API]** Monte-Carlo tolerance sweep in the SPICE layer
   (`.control` loop, `alter`/`sgauss`, `setseed`, `sim_status` handling) —
   report σ_B at 2σ component tolerances, not just nominal.
+  *Done (post-E3): `circuit_spec.tolerance_sweep()` — one ngspice process,
+  k iterations of alter/sgauss at 2σ (R 1%, C 5%, L 10%), per-iteration
+  in-band spectrum parsed + integrated in Python (noise2's inoise_total
+  scalar is stale inside .control loops; re-runs need `destroy all` — both
+  found by probe). CRB per iteration from the perturbed gain/spectrum,
+  p95 reported. Verified: untuned median CRB matches nominal to 0.7%;
+  tuned candidate's gain(fL) swings 2.4× under 2σ Ctune — the tank
+  alignment sensitivity the optimizer must survive.*
 - [x] **B2 [no-API]** Comparator time-walk model in `fid.py` (bias
   ∝ V_n/(2πf·A(t))) so the zero-crossing path is scored with its real
   systematic, not just its variance.
@@ -258,10 +266,17 @@ hand calculation, docs-vs-code numbers, and output determinism.
 - [ ] **E2 [no-API]** Review 2 (scientific correctness) on every diff that
   touches constants, noise parameters, scoring/estimator math, or physics
   claims in docs — mandatory before B-phase items merge.
-- [ ] **E3 [no-API]** Review 3 (deep auto-research audit) over the whole
+- [x] **E3 [no-API]** Review 3 (deep auto-research audit) over the whole
   pipeline when A–D are done: independently re-executes headline numbers,
   re-derives bounds, checks alignment and completeness. This is the v0.0-style
   audit that caught the γp and V₀ problems.
+  *Done 2026-09-10 (ran over the full tree). Verdict: DSP/CRB core solid,
+  but NOT G2-ready — 14 findings, all verified per E4 and triaged in the
+  E3 table above; 9 fixed in code (causal .tran impulse IR, V0↔coil
+  coupling + exploit archive deleted, B-sweep worst-case in eval_one,
+  rail-ripple gate in J, B1 tolerance sweep, parallel-eval isolation,
+  docs alignment), the rest documented. A re-audit of the coupled-coil
+  score is the remaining G2 gate.*
 - [ ] **E4 [no-API]** Triage discipline per skill "Treating results": every
   finding independently verified (agree with evidence or refute) before any
   edit; unfixed confirmed findings block G2.
@@ -313,6 +328,44 @@ hand calculation, docs-vs-code numbers, and output determinism.
   checkpoint". Schedule: after the first 50 scored candidates, then every
   order-of-magnitude of candidate count — verifies the optimizer hasn't
   drifted into exploiting a residual score blind spot (E4 triage applies).
+
+### E3 verdict (2026-09-10 deep auto-research audit — triaged per E4)
+
+Verdict quote: "The DSP/CRB/γ′p core is internally consistent and
+independently reproducible ... E6's Curie-law 3× fix and the shunt-C tank
+are implemented correctly. E6's 'causal chain convolution' is only
+half-done ... The score is **not** a faithful model of the hardware it
+claims to score. **Not G2-ready.**"
+
+14 findings, each independently verified by me before acting:
+
+| # | Finding (audit) | Verified? | Action |
+|---|---|---|---|
+| 1 | irfft(H) IR not causal (~47% energy wrapped; edge-held low-freq plateau) | CONFIRMED (probe: +50 ms circular shift → 100% early energy; phase rows where |H|≈0 carry numerical noise; scipy min-phase unusable — |H| back-check 0.9 vs 12063) | FIXED: pass-B impulse response from a SPICE `.tran` (unit-area PWL + `linearize`) — ground truth, 100% causal, noiseless tank pull 0.01–0.03 mHz |
+| 2 | J dominated by the tank-pull systematic; worst case is on-resonance | CONFIRMED (J worst at 50 µT) | FIXED by 1: pull gone (J = CRB); B-sweep worst-case scoring (below) also added |
+| 3 | V₀ knobs decoupled from noise knobs (optimizer exploit) | CONFIRMED (elite.json card: tuned=false on the big coil, J 0.002) | FIXED: afe_spec derives r_coil/l_coil from winding geometry (wire_d_mm); mutations pass geometry only |
+| 4 | The exploit was already IN elite.json | CONFIRMED | elite.json deleted; search re-seeds on the coupled path |
+| 5 | PSRR/CMRR not in J | CONFIRMED | FIXED: rail_ripple_survivable gate in J (50 mV @ 100 dB PSRR vs V₀); measured survival threshold consistent |
+| 6 | Blanking switch/charge-injection/recovery not modeled | CONFIRMED (proxy .tran only) | DOCUMENTED (runbook §4 + architecture week-2 #3); fail-closed ringdown from D5 stands; hardware items remain F-phase |
+| 7 | Gain topology ~free (e_nO/GBW absent) | CONFIRMED | DOCUMENTED as a known limitation (architecture week-2 #5); real-amp macromodels are F-phase work |
+| 8 | B1 tolerances not implemented | CONFIRMED (runbook overclaimed) | FIXED: `tolerance_sweep()` — ngspice-native .control alter/sgauss/setseed loop; per-iteration CRB; p95 reported; two ngspice quirks handled by probe (stale inoise_total; re-run needs `destroy all`) |
+| 9 | eval_one scored 50 µT only | CONFIRMED | FIXED: eval_one scores the B-sweep worst case |
+| 10 | Parallel SPICE eval shared one netlist file | CONFIRMED (elite cards had kwargs ≠ results) | FIXED: unique per-call netlist path (pid + spec hash) |
+| 11 | DSP vs analog are different instruments | CONFIRMED (by design — documented) | DOCUMENTED: the two layers remain separate scorers; the analog J is the candidate score |
+| 12 | No in-grid interferer ablation | CONFIRMED | DOCUMENTED in architecture §2.2.1 (already noted pre-audit) |
+| 13 | Analog table confounds coil class with topology | CONFIRMED | README table now shows the rail-ripple gate outcome; the same-coil comparison lands with F2's measured coil |
+| 14 | C estimator ≠ Python zoom_fit (different algorithm) | CONFIRMED (by design) | DOCUMENTED: freq_est.c is spec-level mirror, validated by sensitivity gates, not bit-equality |
+
+Alignment gaps fixed: README/architecture/runbook status claims rewritten
+to the actual tree; blanking 1.35×/1.22× ratios stated correctly; NLLS
+conditioned ratio printed in run_scoring [1]; CI gains the D5 canary.
+Completeness items noted (not re-runnable): B-sweep numbers now in the D8
+fixture; C4 emulator run documented in sim/rp2040js/README.md.
+
+**G2 gate remaining:** a re-audit of the coupled-coil score (items 1–5
+fixed; must come back clean) + F2's measured coil.
+
+---
 
 ## F. Bench — the parts no simulation replaces (human/hardware)
 

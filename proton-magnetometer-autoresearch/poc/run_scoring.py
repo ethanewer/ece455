@@ -86,11 +86,26 @@ def main():
     bound = crb_nt_for(**base)
     print(f"\n[1] Colored-noise CRB at the reference point: {bound:.4f} nT")
     print(f"    {'estimator':>10} {'RMS [nT]':>9} {'xCRB':>6} "
-          f"{'gross>1Hz':>10}")
+          f"{'gross>1Hz':>10} {'cond.xCRB':>10}")
     for name in ESTIMATORS:
         rms, gross = rms_error(name, **base)
+        # conditioned ratio: RMS over the NON-DIVERGENT runs (|err|<=1 Hz)
+        # -- the divergent tail dominates the raw RMS (audit E3: 8258x
+        # full vs ~20x conditioned); print both so the threshold
+        # behavior is visible instead of folded into one number.
+        errs_all = []
+        for i in range(N_MONTE):
+            phase = np.random.default_rng(10_000 + i).uniform(-np.pi, np.pi)
+            rec = fid.generate_record(rng=i, phase=phase, **base)
+            e = ESTIMATORS[name](rec) - rec["f_larmor"]
+            errs_all.append(e)
+        errs_all = np.asarray(errs_all)
+        ok = np.isfinite(errs_all) & (np.abs(errs_all) <= ERR_HZ_THRESHOLD)
+        cond = errs_all[ok]
+        cond_nt = (float(np.sqrt(np.mean(cond ** 2)))
+                   / fid.GAMMA_HZ_PER_NT) if len(cond) else float("nan")
         print(f"    {name:>10} {rms:>9.4f} {rms/bound:>6.2f} "
-              f"{gross:>10.1%}")
+              f"{gross:>10.1%} {cond_nt/bound:>10.2f}")
 
     # ---- 2. Physics V0 x T2* grid (CRB only; the conditional headline) -
     print("\n[2] CRB [nT] on the physics V0 x T2* grid "

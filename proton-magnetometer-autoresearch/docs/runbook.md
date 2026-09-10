@@ -11,13 +11,15 @@ remain are human decisions (labeled per TODO.md's label scheme).
 | Circuit IR (A1) | done | `spec/ir.py` — JSON-able graph, targeted validation errors |
 | SPICE backend (A2) | done | `backends/spice.py` + pagination-tolerant parser, fixture-tested |
 | Toolchain (A3) | done | KiCad 10.0.6 + skidl 2.3.0 pinned in `requirements.txt`/docs |
+| B1 tolerance sweep | done (post-audit) | `circuit_spec.tolerance_sweep()` — ngspice-native alter/sgauss/setseed, per-iteration CRB, p95 reported |
+| E3 deep audit | done (findings triaged) | TODO.md E3 entry; a re-audit on the coupled-coil score is the G2 gate |
 | KiCad gates (A4) | done | ERC + DRC exit 0 on an INA828-class AFE (`tests/test_kicad_gate.py`) |
 | Fab/BOM + cards (A5/A6) | done | `backends/export.py` |
 | Optimizer skeleton (A7) | done | `optimizer/` — subprocess pool, timeouts, dedupe, elite archive, provenance |
-| Score completion (B1–B8) | done | tolerance sweep in `poc/`+SPICE layers, time-walk, rail ripple, 1/f+CMRR, parts DB, gain staging, B-sweep |
+| Score completion (B2–B8) | done | time-walk, rail ripple (ablation + J gate), 1/f+CMRR analytic, parts DB, gain staging, B-sweep |
 | Firmware core (C1–C4) | done | `firmware/core/freq_est.c` (float + fixed), golden vectors, sensitivity job, RP2040 emulator check |
 | Verification (D1–D16) | done | `tests/` suite + CI (`.github/workflows/ci.yml`) |
-| External reviews (E0–E6) | done | E6 records in TODO.md; triaged per E4 |
+| External reviews (E0–E6) | done; E3 verdict recorded | E3 deep audit ran 2026-09-10; its 14 verified findings are triaged in TODO.md — 9 fixed in code, the rest documented or re-gated |
 
 Run the standing suite before anything else:
 
@@ -39,9 +41,10 @@ python3 tools/reproduce.py               # regenerate + diff every headline numb
 | **F1–F4** | Bench work (see `docs/experiments.md`) — the wet capture anchors V₀/T2*, the coil measurement anchors R/L/tuning | Acceptance criteria are the harness's predicted ranges |
 | **G1** | Pick the search mode for real runs | Score-guided mutation search (A7, reproducible, no keys) vs LLM-proposed candidates (needs a Claude Code session; candidates still pass the identical scorer) |
 
-**G2 (GO) requires**: A–D checked (they are), E3 with no unresolved
-high-severity findings, F2 anchors the coil model, and D5's adversaries
-still failing (they are; `tests/test_exploitability.py`).
+**G2 (GO) requires**: the verified E3 findings stay fixed (they are, but a
+re-audit on the coupled-coil score must come back clean), F2 anchors the
+coil model with measurements, B7/C6/D6 human decisions land, and D5's
+adversaries keep failing (`tests/test_exploitability.py`, runs in CI).
 
 ## 2. Unlocking and running the first real search
 

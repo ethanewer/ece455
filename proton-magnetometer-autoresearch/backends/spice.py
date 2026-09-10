@@ -89,7 +89,7 @@ def parse_tables(stdout: str) -> dict:
     output is deterministic (D11)."""
     tables, current = {}, None
     for line in stdout.splitlines():
-        m = re.match(r"\s*Index\s+(?:frequency|time)\s+(\S+)", line)
+        m = re.match(r"\s*Index\s+(?:frequency\s+|time\s+)?(\S+)", line)
         if m:
             current = m.group(1)
             if current not in tables:
@@ -100,6 +100,13 @@ def parse_tables(stdout: str) -> dict:
             if len(cols) >= 3:
                 try:
                     tables[current].append((float(cols[1]), float(cols[2])))
+                except ValueError:
+                    pass
+            elif len(cols) == 2 and current:
+                # 2-column rows: `linearize`'d tran tables print
+                # (index, value) with the sample grid implicit
+                try:
+                    tables[current].append((float(cols[0]), float(cols[1])))
                 except ValueError:
                     pass
     out = {k: (np.array([p[0] for p in v]), np.array([p[1] for p in v]))
