@@ -1,9 +1,12 @@
 # Research: frequency-estimation bounds and estimators for the FID
 
-> Compiled February 2026. Monte-Carlo-verified reference implementation lives
-> at `/tmp/fid_bench.py`, `/tmp/run_bench.py`, `/tmp/zc_compare.py`
-> (numpy/scipy, fs = 20 kS/s, f₀ = 2 kHz) written during this research pass;
-> the validated subset is ported into `poc/`.
+> Compiled February 2026. The estimators named here are implemented in
+> `poc/estimators.py` (fft_peak, zoom_fit, zc_fit, nlls_fit) and
+> regression-tested in `poc/test_validation.py` (audit v0.0 follow-up: the
+> research pass originally left its scratch scripts in /tmp; they are now
+> in-repo). SNR convention in this report: eta = A0/sigma, PER-SAMPLE
+> amplitude SNR (20 dB <=> eta = 10) -- distinct from the record RMS SNR
+> (V0/sqrt2)/sigma_in used in run_scoring.py output.
 
 ## Bottom line
 
@@ -20,7 +23,8 @@ the **TCXO, not the estimator**: ±1 ppm at 50 µT = 0.05 nT un-averageable.
 
 - `s(t) = A₀·e^(−t/τ)·sin(2πf_L·t + φ) + white Gaussian noise`, τ = T2*,
   window `[t_d, T]` after dead time `t_d`.
-- **B[nT] = f_L[Hz]/0.042577**; σ_B[nT] = 23.4875·σ_f[Hz] — "to measure 1 nT
+- **B[nT] = f_L[Hz]/0.0425764** (shielded proton in water; 1 Hz = 23.4872 nT);
+  σ_B[nT] = 23.4872·σ_f[Hz] — "to measure 1 nT
   you must measure frequency to 0.0426 Hz" —
   [Koehler, Proton Precession Magnetometers Rev 2](https://alexmumm.de/ppm/KoehlerMag.pdf)
 - η = A₀/σ per-sample amplitude SNR (20 dB ⇔ η = 10); invariant quantity is
@@ -125,7 +129,7 @@ a 2026 Sensors paper cuts re-polarization to 3 ms with 90° pulses for
 gen_fid(fs, T, t_d, A0, tau, f0, sigma, ntrial, rng, phi0~U):
     s(t) = A0·exp(−t/τ)·sin(2πf0·t+φ0) + σ·N(0,1),  t ∈ [t_d, T]  (absolute time)
 Metrics per estimator E:
-  M1  σ_f,cycle = RMSE(f̂−f0), excluding gross |err|>1 Hz → nT: ×23.4875; report ×CRLB
+  M1  σ_f,cycle = RMSE(f̂−f0), excluding gross |err|>1 Hz → nT: ×23.4872; report ×CRLB
   M2  bias = mean(f̂−f0)
   M3  gross-error rate = P(|f̂−f0|>1 Hz); detection threshold = lowest SNR with P<1%
   M4  cycle-to-cycle repeatability (stationary-field run); averaging-gain check

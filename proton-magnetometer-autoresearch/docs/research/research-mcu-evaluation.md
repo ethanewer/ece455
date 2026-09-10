@@ -6,7 +6,9 @@
 
 ## 1. ppm → nT math (the acceptance numbers everything hangs on)
 
-γp/2π = 42.577478 MHz/T ⇒ f = 42.577478e6·B, so **relative frequency error
+γ′p/2π = 42.57638507 MHz/T (shielded proton in water; the bare-proton value
+42.577478 MHz/T is 25.7 ppm higher — wrong for absolute field values)
+⇒ f = 42.57638507e6·B, so **relative frequency error
 maps 1:1 to relative field error**:
 
 | Field B | FID frequency | 1 ppm | 20 ppm (0.04 Hz @ 2 kHz) | ±0.5 ppm TCXO | ±2 ppm TCXO | ±20 ppm crystal |

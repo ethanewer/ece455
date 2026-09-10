@@ -11,8 +11,11 @@
   (1) total RMS noise in the FID band referred to the coil EMF (ngspice
   `.noise` + `.ac`), (2) end-to-end signal gain/phase for the FID (`.ac`
   against the coil's Lorentzian signal spectrum), (3) dead time from the
-  blanking transient (`.tran`). Those map to σ_B = σ_f/42.577 via the
-  Cramér–Rao bound, and to detection probability via Marcum-Q/erfc ROC formulas.
+  blanking transient (`.tran`). Those map to σ_B = σ_f/0.0425764 via the
+  Cramér–Rao bound; the Marcum-Q/erfc ROC formulas below are for detecting
+  the FID PULSE PER CYCLE -- detecting a 1 nT wreck anomaly along a survey
+  track is a different test (matched filter over the anomaly profile), out
+  of this pipeline's scope.
 - **ngspice reality check:** `.noise` only propagates noise from devices that
   have noise models (R, diodes, BJTs, JFETs, MOSFETs, lossy L via series R).
   Behavioral `B`/`E`-Laplace blocks are **noiseless and break noise
@@ -99,7 +102,7 @@ e_RTI(f) = √[ e_nI²(f) + (e_nO/G)² + (i_n(f)·|Z_s(f)|)² + 4kT·Re{Z_s(f)} 
 - Frequency CRLB: [Rife & Boorstyn 1974](https://doi.org/10.1109/TIT.1974.1055282);
   damped variants [IEEE T-SP 1997](https://doi.org/10.1109/78.376840),
   [Measurement 2025](https://doi.org/10.1016/j.measurement.2025.119637).
-  σ_f,min ≈ √3/(2π·T_obs·√(ρ·N)) for ρ = per-sample SNR; σ_B = σ_f/42.577.
+  σ_f,min ≈ √3/(2π·T_obs·√(ρ·N)) for ρ = per-sample SNR; σ_B = σ_f/0.0425764.
   Sanity: T_obs = 1 s, N = 2000, ρ = 100 (23 dB) → σ_f ≈ 6e-4 Hz → 14 pT.
   Real PPM papers report 0.07–3 nT, systematics-limited:
   [TIM 2024 zero-crossing+LSR](https://doi.org/10.1109/tim.2024.3436094),
@@ -196,7 +199,7 @@ Inputs: netlist + part DB (e_n, i_n, e_nO, GBW, corner per device) + constants
    σ_n²  = ∫ |H(f)|²·S_n,eq(f) df          # referred to coil EMF
    P_sig = ∫ |H(f)|²·S_fid(f) df           # S_fid = Lorentzian ∝ 1/[(2π(f−f_L))²+1/T2*²]
    SNR   = P_sig/σ_n² ;  σ_n² += (e_adc,inband/G(f_L))²
-   σ_f   = √3/(2π·T_eff·√(SNR·N_eff)) ;  σ_B = σ_f/42.577
+   σ_f   = √3/(2π·T_eff·√(SNR·N_eff)) ;  σ_B = σ_f/0.0425764
    Pd    = Q₁(√(2·SNR), √(−2 ln Pfa))
    ```
 5. **Monte Carlo tolerance sweep** (manual §25.5,
@@ -212,8 +215,13 @@ Inputs: netlist + part DB (e_n, i_n, e_nO, GBW, corner per device) + constants
    estimator over MC realizations for empirical σ_f/Pd (captures Rife–Boorstyn
    threshold effects).
 
-**Score**: `J = w₁·log₁₀(σ_B/1nT) + w₂·(1−Pd) + w₃·(t_dead/T2*) + w₄·max(0, clipping_margin) + w₅·gain_flatness_error`.
-Fail-fast gates: clipping, σ_B > 1 nT, Pd < 0.99 @ Pfa 1e-3, recovery > 20 ms.
+**Score (single source of truth: `poc/circuit_spec.py::score()`)**:
+`J = σ_B [nT]` with fail-fast gates -- gross-error rate P(|f̂−f_L| > 1 Hz) < 1%,
+ring-down inside blanking (5·τ_ring < 0.5·T2*; the earlier "recovery < 20 ms"
+gate was mis-specified -- the requirement is that recovery fits inside the
+blanking window, not a fixed 20 ms), no ADC clipping. No dead-time cost term:
+dead time is already inside σ_B via the record start (the earlier w₃ term
+double-counted). The w₁..w₅ weighting form is superseded.
 
 Worked illustration (analytic, 200 Ω coil, 2 kHz band, FID 1 µV RMS, G = 1000):
 coil-only noise 80 nV → SNR 22 dB; INA828 (7 nV/√Hz) adds 316 nV → 8.5 dB

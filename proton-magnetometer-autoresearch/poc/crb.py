@@ -13,6 +13,8 @@ Fisher information for additive white Gaussian noise:
 """
 import numpy as np
 
+import fid
+
 PARAM_ORDER = ("amp", "freq", "tau", "phase")
 
 
@@ -85,16 +87,22 @@ def freq_crb_colored(t, amp, freq, tau, phase, fs, f_lo, f_hi, sigma):
     if beta == 0:
         return float("nan")
 
+    # Bin weights: 2x for an occupied +/- pair, 1x for occupied DC/Nyquist,
+    # and ZERO for out-of-band bins (S = 0 there: no noise, but we claim no
+    # information either, which makes the bound conservative. An earlier
+    # revision left unoccupied bins at weight 1 -- immaterial at these
+    # parameters (<0.1%, 99.996% of ds/df energy is in-band) but inconsistent
+    # with this docstring; fixed per audit v0.0.)
+    w = np.where(occupied, 2.0, 0.0)
+    if occupied[0]:
+        w[0] = 1.0
+    if occupied[-1]:
+        w[-1] = 1.0
+
     jj = np.zeros((len(keys), len(keys)))
     for i, ki in enumerate(keys):
         for j, kj in enumerate(keys):
-            # 2x for the +/- frequency pair (except DC/Nyquist, counted once).
             cross = np.real(np.conj(D[ki]) * D[kj])
-            w = np.where(occupied, 2.0, 1.0)
-            if not occupied[0]:
-                w[0] = 0.0
-            if not occupied[-1]:
-                w[-1] = 0.0
             jj[i, j] = beta / (sigma**2 * n) * np.sum(w * cross)
     try:
         cov = np.linalg.inv(jj)
@@ -104,5 +112,5 @@ def freq_crb_colored(t, amp, freq, tau, phase, fs, f_lo, f_hi, sigma):
 
 
 def crb_nt(t, amp, freq, tau, phase, sigma):
-    """CRB converted to field units via f = 42.577 Hz/nT [nT]."""
-    return freq_crb(t, amp, freq, tau, phase, sigma) / 42.577478e-3
+    """CRB converted to field units via f = 0.0425764 Hz/nT [nT]."""
+    return freq_crb(t, amp, freq, tau, phase, sigma) / fid.GAMMA_HZ_PER_NT

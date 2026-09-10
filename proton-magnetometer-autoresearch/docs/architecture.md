@@ -4,8 +4,16 @@
 everything downstream of the coil: the analog front end (blanking, preamp,
 bandpass, gain, ADC driver), and the microcontroller signal-processing stack
 that turns the induced EMF (free induction decay, FID) into a magnetic-field
-estimate. Goal sensitivity: **< 1 nT per cycle ⇒ frequency precision < 0.0426 Hz**
-(γp = 42.577 Hz/nT) on a 1–3 kHz decaying sinusoid of µV amplitude.
+estimate. Goal sensitivity: **< 1 nT per cycle ⇒ frequency precision
+< 0.0426 Hz** (shielded-proton γ′p = 0.0425764 Hz/nT) on a 1–3 kHz decaying
+sinusoid of µV amplitude.
+
+**Status: scoring prototype.** What exists and runs today is the objective
+function and its three evaluation layers (below), validated by regression
+tests (`poc/test_validation.py`). The optimizer loop, part database, SKiDL→KiCad
+backend, and C firmware core are designed but not built — do not start a
+search agent on the PoC score alone; it is honest about noise but still blind
+to several real failure modes (see §2.1 caveats and §4).
 
 This document answers the two framing questions for the `autoresearch` branch:
 
@@ -15,49 +23,76 @@ This document answers the two framing questions for the `autoresearch` branch:
 
 It synthesizes four research passes (full reports in
 [`docs/research/`](research/)) plus a working proof-of-concept in
-[`poc/`](../poc/) that closes the loop on this machine today.
+[`poc/`](../poc/) that closes the loop on this machine, and incorporates the
+v0.0 external audits of both.
 
 ---
 
 ## 0. The objective function (everything else serves this)
 
-Every candidate design — analog or firmware — is scored by one number, plus
-gates:
+**One** J is implemented, in `poc/circuit_spec.py::score()`:
 
 ```
-J = RMS field error per cycle  σ_B  [nT]
-    + λ_dead · (dead_time / T2*)            # blanking eats record
-    + λ_cost  · BOM cost
-gates: no clipping; Pd > 0.99 @ Pfa 1e-3; DRC/ERC clean; recovery < 20 ms
+J = sigma_B  [nT RMS per cycle]          # primary metric
+gates (fail -> J = inf):
+  gross-error rate  P(|f_hat - f_L| > 1 Hz) < 1%     # FID detectable & trackable
+  ring-down fits inside blanking: 5*tau_ring < 0.5*T2*
+  no ADC clipping: peak |v_adc| < 0.9 * FS/2
+reported, not gated: dead-time fraction, SNR (both conventions), BOM cost (TODO)
 ```
 
-with the physics chain:
+Deliberate choices (the two v0.0 audits caught inconsistencies here):
+
+* **No λ_dead term.** Dead time is already inside σ_B via the record start
+  time; a separate cost term double-counts. Cycle rate vs tow speed (survey
+  productivity) is a *reported* metric, not a cost term, until someone
+  specifies the survey requirement.
+* **Pd semantics.** The Marcum-Q/erfc detection formulas are for detecting
+  *the FID per cycle*; detecting *a 1 nT wreck along a track* is a different
+  test (matched filter over the anomaly profile). The gate above uses the
+  empirical per-cycle gross-error rate as the FID-detection proxy; the
+  along-track problem is out of scope for the circuit score.
+* **Absolute vs anomaly accuracy** (decision recorded): a constant scale
+  error — wrong γp, clock ppm — subtracts out of along-track anomaly
+  contrast (the towfish mission) but NOT out of absolute field intensity.
+  σ_B here is per-cycle *precision*; absolute accuracy carries the scale
+  terms of §3c of `run_scoring.py` as reported biases.
+
+The physics chain:
 
 ```
-B [T] ──γp──> f_L [Hz] ──coil──> FID EMF [µV]
-        ──AFE transfer H(f) + noise σ_in (SPICE)──> ADC counts
-        ──estimator (MCU firmware)──> f̂ ──/γp──> B̂
-        σ_B = σ_f / 42.577 Hz/nT
+B [T] ──γ′p──> f_L [Hz] ──coil──> FID EMF [µV]
+        ──AFE transfer H(f) + noise (SPICE)──> ADC counts
+        ──estimator (MCU firmware)──> f̂ ──/γ′p──> B̂
+        sigma_B = sigma_f / 0.0425764 Hz/nT
 ```
 
-**Headline PoC numbers** (2 µV FID, T2* = 1.5 s, 1.5 s record, 200 ms blanking,
-0.39 µV in-band noise, 16-bit ADC):
+Unit warnings (both v0.0 audits caught variants of this): 42.5764 **MHz/T**
+= 42.5764 **Hz/µT** = **0.0425764 Hz/nT** — not 42.5764 Hz/nT. And the
+42.577478 MHz/T often quoted is the **bare** proton; a water PPM measures the
+**shielded** proton, 42.57638507 MHz/T (CODATA) — 25.7 ppm lower, worth
+~1.3 nT of scale bias at 50 µT if you use the wrong one for absolute values.
+`poc/fid.py` holds the single source of truth.
 
-| quantity | value |
-|---|---|
-| Colored-noise Cramér–Rao bound | 0.048 nT |
-| zoom/matched-filter estimator (MC) | 0.046 nT (1.00× CRB) |
-| NLLS reference estimator | 0.046 nT (0.96× CRB) |
-| zero-padded FFT + parabolic | 0.048 nT (1.05× CRB) |
-| wrapped-increment (zero-crossing family) | **~50× worse variance** — cannot reach CRB |
+**What the score means — the conditional headline.** The DSP result people
+quote from this repo ("~0.05 nT/cycle") is a *Cramér–Rao bound conditional on
+the assumed transducer amplitude*. The transducer model
+(`fid.estimate_v0`, Curie law: M₀ = n·µ_p²·B_pol/(3kT), EMF = µ₀·M₀·A·ω·N)
+says a Hook-Line-class coil (530 turns, 3 cm bore, 20 mT polarization)
+produces only **V₀ ≈ 0.14 µV** — not the 2 µV the first revision assumed.
+The honest grid (`run_scoring.py` §2, INA-class e_n, blanking 200 ms):
 
-The DSP stack is *not* the bottleneck: with a sane noise budget the CRB gives
-**pT-class precision per cycle** — 20× better than the 1 nT target. The budget
-is set by the analog chain (FID amplitude vs input-referred noise) and by
-systematics (clock ppm, comparator time-walk, 60 Hz harmonics). This inverts
-the prior teams' priorities: they agonized over frequency-measurement
-precision (FPGA, PIO tricks) while their analog noise floor was the binding
-constraint.
+| coil model | V₀ | CRB @ T2*=0.5 s | 1.5 s | 3.0 s |
+|---|---|---|---|---|
+| N=300, r=1.0 cm, 10 mT | 0.02 µV | 19.7 nT | 5.7 nT | 4.1 nT |
+| N=530, r=1.5 cm, 20 mT | 0.14 µV | 2.5 nT | **0.71 nT** | 0.51 nT |
+| N=1500, r=3.0 cm, 50 mT | 3.8 µV | 0.087 nT | 0.025 nT | 0.018 nT |
+
+Read this as: **the analog front end and the polarization chain decide the
+mission.** A small coil barely meets 1 nT/cycle; a large coil has 40× margin
+for the DSP. The first wet capture (week-2 problem 1) is what pins V₀ and
+T2*; treat 2 µV-class amplitudes as achievable only with the bigger
+coil/polarization row.
 
 ---
 
@@ -115,80 +150,116 @@ Three evaluation layers, each catching errors the others can't (full reports:
 [frequency estimation](research/research-frequency-estimation.md) ·
 [MCU stacks](research/research-mcu-evaluation.md)).
 
+**SNR vocabulary** — the repo reports two named conventions; never
+cross-compare them without converting:
+- `eta_ps = A_peak / sigma_ps` — per-sample amplitude SNR, used by
+  `research-frequency-estimation.md` tables (20 dB ⇔ η = 10);
+- `SNR_rms = (V0/√2) / σ_in-band` — record RMS SNR in the noise band
+  (`run_scoring.py`, ~3.0 dB lower than η_ps).
+
 ### 2.1 Layer A — analog front end, from a SPICE netlist
 
-Per candidate netlist (ngspice, batch):
+Per candidate netlist (ngspice, batch; implemented in `poc/circuit_spec.py`):
 
 1. **Normalize**: coil = explicit `L` + series `R` (never lossless `L` — the
    series R *is* the Johnson-noise source; ngspice `L` has no `Rser`).
-   Replace blanking switches with explicit `RON`/`ROFF` resistors for noise
-   runs (`.noise` linearizes at the DC operating point — switches freeze).
-   Build filters from real R/L/C: behavioral `E`-Laplace blocks are
-   **noiseless and sever noise propagation**.
-2. **`.ac`** → end-to-end transfer `H(f)` (signal path, incl. any resonant
-   step-up of the tuned coil).
-3. **`.noise` over the FID band** (e.g. `dec 100 500 3.5k`) → `inoise_total`
-   is *already* the band-integrated RMS input-referred noise — no post-processing.
-   `pts_per_summary=1` once to attribute noise per device.
-4. Amplifier noise the robust way: **physical resistor `R = e_n²/4kT` in series
-   with the input** of a noiseless behavioral gain block (exactly what the PoC
-   does). Vendor PSpice macromodels translate unreliably and often lose noise.
-5. **ADC contribution**: `(e_adc,inband / G(f_L))²` added to `σ_n²`. At analog
-   gain ≥ 1000 a 24-bit ΔΣ (e.g. ADS131M04 ≈ 5.4 nV referred) is negligible; a
-   12-bit MCU ADC is a first-order term unless oversampled aggressively.
-6. **`.tran` verification** (catches what LTI can't): polarization transient +
-   blanking switch opening + `trnoise` sources; measure recovery dead time,
-   clipping, ring-down (tuned-circuit ring-down τ = 2Q/ω₀ — a Q=23 tank costs
-   ~15 ms, cheap; saturated amplifier stages cost 10–100 ms, not cheap).
+   Amplifier noise as physical resistors: series `R = e_n²/4kT` for voltage
+   noise, parallel `R = 4kT/i_n²` for current noise — vendor PSpice
+   macromodels translate unreliably and often lose noise; physical resistors
+   are bulletproof and `.noise`-visible.
+2. **`.ac` over the full band to Nyquist** → the end-to-end transfer H(f),
+   *including any tuned-input resonant step-up*. H(f) is then applied to the
+   **signal** in the scoring loop, not just the noise — the netlist's real
+   bandpass (MFB in the demo) shapes the FID exactly as the hardware would.
+   (The v0.0 PoC brick-walled noise in software and reduced the netlist to a
+   scalar gain; fixed.)
+3. **`.noise` over the sweep** → `inoise_spectrum(f)` (EMF-referred); the ADC
+   noise = that spectrum × |H(f)|, integrated over the full sweep to Nyquist
+   (aliasing folding approximated by the full-band integral; noted residual).
+4. **Tuned vs untuned is a first-class axis** (v0.0 audit: it can reorder
+   which amplifier is optimal). The demo scores untuned-INA, untuned-TL072,
+   and tuned-series-resonant-JFET candidates on the same harness. Measured
+   result (physics V₀, N_MC=150, zoom_fit):
+   untuned INA 0.731 nT; untuned TL072 **fails gross-error gate**; tuned JFET
+   0.0057 nT — the tuned input lifts signal and coil noise together relative
+   to amplifier noise, exactly as the Overhauser noise-modeling literature
+   predicts, and it *reorders* the amplifier ranking.
+5. **Blanking/recovery as physics, not deleted samples** (v0.0 audit): the
+   netlist carries a polarization-coupled current pulse (1 mA collapsing at
+   400–500 µs); a `.tran` run measures the input network's ring-down decay
+   constant (τ ≈ 0.4–0.5 ms untuned), and the effective blanking is
+   `max(chosen, 5·τ_ring)` — gated to stay inside half of T2*. The
+   information-theoretic blanking curve (below) complements this; it does
+   not replace it.
+6. **Clipping gate**: peak ADC excursion (signal at H(f_L) + 6σ noise) vs
+   0.9·FS — irrelevant at today's gains, decisive once candidates vary gain.
 7. **Monte Carlo tolerance sweep** via ngspice `.control` loops with
-   `alter`/`sgauss` (no `.step` in ngspice); worst-case via corner limits.
+   `alter`/`sgauss` (no `.step` in ngspice); worst-case via corner limits —
+   designed, not yet wired into the demo.
 
-Output: `σ_in` (RMS noise referred to coil EMF) and `H(f_L)` — the two numbers
-the DSP layer consumes.
+Output: shaped noise σ_in, H(f) on the FFT grid, τ_ring — the numbers the DSP
+layer consumes. Standing validation: analytic coil+e_n integration matches
+ngspice `inoise_total` to <1% (regression-tested).
+
+**Known blind spots of the current score** (from the audits — the optimizer
+must not be run until these are scored): gain split/CMRR/PSRR/1-f/GBW,
+pulse-to-receiver coupling and layout EMI, power-rail ripple, saturation
+recovery of real amplifier stages, and component tolerances.
 
 ### 2.2 Layer B — DSP/estimator, from synthetic records
 
 `fid.py` generates sampled, quantized records exactly as an MCU sees them:
-physics (FID amplitude ∝ B·B_pol), band-limited front-end noise, gain, ADC
-quantization, blanking dead-time window. Then:
+physics (FID amplitude from the Curie-law transducer model, ∝ B_pol·N·r²·B),
+band-limited front-end noise, gain, ADC quantization, blanking dead-time
+window, optional narrowband interferers. Then:
 
-- **Analytic floor**: colored-noise CRLB computed from the numeric Fisher
-  information (DFT-domain, `1/S(f)`-weighted — *band-limited* noise has
-  3.5× the spectral density of white noise of equal RMS, so the common
-  white-noise CRB is ~2× optimistic in σ; our implementation matches
-  Monte-Carlo ground truth to 0.96×).
+- **Analytic floor**: colored-noise CRLB from the numeric Fisher information
+  (DFT-domain, 1/S(f)-weighted, out-of-band bins carry zero weight — the
+  conservative choice). *Both* audits independently validated this
+  implementation; `test_validation.py` re-checks it against a dense
+  covariance solve every run. Band-limited noise has ~3.5× the spectral
+  density of white noise of equal RMS, so the common white-noise CRB is
+  ~2× optimistic in σ.
 - **Empirical**: Monte-Carlo RMS nT error of the actual estimator code on
-  synthetic records (the same vectors later feed the MCU firmware's CI).
+  synthetic records (same vectors later feed the MCU firmware's CI). Phase is
+  randomized per run; seeds are shared across estimators (paired comparison);
+  MC uncertainty ~±3.5% (1σ) at N=400 is stated with every table.
 
-PoC-verified estimator ranking (this is the pipeline's DSP knowledge base):
+Measured at the reference point (2 µV, T2* = 1.5 s, η_ps = 14.2 dB):
 
-| estimator | × CRB | MCU cost | verdict |
+| estimator | × CRB | gross >1 Hz | verdict |
 |---|---|---|---|
-| NLLS (4-param damped sinusoid) | 0.96 | high | reference bound |
-| exponential-weighted zoom (matched filter, FIR-decimated) | 1.00 | ~few M MACs | **recommended** |
-| zero-padded FFT + log-parabolic | 1.05 | one FFT | cheap fallback, excellent |
-| wrapped-increment / zero-crossing family | ~50–100 | lowest | **unusable** at these SNRs |
+| NLLS (staged, zoom-seeded) | reference | 1.5% | practical bound; 4-param LSQ is threshold-limited below ~15 dB |
+| zoom/matched filter (exp-weighted, FIR-decimated) | 1.02 | 0% | **recommended** |
+| zero-padded FFT + log-parabolic | 1.05 | 0% | cheap fallback |
+| zero-crossing (interp crossings + WLS mean period) | ~3800 | 100% | **ruled out, in-repo regression** |
 
-The zero-crossing result is a quantified autopsy of the prior teams' approach:
-increment estimators discard inter-sample phase continuity; their error floors
-at `σ_φ·√(fs)/(2π√T_eff)` regardless of record SNR — the information is in the
-coherent phase, which crossing timestamps destroy. (Independent corroboration:
-the frequency-estimation research measured zero-crossing at **660× CRLB
-wideband** in its own Monte Carlo, and the 2023–24 PPM literature has moved to
-phase-fitting for the same reason.)
+The zero-crossing row is the in-repo autopsy of the prior teams' approach
+(`zc_fit` implements the *best-practice* variant: interpolated crossings,
+variance-optimal slope² weights, cycle-slip filtering). It floors at
+σ_f ~ 8 Hz at this SNR because crossing timestamps destroy the inter-sample
+phase continuity where the information lives. (The frequency-estimation
+research measured 660× CRLB *wideband at higher per-sample SNR*; the 3800×
+here is the narrowband case at η_ps = 14.2 dB. Different SNR conventions —
+do not compare the numbers directly, compare the conclusion.)
+Note a naive crossing-time-on-index regression is far worse still (70%+ gross
+from cycle slips); `zc_fit` is already the best-practice version.
 
-**Blanking finding** (for the blanking-timing knife-edge the week-2 report
-flagged): frequency information scales as `t²·e^(−2t/τ)` — concentrated
-*late* in the record — so dead time is far cheaper than intuition suggests:
-500 ms of blanking costs only ~1.2× in σ_f (0.044→0.059 nT). Blanking can be
-generous; short T2* is the real killer.
+**Blanking finding** (information-theoretic half; the recovery half is
+Layer A's `.tran`): frequency information scales as `t²·e^(−2t/τ)` —
+concentrated *late* in the record — so dead time is far cheaper than
+intuition suggests: 500 ms of blanking costs only ~1.2× in σ_f
+(0.0435→0.0587 nT). Bias blanking *long*, provided the ring-down gate passes.
 
 ### 2.2.1 Scoring harness spec (the estimator gate)
 
 Per candidate estimator: RMS nT error and bias over an SNR × T2* × blanking
-matrix, gross-error rate (`P(|err| > 1 Hz)`, gate < 1%), ablations (60 Hz
-sidetone, TCXO ppm as deterministic scale error, τ mis-specification), and
-MACs/call cost. Pass bar: ≤ 1.2× CRB, |bias| < 0.2·σ.
+matrix; gross-error rate `P(|err| > 1 Hz)` (gate < 1%); the M5 ablations —
+τ-misspecification (zoom at 0.5×/2× wrong τ: ≤1.05× CRB, measured), in-band
+narrowband interferers (60 Hz and its 30th harmonic at 1.8 kHz: ≤1.05× CRB at
+−40/−20 dB, measured), and the clock-ppm *deterministic* scale error (below);
+phase randomized; common seeds; ~3.5% MC CI. Pass bar: ≤ 1.2× CRB, |bias|
+< 0.2·σ, gross < 1%.
 
 ### 2.3 Layer B′ — MCU stack, without hardware
 
@@ -206,7 +277,9 @@ tools/     gen_fid.py — one generator feeds tests, RESD streams, VCD
   `sensitivity-score` job compiles the *same* estimator core for the host,
   runs it over the synthetic-FID matrix with per-MCU timestamp quantization
   (8 ns RP2040 / 5.9 ns STM32 — both negligible) and per-clock ppm error
-  injected as a scale factor, emits σ_f/bias JSON, gates at 0.0426 Hz.
+  injected as a *deterministic scale* (a constant ppm multiplies total field;
+  the anomaly bump subtracts — see the ablation table in `run_scoring.py`),
+  emits σ_f/bias JSON, gates at 0.0426 Hz.
 - **Emulator layer** — plumbing only: Renode (STM32; GPIO/RESD injection,
   Robot Framework CI) and rp2040js/Wokwi (PIO-capable, custom-chip FID
   generator). Renode is *functional, not cycle-accurate* — it cannot predict
@@ -214,11 +287,13 @@ tools/     gen_fid.py — one generator feeds tests, RESD streams, VCD
 - **HIL bench** — final acceptance: TCXO term, comparator time-walk, EMI.
 
 **The clock is the floor, not the MCU**: ±1 ppm TCXO at 50 µT = 0.05 nT
-un-averageable scale error (a ±20 ppm crystal alone eats the entire 1 nT
-budget); capture jitter is ~4 orders of magnitude below budget. **Comparator
-time-walk** (zero-crossing shift ∝ V_noise/(2πf·A(t)), growing as the FID
-decays) is a systematic that must be modeled in synthetic tests — and it is
-another argument against zero-crossing front ends and for the ADC path.
+un-averageable scale error; a ±20 ppm crystal eats a fifth of the 1 nT budget
+*as a bias* (and ~the whole budget for absolute accuracy — see §0's
+absolute-vs-anomaly decision). Capture jitter is ~4 orders of magnitude below
+budget. **Comparator time-walk** (zero-crossing shift ∝ V_noise/(2πf·A(t)),
+growing as the FID decays) is a systematic that must be modeled in synthetic
+tests — and it is another argument against zero-crossing front ends and for
+the ADC path.
 
 ---
 
@@ -228,25 +303,26 @@ another argument against zero-crossing front ends and for the ADC path.
 proton-magnetometer-autoresearch/
 ├── docs/                    # this doc + research reports
 ├── poc/                     # working loop, this machine (Python + ngspice)
-│   ├── fid.py               # FID physics + AFE noise model + record generator
-│   ├── estimators.py        # fft_peak / zoom_fit / nlls_fit
+│   ├── fid.py               # FID physics, Curie-law V0, noise model, records
+│   ├── estimators.py        # fft_peak / zoom_fit / zc_fit / nlls_fit
 │   ├── crb.py               # white + colored-noise CRLB
-│   ├── run_scoring.py       # CRB validation + estimator/blanking sweeps
-│   └── circuit_spec.py      # JSON spec -> ngspice -> nT  (the loop, closed)
+│   ├── run_scoring.py       # CRB validation, V0xT2* grid, M5 ablations
+│   ├── circuit_spec.py      # JSON spec -> ngspice -> H(f)-shaped MC -> J
+│   └── test_validation.py   # standing regression tests (audit v0.0)
 └── (planned)
     ├── spec/                # component/net graph JSON (the IR source of truth)
     ├── backends/spice.py    # spec -> ngspice netlist (done in poc)
     ├── backends/kicad.py    # spec -> SKiDL -> .kicad_sch/.kicad_pcb -> kicad-cli
-    ├── scoring/             # objective fn: σ_B, Pd, dead time, cost gates
+    ├── scoring/             # objective fn: sigma_B, gates, cost (J done in poc)
     ├── parts/               # part DB: e_n, i_n, GBW, price, footprint
     ├── firmware/core/       # portable C99 estimator (pytest/Unity, CI-scored)
     └── experiments/         # auto-generated candidate cards (sim + render + score)
 ```
 
-**Data flow per candidate:** `spec → (SPICE: σ_in, H(f), dead time) →
-(CRB + MC: σ_B, Pd) → (cost, DRC) → score card`; the optimizer/agent proposes
-mutations (topology swaps, part swaps, parameter moves); the scorer prunes;
-survivors compile to KiCad for human review/build.
+**Data flow per candidate:** `spec → (SPICE: H(f), noise spectrum, τ_ring,
+clipping) → (CRB + MC: σ_B, gross rate) → J + gates → score card`; the
+optimizer/agent proposes mutations (topology swaps, part swaps, parameter
+moves); the scorer prunes; survivors compile to KiCad for human review/build.
 
 ### Principles
 
@@ -256,27 +332,36 @@ survivors compile to KiCad for human review/build.
 2. **One graph, many backends**: the component/net graph is written once;
    SPICE, KiCad, BOM, and docs are all *projections* of it.
 3. **Score everything; trust nothing un-scored**: every claim (noise, gain,
-   precision) comes from a tool with exit codes or a validated analytic model
-   (the CRB is Monte-Carlo-validated at 0.96–1.00×; treat NLLS-vs-CRB agreement
-   as a standing regression test).
+   precision) comes from a tool with exit codes or a regression-tested
+   analytic model (`test_validation.py`: white CRB vs Rife–Boorstyn closed
+   form; colored CRB vs dense-covariance Fisher; zoom vs colored CRB).
 4. **Model what emulators can't**: comparator time-walk, clock ppm, blanking
    timing — expressed in the synthetic-signal generator, scored natively.
-5. **Human-buildable output**: every surviving candidate emits KiCad
+5. **State the assumptions with the number**: V₀, T2*, SNR convention, and MC
+   uncertainty are quoted next to every headline figure. A conditional CRB is
+   not a measured sensitivity.
+6. **Human-buildable output**: every surviving candidate emits KiCad
    schematic + PCB + BOM + gerbers (the thing the prior teams actually needed
    and the one thing their Altium/LTspice files can't give the next team).
 
 ---
 
-## 4. Mapping to the week-2 open problems
+## 4. Mapping to the week-2 open problems (honest version)
 
-| Week-2 open problem | Pipeline mechanism |
-|---|---|
-| Close the physics loop on the bench first | The scoring harness *is* the physics loop in silico; the CRB/MC results above set the analog-noise target (≈0.39 µV in-band → 0.05 nT) before any hardware is touched |
-| Fix the gain and noise budget | Layer A scores it directly (PoC: INA-class 0.050 nT vs TL072 0.126 nT) |
-| Blanking timing knife-edge | CRB-vs-blanking curve: 500 ms blanking costs 1.2×, so bias blanking *long* and safe |
-| Validate frequency estimator on real, noisy FID | Layer B' MC harness; zero-crossing family formally ruled out (50–660× CRB) |
-| Settle one coil geometry | Coil (R, L, tuning C, ring-down τ=2Q/ω₀) is a scored experiment axis, not a re-derivation |
-| Modular boards, test points | Every candidate ships ERC/DRC-clean KiCad + BOM from the same graph |
+What the harness *is*: a validated in-silico prior for noise budgeting,
+estimator choice, and acceptance targets. What it is **not**: the bench
+physics loop, and not yet a layout/coupling simulator. Mapping:
+
+| Week-2 open problem | Pipeline contribution | Not covered by the harness |
+|---|---|---|
+| 1. Close the physics loop on the bench | Acceptance numbers for the first wet capture (expected V₀ grid, expected σ, SNR targets); V₀×T2* grid shows how much margin each coil class buys | The capture itself; V₀/T2* remain model predictions until then |
+| 2. Leave breadboards; layout/EMI | Future KiCad backend with ERC/DRC gates | Pulse-to-receiver coupling, star grounding, shielding — layout physics are not in the score |
+| 3. Blanking knife-edge | Two halves: `.tran` ring-down τ (recovery physics, gated) + CRB-vs-blanking curve (bias long: 500 ms costs 1.2×) | Switch charge injection, snubber/dummy-coil design |
+| 4. Power rails, modular boards | Future KiCad backend + gates | Rail ripple inside the FID band is not modeled yet |
+| 5. Gain and noise budget | Directly scored (e_n AND i_n, real bandpass, tuned axis; TL072-class fails gates at physics V₀) | CMRR/PSRR, gain-split optimization, 1/f |
+| 6. Frequency-estimator precision | Estimator family scored against CRB in-repo; crossing family ruled out with a reproducible regression | Real-record validation still requires the wet capture |
+| 7. Coil geometry | Coil parameters (R, L, N, tuning C) are scored experiment axes; V₀ derived from the transducer model | Winding/sealing/housing engineering; V₀ anchoring |
+| 8. Schedule/procurement | Out of scope | — |
 
 ## 5. Immediate next steps
 
@@ -284,9 +369,12 @@ survivors compile to KiCad for human review/build.
    SKiDL 2.3 `generate_schematic()` is the enabler). Emit one INA828-class AFE
    and verify `kicad-cli sch erc` + `pcb drc` pass with exit codes.
 2. **Part database** with noise/price pins (INA828, ADA4898, JFET input stage,
-   ADS131M04 vs MCU ADC, DG419-class blanking switch) so candidates pick real parts.
+   ADS131M04 vs MCU ADC, DG419-class blanking switch) and the Monte-Carlo
+   tolerance sweep wired into the score.
 3. **Firmware `core/`**: port `zoom_fit` to portable C (fixed-point mixer +
    running weighted sums); wire the CI sensitivity-score job against
    `fid.generate_record` vectors.
-4. **Bench closure** (the real FID): use the harness predictions (expected FID
-   amplitude, expected σ) as the acceptance criteria for the first wet capture.
+4. **Bench closure** (the real FID): use the harness predictions (V₀ grid,
+   expected σ) as the acceptance criteria for the first wet capture — that
+   capture is also what replaces the transducer model's assumptions with
+   measurements.
