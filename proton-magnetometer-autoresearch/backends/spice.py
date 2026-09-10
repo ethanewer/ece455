@@ -19,6 +19,8 @@ tests/test_ngspice_layer.py.
 """
 from __future__ import annotations
 
+import hashlib
+import os
 import re
 import subprocess
 from pathlib import Path
@@ -56,9 +58,14 @@ def run_ngspice_status(netlist: str,
                        timeout_s: float = 300.0):
     """Batch ngspice without raising. Returns (CompletedProcess, circuit
     path). A non-zero returncode (non-convergence, syntax error, timeout)
-    is data for the scorer, not an exception."""
+    is data for the scorer, not an exception.
+
+    Each call gets a UNIQUE circuit file (E3 audit finding 10: parallel
+    scoring workers sharing one candidate.cir clobbered each other's
+    netlists, producing cards whose results didn't match their specs)."""
     workdir.mkdir(parents=True, exist_ok=True)
-    nl = workdir / "candidate.cir"
+    tag = hashlib.sha256(netlist.encode()).hexdigest()[:16]
+    nl = workdir / f"candidate_{os.getpid()}_{tag}.cir"
     nl.write_text(netlist)
     try:
         proc = subprocess.run(["ngspice", "-b", str(nl)], capture_output=True,

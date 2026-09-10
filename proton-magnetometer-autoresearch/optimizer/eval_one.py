@@ -82,11 +82,20 @@ def main() -> int:
         return 0
     tabs = cs.parse_tables(proc.stdout)
     sim = cs.simulate_from_tabs(spec, tabs)
-    result = cs.score_at(sim, spec)
+    # B-sweep worst case (E3 audit finding 9): the search must minimize
+    # the WORST cycle over the operating field range, not the 50 uT point
+    # -- otherwise it can lock a 50 uT curiosity (tank pull) or a
+    # band-edge SNR hole and never see the other bands.
+    sweep = [cs.score_at(sim, spec, b) for b in
+             (25e-6, 37.5e-6, 50e-6, 62e-6, 65e-6)]
+    result = max(sweep, key=lambda c: c["J_nt"])   # the worst-band card
+    result["J_nt_worst"] = result["J_nt"]
+    result["J_per_band"] = {f"{c['b_earth_uT']:.0f}uT": c["J_nt"]
+                            for c in sweep}
     keep = {k: result[k] for k in result
             if k not in ("tabs",)}
     card.update(keep)
-    card["J_nt"] = result["J_nt"]
+    card["J_nt"] = result["J_nt_worst"]      # optimize the worst case
     print(json.dumps(card))
     return 0
 

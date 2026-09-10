@@ -91,14 +91,29 @@ def mfb_bandpass_components(scale: float = 1.0) -> list:
 
 
 def afe_spec(label, e_amp, i_amp, coil, tuned=False, preamp_gain=100.0,
-             mfb_scale=1.0) -> dict:
+             mfb_scale=1.0, wire_d_mm=None, winding_len_m=None) -> dict:
     """FID EMF -> [tuning C] -> amp-noise network -> ideal preamp
     (x preamp_gain) -> MFB bandpass -> AA RC -> ideal x10 -> adc.
 
     preamp_gain is a first-class candidate axis (B6): a tuned input with
     Q ~ 60 step-up saturates the ADC chain at the old x100 staging, and
     candidates that crank gain must be able to fail the clipping gate.
+
+    V0/noise coupling (E3 audit finding 3, closing E6 finding 3): when
+    wire_d_mm is given, r_coil and l_coil are DERIVED from the winding
+    (n_turns, radius, wire gauge, axis length) via coil_model() -- the
+    same geometry that sets V0 through estimate_v0 sets the noise
+    drivers, so an optimizer cannot raise signal without paying winding
+    resistance. Candidates that pass explicit r_coil/l_coil (the demo
+    fixtures) keep them, but the optimizer's mutations use the derived
+    path.
     """
+    if wire_d_mm is not None:
+        derived = coil_model(n_turns=coil["n_turns"],
+                             radius_m=coil["radius_m"],
+                             wire_d_mm=wire_d_mm, b_pol=coil["b_pol"],
+                             winding_len_m=winding_len_m)
+        coil = dict(coil, r_coil=derived["r_coil"], l_coil=derived["l_coil"])
     en_r = noise_resistance(e_amp)
     comps = [
         {"name": "V1", "type": "V", "nodes": ["fid", "0"],
@@ -406,6 +421,19 @@ def score_at(sim: dict, spec: dict, b_earth: float = 50e-6) -> dict:
     gates["no_clipping"] = res["clip_margin"] < 1.0
     gates["recovery_inside_blanking"] = blank_eff < 0.5 * T2_STAR
     gates["gross_errors"] = res["gross_zoom_fit"] < 0.01
+    # Rail-ripple gate (E3 audit finding 5; week-2 problem 4 -- the
+    # failure mode that killed two prior teams): a 50 mV buck ripple at
+    # 2 kHz referred through the parts-DB-class PSRR of the FIRST stage
+    # (60 dB -> 50 uV referred, i.e. ~5x the 2 uV reference V0 and ~
+    # 120x the physics-grid V0) must sit below the FID amplitude or the
+    # coarse FFT seed hijacks onto the tone (measured: 3026 nT RMS in
+    # run_scoring [3e]). This makes the PSRR budget a scored gate, not a
+    # docstring. ripple_referred = 50 mV * 10^(-PSRR/20) with PSRR 100 dB
+    # as the pass bar at V0 >= 0.4 uV; proportional bar at smaller V0.
+    ripple_referred_uv = 50.0e-3 * 10.0 ** (-100.0 / 20.0) * 1e6  # 0.5 uV
+    v0_uv = v0 * 1e6
+    res["ripple_margin"] = ripple_referred_uv / max(v0_uv, 1e-9)
+    gates["rail_ripple_survivable"] = res["ripple_margin"] < 1.0
     res["gates"] = gates
     res["J_nt"] = res["rms_zoom_fit"] if all(gates.values()) else float("inf")
     res["b_earth_uT"] = b_earth * 1e6
@@ -443,6 +471,131 @@ def coil_model(n_turns: int, radius_m: float, wire_d_mm: float,
     l_coil = 1.25663706e-6 * n_turns**2 * (np.pi * radius_m**2) / winding_len_m
     return dict(r_coil=float(r_coil), l_coil=float(l_coil), n_turns=n_turns,
                 radius_m=radius_m, b_pol=b_pol)
+
+
+def _spice_value_to_float(v) -> float:
+    """Parse a SPICE value string ('2m', '56n', '1.7k', '120') to float."""
+    v = str(v).strip().lower()
+    scale = {"t": 1e12, "g": 1e9, "meg": 1e6, "k": 1e3, "m": 1e-3,
+             "u": 1e-6, "n": 1e-9, "p": 1e-12, "f": 1e-15, "": 1.0}
+    for suf, sc in (("meg", 1e6), ("mil", 25.4e-6)):
+        if v.endswith(suf):
+            return float(v[:-len(suf)]) * sc
+    unit = v[-1] if v[-1].isalpha() else ""
+    return float(v[:-1] if unit else v) * scale.get(unit, 1.0)
+
+
+def tolerance_sweep(spec: dict, k: int = 24, b_earth: float = 50e-6,
+                    tol=None) -> dict:
+    """B1: Monte-Carlo component-tolerance sweep in the SPICE layer.
+
+    ngspice-native (.control loop + `alter` + `sgauss` + `setseed`; there
+    is no `.step` in ngspice): ONE ngspice process perturbs every R/C/L
+    by its tolerance, re-runs .ac (single point at f_L) and .noise
+    (in-band integrated), and prints (gain at f_L, inoise_total) per
+    iteration. Python recomputes the colored CRB per iteration from the
+    perturbed gain/noise (the per-iteration estimator MC would multiply
+    runtime by k) and reports the worst-case (p95) CRB -- the optimizer
+    must survive its parts, not their nominal values.
+
+    Tolerances (1-sigma in the sgauss call): R 0.5%, C 2.5%, L 5%,
+    i.e. a 2-sigma tolerance of R 1%, C 5%, L 10% -- generic
+    0603/X7R-class numbers.
+    """
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from backends.spice import run_ngspice_status, parse_tables as _pt
+
+    tol = tol or {"R": 0.005, "C": 0.025, "L": 0.05}
+    coil = spec["meta"]["coil"]
+    v0 = fid.estimate_v0(b_pol=coil["b_pol"], n_turns=coil["n_turns"],
+                         coil_radius_m=coil["radius_m"], b_earth=b_earth)
+    f_l = fid.larmor_hz(b_earth)
+    n_rec = int(round(RECORD_S * FS))
+    t_ax = BLANKING_S + np.arange(n_rec) / FS
+
+    l_coil = _spice_value_to_float(coil["l_coil"])
+    lines = ["* tolerance sweep wrapper"]
+    for c in spec["components"]:
+        lines.append(f"{c['name']} {' '.join(c['nodes'])} {c['value']}")
+    lines.append(".control")
+    lines.append("setseed 42")
+    lines.append(f"let i = 0")
+    lines.append(f"dowhile i < {k}")
+    for name, val, t in (("R1", 1700.0, tol["R"]), ("R2", 1130.0, tol["R"]),
+                         ("R3", 17000.0, tol["R"]),
+                         ("Rcoil", float(coil.get("r_coil", 120)), tol["R"]),
+                         ("C1", 22e-9, tol["C"]), ("C2", 22e-9, tol["C"]),
+                         ("Lcoil", l_coil, tol["L"])):
+        lines.append(f"  alter {name} = {val:.6g} * (1 + {t}*sgauss(0))")
+    if spec["meta"].get("tuned"):
+        c_t = _spice_value_to_float(coil["c_tune"])
+        lines.append(f"  alter Ctune = {c_t:.6g} * (1 + {tol['C']}*sgauss(0))")
+    # gain(f_L): single-point .ac; noise: full in-band spectrum per
+    # iteration. Two ngspice quirks (E3-audit fixes):
+    #   (a) noise2's inoise_total scalar is STALE inside a .control loop
+    #       (the re-run updates noise1's spectrum, not the old scalar) --
+    #       Python integrates each iteration's spectrum slice instead;
+    #   (b) a re-run `noise` does NOT refresh the plots unless the old
+    #       ones are destroyed first (without `destroy`, every iteration
+    #       re-prints iteration 1's spectrum -- verified by probe).
+    lines += [
+        "  destroy all",
+        f"  ac lin 1 {f_l:.4f} {f_l:.4f}",
+        "  let gfl = vm(adc)",
+        "  print gfl",
+        "  noise v(adc) V1 dec 100 500 3500 1",
+        "  setplot noise1",
+        "  print inoise_spectrum",
+        "  let i = i + 1",
+        "end",
+        ".endc",
+        ".end",
+    ]
+    proc, _ = run_ngspice_status("\n".join(lines) + "\n", timeout_s=600)
+    if proc.returncode != 0:
+        return {"ok": False, "sim_status": proc.returncode,
+                "stderr": proc.stderr[-400:]}
+
+    # parse the K gains + K per-iteration in-band spectra
+    text = proc.stdout
+    gains = [float(m) for m in
+             re.findall(r"gfl\s*=\s*([0-9.eE+-]+)", text)]
+    tabs = parse_tables(text)
+    if "inoise_spectrum" not in tabs:
+        return {"ok": False, "detail": "no inoise_spectrum table parsed"}
+    f_sp, e_sp = tabs["inoise_spectrum"]
+    # every iteration prints the same 100 pts/decade grid over 500-3500
+    # -> reshape the accumulated table into per-iteration spectra
+    n_per = len(f_sp) // max(len(gains), 1)
+    if n_per == 0 or len(gains) == 0:
+        return {"ok": False, "detail": "spectrum rows misaligned"}
+    n = min(len(gains), len(f_sp) // n_per)
+    gains = gains[:n]
+    if n < k // 2:
+        return {"ok": False, "detail": f"only {n}/{k} iterations parsed"}
+
+    # per-iteration colored CRB from the perturbed spectrum
+    crbs = []
+    for it in range(n):
+        seg = slice(it * n_per, (it + 1) * n_per)
+        f_i = f_sp[seg]
+        e_i = e_sp[seg]
+        # in-band EMF-referred RMS from the spectrum (trapezoid; the
+        # sweep already runs 500..3500)
+        sig2 = float(np.trapezoid(e_i ** 2, f_sp[seg]))
+        v = crb.freq_crb_colored(t_ax, v0, f_l, T2_STAR, 0.0, FS,
+                                 *fid.NOISE_BAND, float(np.sqrt(sig2)))
+        crbs.append(v / fid.GAMMA_HZ_PER_NT)
+    crbs = np.asarray(crbs)
+    return {"ok": True, "k_parsed": n,
+            "crb_median_nt": float(np.median(crbs)),
+            "crb_p95_nt": float(np.percentile(crbs, 95)),
+            "crb_max_nt": float(crbs.max()),
+            "gain_fL_median": float(np.median(gains)),
+            "gain_fL_p95": float(np.percentile(np.abs(gains), 95)),
+            "note": "2-sigma component tolerances (R 1%, C 5%, L 10%)",
+            }
 
 
 def band_candidates(b_fields=(25e-6, 50e-6, 65e-6)) -> list:

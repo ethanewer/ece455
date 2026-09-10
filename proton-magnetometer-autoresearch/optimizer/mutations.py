@@ -36,16 +36,24 @@ AMPS = [
 
 
 def base_candidates() -> list:
-    """Seed population: the demo candidates + the per-band family."""
+    """Seed population.
+
+    Coil geometry is the ONLY coil input (E3 audit finding 1): wire gauge
+    + axis length go to afe_spec, which derives r_coil/l_coil from the
+    winding -- the same geometry that sets V0. The optimizer therefore
+    cannot raise signal without paying winding resistance (closing the
+    E6 finding 3 exploit that elite.json's first run found).
+    """
     seeds = [
         dict(label="seed untuned INA", e_amp=7e-9, i_amp=170e-15,
              tuned=False, preamp_gain=100.0, mfb_scale=1.0,
-             coil=dict(r_coil=120, l_coil="2m", n_turns=530,
-                       radius_m=0.015, b_pol=0.02)),
+             wire_d_mm=0.15, winding_len_m=0.08,
+             coil=dict(n_turns=530, radius_m=0.015, b_pol=0.02)),
         dict(label="seed tuned JFET", e_amp=1.4e-9, i_amp=0.1e-12,
              tuned=True, preamp_gain=4.0, mfb_scale=1.0,
-             coil=dict(r_coil=20, l_coil="100m", c_tune="56n",
-                       n_turns=1500, radius_m=0.030, b_pol=0.05)),
+             wire_d_mm=0.56, winding_len_m=0.30,
+             coil=dict(n_turns=1500, radius_m=0.030, b_pol=0.05,
+                       c_tune="210n")),   # resonance of the derived L
     ]
     return seeds
 
@@ -64,14 +72,14 @@ def mutate(parent: dict, rng: np.random.Generator) -> dict:
             coil = child["coil"]
             if "c_tune" not in coil:
                 # retune to the demo's 50 uT tank as a starting point
-                l_coil = _coil_l(coil)
+                l_coil = _coil_l(child)
                 coil["c_tune"] = "%.3g" % (
                     1.0 / (2.0 * np.pi * fid.larmor_hz(50e-6)) ** 2 / l_coil)
         else:
             child.pop("preamp_gain", None)
     elif op == "retune":
         b_new = float(rng.uniform(25e-6, 65e-6))
-        l_coil = _coil_l(child["coil"])
+        l_coil = _coil_l(child)
         child["coil"]["c_tune"] = "%.3g" % (
             1.0 / (2.0 * np.pi * fid.larmor_hz(b_new)) ** 2 / l_coil)
     elif op == "gain":
@@ -86,9 +94,18 @@ def mutate(parent: dict, rng: np.random.Generator) -> dict:
     return child
 
 
-def _coil_l(coil: dict) -> float:
-    """Coil inductance in H from the IR value string ('100m' etc.)."""
-    v = str(coil["l_coil"]).strip().lower()
-    scale = {"m": 1e-3, "u": 1e-6, "n": 1e-9, "": 1.0}
-    unit = v[-1] if v[-1].isalpha() else ""
-    return float(v[:-1] if unit else v) * scale[unit]
+def _coil_l(kwargs: dict) -> float:
+    """Coil inductance [H] the candidate will actually run with: derived
+    from the winding geometry (the coupled path), falling back to an
+    explicit l_coil string/number if present."""
+    coil = kwargs["coil"]
+    if "l_coil" in coil:
+        v = str(coil["l_coil"]).strip().lower()
+        scale = {"m": 1e-3, "u": 1e-6, "n": 1e-9, "": 1.0}
+        unit = v[-1] if v[-1].isalpha() else ""
+        return float(v[:-1] if unit else v) * scale[unit]
+    import circuit_spec as _cs
+    cw = _cs.coil_model(n_turns=coil["n_turns"], radius_m=coil["radius_m"],
+                        wire_d_mm=kwargs["wire_d_mm"], b_pol=coil["b_pol"],
+                        winding_len_m=kwargs.get("winding_len_m"))
+    return cw["l_coil"]
