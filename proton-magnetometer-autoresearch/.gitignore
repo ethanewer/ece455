@@ -4,3 +4,9 @@ __pycache__/
 tmp/
 *.so
 *.npy.tmp
+_sklib.py
+*.erc
+*.log
+*-erc.rpt
+*-drc.rpt
+skidl_REPL.*

@@ -174,18 +174,25 @@ def afe_spec(label, e_amp, i_amp, coil, tuned=False, preamp_gain=100.0,
     }
 
 
+def _backend():
+    """Import the shared SPICE backend (project root on sys.path even when
+    this file runs as a script from poc/)."""
+    import sys
+    from pathlib import Path
+    root = str(Path(__file__).resolve().parent.parent)
+    if root not in sys.path:
+        sys.path.insert(0, root)
+    import backends.spice as _spice
+    return _spice
+
+
 def emit_netlist(spec: dict) -> str:
     """Aliases to the shared backend (A2); kept for fixture/test imports."""
-    from backends.spice import emit_netlist as _emit
-    return _emit(spec)
+    return _backend().emit_netlist(spec)
 
 
 def run_ngspice(netlist: str) -> str:
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from backends.spice import run_ngspice as _run
-    return _run(netlist, workdir=WORKDIR)
+    return _backend().run_ngspice(netlist, workdir=WORKDIR)
 
 
 def run_ngspice_orig(netlist: str) -> str:
@@ -201,11 +208,7 @@ def run_ngspice_orig(netlist: str) -> str:
 
 def parse_tables(stdout: str) -> dict:
     """Shared pagination-tolerant parser (A2 backend)."""
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-    from backends.spice import parse_tables as _parse
-    return _parse(stdout)
+    return _backend().parse_tables(stdout)
 
 
 def ringdown_tau(tab, t_min=1.5e-3):
