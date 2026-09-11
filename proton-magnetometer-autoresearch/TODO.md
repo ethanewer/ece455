@@ -452,6 +452,20 @@ fixed; must come back clean) + F2's measured coil.
   caveats in README.md/architecture.md to the unlocked state, with the E7
   checkpoint cadence recorded.
 
+## R. Redesign — single E2E evaluator (user directive 2026-09-11)
+
+- [ ] **R1 [no-API]** Adopt REDESIGN.md: one candidate = one circuit + one
+  estimator implementation; every evaluator scores the full E2E system.
+  The C core becomes the single estimator in all scoring paths (Python
+  keeps physics/CRB/record-synthesis as harness mathematics only);
+  alternative algorithms (FFT-peak, ZC) become C candidates, not Python
+  parallel references. See REDESIGN.md for the problem statement, the
+  target architecture, the 7-step migration plan, and acceptance criteria.
+  Status: document written; migration not started — steps 1–7 land under
+  this section as separate checked items when the redesign is executed.
+
+---
+
 ## H. Repo housekeeping (do first — cheapest, removes ambiguity)
 
 - [x] **H1 [no-API]** Add a LICENSE (the docs claim "open source end to end";
