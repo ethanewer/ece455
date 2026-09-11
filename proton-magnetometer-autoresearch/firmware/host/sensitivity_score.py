@@ -3,7 +3,7 @@
 NOTE (REDESIGN.md section 3): this is a UNIT REGRESSION of the C core --
 bound-tracking over synthetic unit vectors with an idealized front end.
 It is NOT a design score and evaluates no candidate; the design score is
-the single E2E evaluator poc/evaluate.py.
+the single E2E evaluator pipeline/evaluate.py.
 
 Runs the HOST-BUILT C core (byte-identical to what ships, per the MCU
 research doc's contract) over the synthetic-FID matrix:
@@ -34,7 +34,7 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "poc"))
+sys.path.insert(0, str(ROOT / "pipeline"))
 
 import crb  # noqa: E402
 import fid  # noqa: E402

@@ -150,7 +150,7 @@ def generate_record(b_tesla=50e-6, v0=2e-6, tau=1.5, phase=0.0,
 
     v0 and b_tesla are deliberately INDEPENDENT knobs: the transducer chain
     (B_pol -> magnetization -> EMF) is modeled separately in estimate_v0,
-    and the E2E evaluator (poc/evaluate.py) sets v0 from it. Callers that
+    and the E2E evaluator (pipeline/evaluate.py) sets v0 from it. Callers that
     want physical consistency should do the same rather than sweeping
     b_tesla at a fixed v0 (FID amplitude in reality scales as
     B_earth * B_pol through the precession frequency and Curie law).

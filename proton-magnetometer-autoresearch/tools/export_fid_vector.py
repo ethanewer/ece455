@@ -25,7 +25,7 @@ BASE = dict(v0=2e-6, fs=20_000.0, blanking_s=0.2, record_s=0.4096,
 
 
 def main():
-    sys.path.insert(0, str(ROOT / "poc"))
+    sys.path.insert(0, str(ROOT / "pipeline"))
     import fid
 
     rec = fid.generate_record(b_tesla=50e-6, tau=1.5, rng=SEED, phase=0.7,

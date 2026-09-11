@@ -26,7 +26,7 @@ from pathlib import Path
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "poc"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
 import fid
 
 ROOT = Path(__file__).resolve().parent.parent

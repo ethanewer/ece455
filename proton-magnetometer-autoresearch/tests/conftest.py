@@ -1,11 +1,11 @@
-"""Make the flat poc/ modules importable from the tests directory."""
+"""Make the flat pipeline/ modules importable from the tests directory."""
 import os
 import sys
 from pathlib import Path
 
-POC = Path(__file__).resolve().parent.parent / "poc"
-if str(POC) not in sys.path:
-    sys.path.insert(0, str(POC))
+PIPELINE = Path(__file__).resolve().parent.parent / "pipeline"
+if str(PIPELINE) not in sys.path:
+    sys.path.insert(0, str(PIPELINE))
 # skidl reads these at import time; set them before anything imports skidl
 # (harmless on trees without KiCad).
 _KICAD_SYMS = "/Applications/KiCad.app/Contents/SharedSupport/symbols"

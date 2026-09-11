@@ -5,7 +5,7 @@
 > fft_est.c, zc_est.c); the Python reference implementations were retired
 > (one estimator implementation per algorithm -- REDESIGN.md). The
 > behavioral claims are regression-locked on the C core in
-> `tests/test_estimator_reference.py` and `poc/test_validation.py`.
+> `tests/test_estimator_reference.py` and `pipeline/test_validation.py`.
 > SNR convention in this report: eta = A0/sigma, PER-SAMPLE
 > amplitude SNR (20 dB <=> eta = 10) -- distinct from the record RMS SNR
 > (V0/sqrt2)/sigma_in used in the E2E cards. The NLS Monte-Carlo tables in

@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "poc"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
 
 from backends.kicad import (run_drc, run_erc, set_kicad_env,  # noqa: E402
                             write_pcb, write_schematic)

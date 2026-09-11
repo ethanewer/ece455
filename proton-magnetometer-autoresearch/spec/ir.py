@@ -144,7 +144,7 @@ def from_json(text_or_path: str) -> dict:
 
 if __name__ == "__main__":
     import sys
-    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "poc"))
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "pipeline"))
     import circuit_spec as cs
     ok = validate(cs.afe_spec("smoke", e_amp=7e-9, i_amp=170e-15,
                               coil=dict(r_coil=120, l_coil="2m",

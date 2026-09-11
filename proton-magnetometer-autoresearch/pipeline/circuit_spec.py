@@ -5,7 +5,7 @@ SPICE characterization (simulate): complex H(f), EMF-referred noise
 spectrum, ring-down tau from a polarization-pulse .tran, and the causal
 impulse response h(t) from a .tran unit impulse (ground truth).
 
-It does NOT score. Scoring is the single E2E evaluator poc/evaluate.py
+It does NOT score. Scoring is the single E2E evaluator pipeline/evaluate.py
 (REDESIGN.md): candidate-shaped records -> the C estimator core -> J.
 This module's main() is the CLI front end to that evaluator for the
 reference candidates.
@@ -194,7 +194,7 @@ def afe_spec(label, e_amp, i_amp, coil, tuned=False, preamp_gain=100.0,
 
 def _backend():
     """Import the shared SPICE backend (project root on sys.path even when
-    this file runs as a script from poc/)."""
+    this file runs as a script from pipeline/)."""
     import sys
     from pathlib import Path
     root = str(Path(__file__).resolve().parent.parent)

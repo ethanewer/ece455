@@ -1,6 +1,7 @@
 # D15: standing regression CI (GitHub Actions, included minutes, no keys).
 # Runs the full verification suite on every push/PR:
-#   - poc/test_validation.py (CRB vs closed forms, estimator-vs-bound, constants)
+#   - pipeline/test_validation.py (CRB vs closed forms, estimator-vs-bound,
+#     constants)
 #   - the D7-D13 + D16 suite in tests/ (estimator reference table, SPICE
 #     parser + fixtures, fid units, ensemble CRB, M4 repeatability, SPICE
 #     score-card regression, determinism + docs-vs-code)
@@ -29,13 +30,13 @@ jobs:
         run: |
           brew install ngspice
           python -m pip install --upgrade pip
-          pip install numpy scipy pytest
+          pip install numpy pytest
 
-      - name: Run poc test_validation.py
-        working-directory: proton-magnetometer-autoresearch/poc
+      - name: Run pipeline test_validation.py
+        working-directory: proton-magnetometer-autoresearch/pipeline
         run: python3 test_validation.py
 
-      - name: Run D-suite (fast: units, parser, fixtures, CRB, M4)
+      - name: "Run D-suite (fast: units, parser, fixtures, CRB, M4)"
         working-directory: proton-magnetometer-autoresearch
         run: |
           python3 -m pytest tests/test_ngspice_layer.py \
@@ -69,5 +70,5 @@ jobs:
       - name: Build firmware core (host, float + fixed-point) and run tests
         working-directory: proton-magnetometer-autoresearch
         run: |
-          pip install numpy scipy
+          pip install numpy
           make -C firmware/core test CC=gcc

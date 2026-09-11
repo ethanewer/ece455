@@ -17,7 +17,7 @@ remain are human decisions (labeled per TODO.md's label scheme).
 | Fab/BOM + cards (A5/A6) | done | `backends/export.py` |
 | Optimizer skeleton (A7) | done | `optimizer/` — subprocess pool, timeouts, dedupe, elite archive, provenance |
 | Score completion (B2–B8) | done | time-walk, rail ripple (ablation + J gate), 1/f+CMRR analytic, parts DB, gain staging, B-sweep |
-| R1 single E2E evaluator | done | `poc/evaluate.py` is the only J-producing path (REDESIGN.md); the C core is the single estimator; Python estimators retired |
+| R1 single E2E evaluator | done | `pipeline/evaluate.py` is the only J-producing path (REDESIGN.md); the C core is the single estimator; Python estimators retired |
 | Firmware core (C1–C4) | done | `firmware/core/freq_est.c` (float + fixed), golden vectors, sensitivity job, RP2040 emulator check |
 | Verification (D1–D16) | done | `tests/` suite + CI (`.github/workflows/ci.yml`) |
 | External reviews (E0–E6) | done; E3 verdict recorded | E3 deep audit ran 2026-09-10; its 14 verified findings are triaged in TODO.md — 9 fixed in code, the rest documented or re-gated |
@@ -75,7 +75,7 @@ Once G1/G2 are signed off:
    `optimizer/eval_one.py` WITHOUT `--fast`.
 4. **Per-band families**: every E2E card's J is already the worst case
    over 25–65 µT (`evaluate()`, with per-band Js on the card); run the
-   per-band family (`python3 poc/circuit_spec.py --bsweep`) before
+   per-band family (`python3 pipeline/circuit_spec.py --bsweep`) before
    promoting a survivor.
 5. **Human review**: survivors compile to candidate cards
    (`backends/export.py::candidate_card` — score table + SVG schematic)
@@ -97,7 +97,7 @@ adversary suite runs in CI on every push as the standing canary.
 * The score is **conditional on the transducer model** until F1's wet
   capture replaces V₀ and T2* with measurements.
 * SPICE sees white noise + the corrected tuned tank; 1/f and CMRR/PSRR
-  are analytic terms (`poc/systematics.py`).
+  are analytic terms (`pipeline/systematics.py`).
 * Layout physics (EMI, grounding, pulse coupling) are NOT in the score —
   the KiCad leg checks ERC/DRC only.
 * skidl 2.3.0's schematic router has a non-deterministic junction bug

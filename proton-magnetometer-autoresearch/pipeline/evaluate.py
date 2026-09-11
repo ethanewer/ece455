@@ -3,7 +3,7 @@
 One candidate = one circuit spec + one estimator implementation + one MCU
 configuration. `evaluate(candidate)` is the ONLY function in this
 repository that produces a J; the optimizer (optimizer/eval_one.py), the
-CLI (poc/circuit_spec.py), and the CI fixtures all call it.
+CLI (pipeline/circuit_spec.py), and the CI fixtures all call it.
 
 Every J-producing path includes:
 

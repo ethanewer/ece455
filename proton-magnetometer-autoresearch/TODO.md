@@ -26,7 +26,7 @@ the reviewer never edits files.
   golden netlist and a known-good ngspice output fixture.
   *Done: `backends/spice.py` (emit + run + _status with unique per-call
   netlist paths + the pagination-tolerant parser incl. 2-column
-  linearized tran tables); poc/circuit_spec.py delegates to it. Fixture-
+  linearized tran tables); pipeline/circuit_spec.py delegates to it. Fixture-
   tested in tests/test_ngspice_layer.py against the committed stdout
   fixture.*
 - [x] **A3 [no-API]** Toolchain pins: `pip install skidl` (≥2.3.0),
@@ -102,7 +102,7 @@ the reviewer never edits files.
   must sit ≲ V0, i.e. ~100 dB PSRR against 50 mV ripple.*
 - [x] **B4 [no-API]** 1/f noise and CMRR terms (analytic layer per the AFE
   research formulas; document what SPICE cannot see).
-  *Done: `poc/systematics.py` — flicker excess E = e_n·√(f_c·ln(f_H/f_L))
+  *Done: `pipeline/systematics.py` — flicker excess E = e_n·√(f_c·ln(f_H/f_L))
   (TI SLVA043B/MT-049): +0.31% in-band RMS for a 10 Hz corner (the FID band
   sits above the corner); CMRR referred 1 V @ 100 dB → 10 µV; PSRR referred
   50 mV @ 60 dB → 50 µV. The SPICE-visibility split is documented in the
@@ -155,7 +155,7 @@ the reviewer never edits files.
   clean tones at all three field points; a zoom-sign bug in the fixed path
   (conjugated NCO sum) was caught by the C2 cross-check and fixed.*
 - [x] **C2 [no-API]** Host test harness: same estimator core built for the
-  host, driven by golden vectors exported from `poc/fid.py` (pytest+ctypes or
+  host, driven by golden vectors exported from `pipeline/fid.py` (pytest+ctypes or
   Unity). Golden-vector hash pinned.
   *Done: 36 vectors + sha256 manifest committed
   (firmware/host/vectors/, deterministic seeds); ctypes harness
@@ -456,12 +456,12 @@ fixed; must come back clean) + F2's measured coil.
 
 - [x] **R1 [no-API]** Adopt REDESIGN.md: one candidate = one circuit + one
   estimator implementation; every evaluator scores the full E2E system.
-  *Done 2026-09-11: `poc/evaluate.py` is the only J-producing path
+  *Done 2026-09-11: `pipeline/evaluate.py` is the only J-producing path
   (SPICE characterization of the candidate → candidate-shaped records →
-  the C estimator core via `poc/fe_binding.py` → worst-band σ_B + gates +
+  the C estimator core via `pipeline/fe_binding.py` → worst-band σ_B + gates +
   provenance incl. firmware hash). The C core gained the fft/zc variants
-  (`fft_est.c`, `zc_est.c`); the Python estimator layer (`poc/estimators.py`)
-  and the generic-front-end scoring layer (`poc/run_scoring.py`) are
+  (`fft_est.c`, `zc_est.c`); the Python estimator layer (`pipeline/estimators.py`)
+  and the generic-front-end scoring layer (`pipeline/run_scoring.py`) are
   DELETED. Locks re-anchored on the C core: D7 (`tests/test_estimator_reference.py`:
   zoom 1.05× CRB / fft 1.08× / zc 3797× + 100% gross, plus C-vs-numpy port
   equivalence), D16 (`tests/test_repeatability_m4.py`), D8 fixtures

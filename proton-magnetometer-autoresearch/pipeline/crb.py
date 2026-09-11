@@ -126,7 +126,7 @@ def freq_crb_shaped(t, amp, freq, tau, phase, fs, s1_at_bins):
     [f_lo, f_hi] (and S1 = sigma^2/(f_hi-f_lo) elsewhere ignored) this
     reduces EXACTLY to the validated freq_crb_colored formula
     (beta/(sigma^2 n) = 1/(n (fs/2) S1)); locked by a unit test in
-    poc/test_validation.py.
+    pipeline/test_validation.py.
 
     This is the CRB the E2E evaluator reports: the flat-density
     approximation of freq_crb_colored is INVALID under a shaped spectrum

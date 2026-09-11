@@ -3,7 +3,7 @@ committed fixtures.
 
 One full E2E card per reference candidate class is committed
 (tests/fixtures/score_cards/reference_cards.json); this test re-evaluates
-each candidate through the single E2E evaluator (poc/evaluate.py: SPICE ->
+each candidate through the single E2E evaluator (pipeline/evaluate.py: SPICE ->
 candidate-shaped records -> the C estimator core) and asserts the
 worst-band J / CRB / sigma_in / tau_ring and the per-band Js reproduce
 within Monte-Carlo tolerance. Guards the SPICE -> C-core -> nT path
@@ -23,7 +23,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from conftest import POC  # noqa: F401
+from conftest import PIPELINE  # noqa: F401
 
 import circuit_spec as cs
 import evaluate as ev

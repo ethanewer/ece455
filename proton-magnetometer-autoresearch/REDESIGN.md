@@ -1,10 +1,10 @@
 # REDESIGN — one candidate, one evaluator, one code path
 
 **Status (2026-09-11): IMPLEMENTED.** Migration steps 1–7 (section 5) all
-landed: `poc/fe_binding.py` (step 1); `firmware/core/fft_est.c` +
-`zc_est.c` (step 2); `poc/evaluate.py` as the single J-producing entry
+landed: `pipeline/fe_binding.py` (step 1); `firmware/core/fft_est.c` +
+`zc_est.c` (step 2); `pipeline/evaluate.py` as the single J-producing entry
 point (step 3); D5/D7/D8/D16 re-anchored on the C core, the ZC ruling-out
-an E2E result (step 4); `poc/estimators.py` and `poc/run_scoring.py`
+an E2E result (step 4); `pipeline/estimators.py` and `pipeline/run_scoring.py`
 deleted — no scoring path references them (step 5); candidate schema
 carries `estimator` + `mcu` in the IR meta, mutations cover all three
 axes, provenance carries `firmware_sha256` (step 6); fixtures regenerated
@@ -36,8 +36,8 @@ question, but they do **not** evaluate the same artifact:
 
 | Layer | Circuit under test | Estimator code under test |
 |---|---|---|
-| A — Analog (`poc/circuit_spec.py`) | ✅ the actual candidate netlist: its H(f), noise spectrum, τ_ring shape every MC record | ⚠️ **Python** `zoom_fit`/`zc_fit` (`poc/estimators.py`) — not the code that ships |
-| B — DSP (`poc/run_scoring.py`, `poc/fid.py`) | ❌ a generic front end (INA-class e_n, brick-wall 500–3500 Hz, scalar gain, no H(f)) | Python estimator family |
+| A — Analog (`pipeline/circuit_spec.py`) | ✅ the actual candidate netlist: its H(f), noise spectrum, τ_ring shape every MC record | ⚠️ **Python** `zoom_fit`/`zc_fit` (`pipeline/estimators.py`) — not the code that ships |
+| B — DSP (`pipeline/run_scoring.py`, `pipeline/fid.py`) | ❌ a generic front end (INA-class e_n, brick-wall 500–3500 Hz, scalar gain, no H(f)) | Python estimator family |
 | C — Firmware (`firmware/`) | ❌ the same generic front end | ✅ the shipped C core (`freq_est.c`, float + fixed) |
 
 Consequences (each verified during the E3 audit):
@@ -79,7 +79,7 @@ Concretely:
   that ships to the MCU, so it is the code the score must measure. Python
   keeps the physics and the mathematics (transducer model, CRB, record
   synthesis, scoring) — it is the *harness*, not a second estimator.
-  `poc/estimators.py` is retired from all scoring paths: it survives only
+  `pipeline/estimators.py` is retired from all scoring paths: it survives only
   as a research/analysis reference (clearly labeled), and the D7/D16
   estimator locks are re-anchored on the C core through the same gates.
 * **A candidate = circuit + estimator + MCU/clock configuration.** The
@@ -99,7 +99,7 @@ candidate (circuit + estimator + MCU config)
     │    .tran polarization    → τ_ring → blank_eff
     │    .tran unit impulse    → causal kernel h(t)   (ground truth)
     │
-    ├─ record synthesis        (poc/fid.py, reshaped: "synthesize from a
+    ├─ record synthesis        (pipeline/fid.py, reshaped: "synthesize from a
     │    per field point          candidate", see §3)
     │    B ∈ {25..65 µT}: FID(V₀(B), f_L(B)) ⊛ h(t) from t=0,
     │    noise shaped by the candidate's spectrum through H,
@@ -126,18 +126,18 @@ candidate (circuit + estimator + MCU config)
 
 | Piece | Today | In the redesign |
 |---|---|---|
-| `poc/fid.py` | generic-front-end record generator used by Layers B and C | record synthesizer for the E2E path (takes the candidate's h(t) + noise spectrum as inputs) and unit-vector generator for C-core regression tests — no longer a standalone evaluator |
-| `poc/estimators.py` (zoom/fft/zc/nlls) | Layers A and B scoring path | **retired from scoring**. Kept as analysis references for research plots; `zc_fit` stays only to preserve the ruled-out regression, re-anchored in C |
+| `pipeline/fid.py` | generic-front-end record generator used by Layers B and C | record synthesizer for the E2E path (takes the candidate's h(t) + noise spectrum as inputs) and unit-vector generator for C-core regression tests — no longer a standalone evaluator |
+| `pipeline/estimators.py` (zoom/fft/zc/nlls) | Layers A and B scoring path | **retired from scoring**. Kept as analysis references for research plots; `zc_fit` stays only to preserve the ruled-out regression, re-anchored in C |
 | `firmware/core/freq_est.c` (zoom core) | Layer C only | **the** estimator of the E2E score; every candidate names it (or a variant) |
 | alternative algorithms (FFT peak, ZC, NLLS) | Python implementations in Layer B | become C implementations in the same core (they are small), scored as *candidate estimator variants* through the identical E2E path; the ZC ruling-out regression re-anchors on the C ZC |
 | `firmware/host/sensitivity_score.py` (C3 matrix) | generic vectors | kept as a **unit regression** of the C core (bound-tracking, no candidate), clearly labeled not-a-design-score; the E2E per-candidate scoring is the design score |
-| `poc/run_scoring.py` (Layer B tables) | standalone DSP layer | becomes context/tooling: CRB validation and M4/M5 ablation machinery re-pointed at the C core; its tables describe the reference operating point, not a design |
-| `poc/crb.py`, `poc/systematics.py` | shared math | unchanged (harness mathematics) |
+| `pipeline/run_scoring.py` (Layer B tables) | standalone DSP layer | becomes context/tooling: CRB validation and M4/M5 ablation machinery re-pointed at the C core; its tables describe the reference operating point, not a design |
+| `pipeline/crb.py`, `pipeline/systematics.py` | shared math | unchanged (harness mathematics) |
 | `backends/*`, `optimizer/*`, `tests/*` | as today | unchanged in role; `eval_one.py` swaps its scoring call to the E2E path |
 
 ## 4. The concrete E2E evaluator (one function, one artifact)
 
-New module `evaluation/e2e.py` (or `poc/evaluate.py`) — the single entry
+New module `evaluation/e2e.py` (or `pipeline/evaluate.py`) — the single entry
 point both the CLI and the optimizer subprocess call:
 
 ```
@@ -175,7 +175,7 @@ Notes:
 
 1. **Expose the C core to Python scoring** — the ctypes harness
    (`firmware/host/run_host_tests.py`) already loads `libfreq_est.so`;
-   factor it into `poc/fe_binding.py` so `evaluate()` can call
+   factor it into `pipeline/fe_binding.py` so `evaluate()` can call
    `freq_est_f32` / `freq_est_fixed` on arbitrary arrays.
 2. **Port the alternative estimators to C** in the same core
    (`fft_est.c`, `zc_est.c`, optional `nlls` reference stays Python as an
@@ -190,8 +190,8 @@ Notes:
 4. **Re-anchor the estimator locks** (D7/D16/M5/M4) on the C core via the
    E2E records; move the zc ruling-out to the C zc implementation; keep
    the D5 adversary list and re-verify every adversary still fails ≥1 gate.
-5. **Retire the Python estimators from scoring paths**; `poc/estimators.py`
-   moves to `poc/analysis/` with a header note (research reference, not
+5. **Retire the Python estimators from scoring paths**; `pipeline/estimators.py`
+   moves to `pipeline/analysis/` with a header note (research reference, not
    scored). `run_scoring.py` becomes a CRB/ablation context tool over the
    reference operating point — explicitly not a design evaluation.
 6. **Candidate schema gains `estimator` + `mcu` fields** (IR `meta`),
@@ -226,7 +226,7 @@ Notes:
 * Every J-producing path includes: SPICE characterization of the candidate
   (H, noise, ring-down, impulse), candidate-shaped records, the C
   estimator, and the candidate's MCU/clock configuration.
-* No scoring path references `poc/estimators.py`.
+* No scoring path references `pipeline/estimators.py`.
 * The E2E card of the reference candidate reproduces today's headline
   numbers within the stated MC CI; all D-suite gates and D5 adversaries
   pass against the new evaluator; determinism fixtures regenerated.

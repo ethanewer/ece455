@@ -33,7 +33,7 @@ BASE = dict(v0=2e-6, fs=20_000.0, blanking_s=0.2, record_s=1.5,
 
 def vectors():
     """[(name, samples_f32, meta)] with deterministic seeds."""
-    sys.path.insert(0, str(ROOT / "poc"))
+    sys.path.insert(0, str(ROOT / "pipeline"))
     import fid
 
     out = []

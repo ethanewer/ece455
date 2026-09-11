@@ -16,7 +16,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from conftest import POC  # noqa: F401
+from conftest import PIPELINE  # noqa: F401
 
 ROOT = Path(__file__).resolve().parent.parent
 

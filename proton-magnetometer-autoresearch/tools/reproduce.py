@@ -5,8 +5,8 @@ One command:
     python3 tools/reproduce.py --save      # (re)commit the fixtures
 
 What it does (TODO.md D4, D11, D12; post-REDESIGN there is exactly ONE
-J-producing path -- poc/evaluate.py -- so there is exactly ONE fixture):
-  * D4  one-command reproduction: runs poc/circuit_spec.py --json, which
+J-producing path -- pipeline/evaluate.py -- so there is exactly ONE fixture):
+  * D4  one-command reproduction: runs pipeline/circuit_spec.py --json, which
         evaluates the reference candidates through the E2E evaluator
         (SPICE -> candidate-shaped records -> the C estimator core);
   * D11 determinism: the E2E card set is byte-compared against the
@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 
 ROOT = Path(__file__).resolve().parent.parent
-POC = ROOT / "poc"
+POC = ROOT / "pipeline"
 FIXTURE = ROOT / "tests" / "fixtures" / "score_cards" / "reference_cards.json"
 
 GAMMA_NT = 0.04257638474          # Hz/nT, shielded proton (fid.py)

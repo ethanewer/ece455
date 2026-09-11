@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parents[2]   # project root (this file:
 CORE = ROOT / "firmware" / "core"            # firmware/host/run_host_tests.py)
 VEC = ROOT / "firmware" / "host" / "vectors"
 sys.path.insert(0, str(ROOT / "tools"))
-sys.path.insert(0, str(ROOT / "poc"))
+sys.path.insert(0, str(ROOT / "pipeline"))
 
 import fe_binding  # noqa: E402  (the shared C-core binding, REDESIGN.md step 1)
 

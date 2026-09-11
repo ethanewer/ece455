@@ -15,12 +15,12 @@ Covers (TODO.md D9):
   * the e_n/i_n resistor-noise identities: R = e_n^2/(4kT) reproduces a
     datasheet noise density, and R = 4kT/i_n^2 the current density.
 
-Run:  python3 -m pytest tests/test_ngspice_layer.py   (or from poc/: plain)
+Run:  python3 -m pytest tests/test_ngspice_layer.py   (or from pipeline/: plain)
 """
 import numpy as np
 import pytest
 
-from conftest import POC  # noqa: F401  (also installs poc on sys.path)
+from conftest import PIPELINE  # noqa: F401  (also installs pipeline/ on sys.path)
 
 import circuit_spec as cs
 import fid

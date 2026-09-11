@@ -4,7 +4,7 @@ The scoring fan-out spawns one of these per candidate with a per-candidate
 timeout; a non-converging SPICE candidate is a SCORED REJECTION (J = inf,
 sim_status recorded), not a crash.
 
-The score comes from the single E2E evaluator (poc/evaluate.py,
+The score comes from the single E2E evaluator (pipeline/evaluate.py,
 REDESIGN.md): one candidate = one circuit + one C-core estimator variant +
 one MCU config; J = worst-band sigma_B over the operating field range
 (E3 audit finding 9), with provenance (git SHA, tool versions, seeds, spec
@@ -13,7 +13,7 @@ hash, firmware hash).
 Usage:
     python3 optimizer/eval_one.py '<candidate-kwargs-json>' [--fast]
 
-The candidate kwargs are poc/circuit_spec.afe_spec's (label, e_amp, i_amp,
+The candidate kwargs are pipeline/circuit_spec.afe_spec's (label, e_amp, i_amp,
 coil, tuned, preamp_gain, mfb_scale, wire_d_mm, winding_len_m, estimator,
 mcu).
 
@@ -25,7 +25,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-sys.path.insert(0, str(ROOT / "poc"))
+sys.path.insert(0, str(ROOT / "pipeline"))
 
 import circuit_spec as cs  # noqa: E402
 import evaluate as ev  # noqa: E402

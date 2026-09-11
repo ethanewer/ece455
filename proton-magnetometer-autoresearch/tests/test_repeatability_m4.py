@@ -20,7 +20,7 @@ Run:  python3 -m pytest tests/test_repeatability_m4.py
 import numpy as np
 import pytest
 
-from conftest import POC  # noqa: F401
+from conftest import PIPELINE  # noqa: F401
 
 import crb
 import fe_binding

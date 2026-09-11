@@ -35,7 +35,7 @@ def netlist_hash(kwargs: dict) -> str:
     """Full-candidate hash (REDESIGN.md): netlist + estimator + MCU config
     -- a mutation of ANY candidate axis produces a new key, so the dedupe
     never rescores the same artifact."""
-    sys.path.insert(0, str(ROOT / "poc"))
+    sys.path.insert(0, str(ROOT / "pipeline"))
     import circuit_spec as cs
     import evaluate as ev
     return ev.spec_hash(cs.afe_spec(**kwargs))

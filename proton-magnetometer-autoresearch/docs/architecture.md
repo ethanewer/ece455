@@ -11,7 +11,7 @@ sinusoid of µV amplitude.
 **Status: gated pre-optimizer.** The pipeline has **one evaluator**: every
 score is a single design — one circuit + one estimator implementation (the
 shipped C core) + one MCU configuration — evaluated end to end
-(`poc/evaluate.py`; [`REDESIGN.md`](../REDESIGN.md) states the problem
+(`pipeline/evaluate.py`; [`REDESIGN.md`](../REDESIGN.md) states the problem
 with the previous three-layer split and the migration). The frozen circuit
 IR, the SPICE and KiCad backends (ERC/DRC machine gates), the parts DB, the
 score-guided optimizer skeleton, and the portable C estimator core (float +
@@ -29,15 +29,15 @@ This document answers the two framing questions for the `autoresearch` branch:
    hardware?**
 
 It synthesizes four research passes (full reports in
-[`docs/research/`](research/)) plus a working proof-of-concept in
-[`poc/`](../poc/) that closes the loop on this machine, and incorporates the
+[`docs/research/`](research/)) plus the working pipeline in
+[`pipeline/`](../pipeline/) that closes the loop on this machine, and incorporates the
 v0.0 external audits of both.
 
 ---
 
 ## 0. The objective function (everything else serves this)
 
-**One** J is implemented, in `poc/evaluate.py::evaluate()`:
+**One** J is implemented, in `pipeline/evaluate.py::evaluate()`:
 
 ```
 J = sigma_B  [nT RMS per cycle]          # primary metric
@@ -84,7 +84,7 @@ Unit warnings (both v0.0 audits caught variants of this): 42.5764 **MHz/T**
 **shielded** proton, 42.57638474 MHz/T (CODATA 2018; the 2014 value
 42.57638507 differs by 7.8 ppb) — 25.7 ppm lower than the bare value, worth
 ~1.3 nT of scale bias at 50 µT if you use the wrong one for absolute values.
-`poc/fid.py` holds the single source of truth.
+`pipeline/fid.py` holds the single source of truth.
 
 **What the score means — the conditional headline.** The DSP result people
 quote from this repo ("~0.05 nT/cycle") is a *Cramér–Rao bound conditional on
@@ -177,7 +177,7 @@ cross-compare them without converting:
 - `SNR_rms = (V0/√2) / σ_in-band` — record RMS SNR in the noise band
   (~3.0 dB lower than η_ps).
 
-### 2.1 The single E2E evaluator (`poc/evaluate.py::evaluate`)
+### 2.1 The single E2E evaluator (`pipeline/evaluate.py::evaluate`)
 
 ```
 candidate (circuit spec + estimator variant + MCU config)
@@ -192,7 +192,7 @@ candidate (circuit spec + estimator variant + MCU config)
     │    noise shaped by the candidate's spectrum through H,
     │    ADC rails + quantization
     │
-    ├─ estimation               (firmware/core/ via poc/fe_binding.py —
+    ├─ estimation               (firmware/core/ via pipeline/fe_binding.py —
     │                            byte-identical to what ships on the MCU)
     │
     └─ score                    J = worst-band σ_B over the field sweep,
@@ -298,15 +298,15 @@ candidate — they are bound-tracking and port-validation checks, and
 
 ### 2.3 Harness mathematics (unchanged)
 
-- `poc/fid.py` — FID physics: γ′p constants, the Curie-law transducer
+- `pipeline/fid.py` — FID physics: γ′p constants, the Curie-law transducer
   model `estimate_v0`, coil/front-end noise integrals, the E2E record
   synthesizer, and `generate_record` for the unit vectors above.
-- `poc/crb.py` — white + colored-noise CRLB (numeric Fisher); validated
+- `pipeline/crb.py` — white + colored-noise CRLB (numeric Fisher); validated
   against a dense-covariance solve and an ensemble-estimated covariance
-  (`poc/test_validation.py`, `tests/test_crb_ensemble.py`). Band-limited
+  (`pipeline/test_validation.py`, `tests/test_crb_ensemble.py`). Band-limited
   noise has ~3.5× the spectral density of white noise of equal RMS, so the
   common white-noise CRB is ~2× optimistic in σ.
-- `poc/systematics.py` — the analytic terms SPICE cannot see: 1/f flicker
+- `pipeline/systematics.py` — the analytic terms SPICE cannot see: 1/f flicker
   excess (TI SLVA043B/MT-049 closed form: +0.31% in-band for a 10 Hz
   corner), CMRR/PSRR referred terms.
 
@@ -345,7 +345,7 @@ tools/     gen_fid.py — one generator feeds tests, RESD streams, VCD
 - **Primary layer — native host tests**: the same estimator core compiled
   for the host, driven by the golden vectors and the sensitivity matrix
   (§2.2). The DESIGN score (§2.1) calls this same host build through
-  `poc/fe_binding.py` — the emulator path (rp2040js, `sim/rp2040js/`)
+  `pipeline/fe_binding.py` — the emulator path (rp2040js, `sim/rp2040js/`)
   proves the plumbing end-to-end (cross-compiled byte-identical core on an
   emulated Cortex-M0+ recovers the FID frequency to 0.0002 Hz); it is
   functional, NOT a timing oracle.
@@ -363,7 +363,7 @@ against zero-crossing front ends and for the ADC path.
 ```
 proton-magnetometer-autoresearch/
 ├── docs/                    # this doc + research reports
-├── poc/                     # working loop, this machine (Python + ngspice + C core)
+├── pipeline/                     # the scoring pipeline (Python + ngspice + C core)
 │   ├── evaluate.py          # THE single E2E evaluator: candidate -> J
 │   ├── circuit_spec.py      # candidate circuit specs + SPICE characterization
 │   ├── fid.py               # FID physics, Curie-law V0, noise model,

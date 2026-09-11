@@ -14,7 +14,7 @@ Run:  python3 -m pytest tests/test_fid_units.py
 import numpy as np
 import pytest
 
-from conftest import POC  # noqa: F401  (installs poc on sys.path)
+from conftest import PIPELINE  # noqa: F401  (installs pipeline/ on sys.path)
 
 import fid
 

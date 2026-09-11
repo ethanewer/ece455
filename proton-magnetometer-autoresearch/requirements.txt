@@ -1,5 +1,5 @@
 # Pinned Python deps for the autoresearch pipeline (A3).
-# Works on CPython 3.9+ (poc/) and 3.12 (venv, CI); verified on 3.12.13.
+# Works on CPython 3.9+ (pipeline/) and 3.12 (venv, CI); verified on 3.12.13.
 numpy>=2.0,<3.0
 # SKiDL 2.3.0: generate_schematic()/generate_pcb() for KiCad 10 (A3/A4)
 skidl>=2.3.0

@@ -8,7 +8,7 @@ power source are given; everything downstream is generated and scored here.
 **Status: gated pre-optimizer.** The pipeline has **one evaluator**: every
 score is a single design — one circuit + one estimator implementation (the
 shipped C core) + one MCU configuration — evaluated end to end
-(`poc/evaluate.py`, see [`REDESIGN.md`](REDESIGN.md)). The circuit IR +
+(`pipeline/evaluate.py`, see [`REDESIGN.md`](REDESIGN.md)). The circuit IR +
 SPICE/KiCad backends, the parts DB, the C estimator core (float + fixed,
 emulator-checked), and the score-guided optimizer skeleton are implemented
 and regression-tested (see [`docs/architecture.md`](docs/architecture.md) and
@@ -22,9 +22,9 @@ Do not treat the score as a hardware objective until F2 anchors the coil model.
 - **Research reports:** [`docs/research/`](docs/research/) — formats survey,
   AFE noise evaluation, frequency-estimation CRLB + estimators, MCU-stack
   evaluation.
-- **Working proof of concept:** [`poc/`](poc/) — the generate→simulate→score
+- **The pipeline:** [`pipeline/`](pipeline/) — the generate→simulate→score
   loop, closed on this machine with Python + ngspice + the C core.
-- **Standing regression tests:** [`poc/test_validation.py`](poc/test_validation.py)
+- **Standing regression tests:** [`pipeline/test_validation.py`](pipeline/test_validation.py)
   — white CRB vs Rife–Boorstyn closed form, colored CRB vs an independent
   dense-covariance Fisher, C-estimator-vs-bound, γp constants.
 
@@ -33,7 +33,7 @@ Do not treat the score as a hardware objective until F2 anchors the coil model.
 ```sh
 pip install -r requirements.txt   # (or python3.12 -m venv .venv for skidl)
 brew install ngspice              # once
-cd poc
+cd pipeline
 python3 test_validation.py        # ~1 min: bound/estimator regression tests
 python3 circuit_spec.py           # E2E cards for the reference candidates
 python3 circuit_spec.py --bsweep  # + per-band candidate family
@@ -63,7 +63,7 @@ causal impulse response) → records synthesized through that characterization
 → the C estimator core (`firmware/core/`, byte-identical to what ships) →
 J = worst-band σ_B over the operating field range (25–65 µT), with gates.
 
-**E2E reference candidates** (`poc/circuit_spec.py`; physics V₀, C zoom
+**E2E reference candidates** (`pipeline/circuit_spec.py`; physics V₀, C zoom
 estimator, 0.5 ppm TCXO; V₀/σ/τ shown at 50 µT, J is the worst band):
 
 | candidate | V₀ | σ_in (500–3500 Hz) | τ_ring | J = worst-band σ_B |

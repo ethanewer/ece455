@@ -1,6 +1,6 @@
 """A2: SPICE backend -- circuit IR -> ngspice netlist -> run -> parse.
 
-Ported from the poc demo (poc/circuit_spec.py) so the optimizer and the
+Ported from the poc demo (pipeline/circuit_spec.py) so the optimizer and the
 docs backends share one implementation:
 
   * emit_netlist: the JSON-able component/net graph -> ngspice batch

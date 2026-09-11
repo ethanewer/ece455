@@ -4,7 +4,7 @@ C core.
 Post-redesign there is exactly ONE estimator implementation per algorithm
 -- the C core in firmware/core/. These tests lock its measured reference
 behavior on synthetic unit vectors (fid.generate_record; NOT a design
-score -- the design score is poc/evaluate.py over a full candidate):
+score -- the design score is pipeline/evaluate.py over a full candidate):
 
   * zoom (the shipped baseline): <=1.2x colored CRB, 0% gross;
   * fft (candidate variant):     <=1.2x colored CRB, 0% gross;
@@ -26,7 +26,7 @@ Run:  python3 -m pytest tests/test_estimator_reference.py
 import numpy as np
 import pytest
 
-from conftest import POC  # noqa: F401
+from conftest import PIPELINE  # noqa: F401
 
 import crb
 import fe_binding
