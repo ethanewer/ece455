@@ -215,7 +215,7 @@ Inputs: netlist + part DB (e_n, i_n, e_nO, GBW, corner per device) + constants
    estimator over MC realizations for empirical σ_f/Pd (captures Rife–Boorstyn
    threshold effects).
 
-**Score (single source of truth: `poc/circuit_spec.py::score()`)**:
+**Score (single source of truth: `poc/evaluate.py::evaluate()` — the E2E evaluator; the retired `circuit_spec.score()` predates the single-evaluator redesign)**:
 `J = σ_B [nT]` with fail-fast gates -- gross-error rate P(|f̂−f_L| > 1 Hz) < 1%,
 ring-down inside blanking (5·τ_ring < 0.5·T2*; the earlier "recovery < 20 ms"
 gate was mis-specified -- the requirement is that recovery fits inside the

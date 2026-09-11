@@ -28,12 +28,13 @@ architecture.md §0 grid, INA-class e_n):
 |---|---|---|
 | V₀ (Hook-Line coil, 20 mT pol) | 0.41 µV | 0.1–2 µV (order-of-magnitude anchor; the model's assumptions — fill factor, coil axis, no t=0 loading — are explicitly OOM) |
 | T2* (tap water) | 0.5–3.0 s assumed | measure; the σ_B grid scales as T2*^(−3/2) |
-| σ_B per cycle (zoom path, measured SNR) | 0.048 nT × (2 µV/V₀_measured) | within the MC CI of the CRB once V₀/T2* are measured |
+| σ_B per cycle (C zoom core, measured SNR) | 0.048 nT × (2 µV/V₀_measured) | within the MC CI of the CRB once V₀/T2* are measured |
 | SNR_rms (in-band) | −2.7 dB at V₀ = 0.41 µV (INA-class) | measure and back-compute the real e_n + i_n budget |
 
 **If V₀ disagrees**: the fill factor / coupling assumptions are wrong;
 update `fid.estimate_v0`'s assumptions (documented, not hidden), re-run
-`run_scoring.py` §2, and regenerate every conditional headline.
+`python3 tools/reproduce.py --save`, and regenerate every conditional
+headline.
 
 ## 2. Real coil measurement (F2)
 

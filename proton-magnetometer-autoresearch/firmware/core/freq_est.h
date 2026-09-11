@@ -1,10 +1,12 @@
 /*
  * freq_est.h -- portable FID frequency estimator core (C1).
  *
- * The MCU port of poc/estimators.py::zoom_fit: coarse seed, NCO mix to
- * baseband, FIR decimator, running weighted inner-product scan of the
- * residual offset with the ML weight w(t) = exp(-t/tau), log-parabolic
- * refine. 100% portable C99: no vendor headers, no dynamic allocation.
+ * THE estimator implementation (REDESIGN.md): the exp-weighted zoom
+ * matched filter -- coarse seed, NCO mix to baseband, FIR decimator,
+ * running weighted inner-product scan of the residual offset with the
+ * ML weight w(t) = exp(-t/tau), log-parabolic refine. Every scoring path
+ * runs this code (host build via poc/fe_binding.py; target build here).
+ * 100% portable C99: no vendor headers, no dynamic allocation.
  *
  * Numeric mode (one compile switch, CI tests BOTH per the MCU research doc):
  *   - default         : float32 signal path (Cortex-M4F/M7 class)
@@ -68,6 +70,23 @@ int freq_est_fixed(const int32_t *v, int n, double fs, double t0,
 void fe_zoom_point_f32(const float *zre, const float *zim, const float *w,
                        int m, double tb0, double dtb, double df,
                        double *s_out);
+
+/* Candidate estimator VARIANTS (REDESIGN.md section 2): alternative
+ * algorithms implemented once, in C, in this same core, and scored as
+ * estimator-axis candidates through the identical E2E evaluator -- never
+ * parallel Python references. Float-only: they are exploration candidates,
+ * not the shipped baseline, so no Q31 port is provided.
+ *
+ * fft_est_f32 -- zero-padded FFT magnitude peak + log-parabolic refine.
+ * zc_est_f32  -- interpolated rising-edge crossings + slope-weighted mean
+ *                period, cycle-slip-filtered against the FFT peak (RULED
+ *                OUT at FID SNRs; kept so the ruling-out is scored E2E).
+ * Both return FE_OK or a negative error code (the binding maps errors to
+ * NaN, i.e. a gross error). */
+int fft_est_f32(const float *v, int n, double fs, double t0,
+                double f_lo, double f_hi, double *out_hz);
+int zc_est_f32(const float *v, int n, double fs, double t0,
+               double f_lo, double f_hi, double *out_hz);
 
 #ifdef __cplusplus
 }

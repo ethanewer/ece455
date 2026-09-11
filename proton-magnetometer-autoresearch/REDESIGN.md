@@ -1,5 +1,22 @@
 # REDESIGN — one candidate, one evaluator, one code path
 
+**Status (2026-09-11): IMPLEMENTED.** Migration steps 1–7 (section 5) all
+landed: `poc/fe_binding.py` (step 1); `firmware/core/fft_est.c` +
+`zc_est.c` (step 2); `poc/evaluate.py` as the single J-producing entry
+point (step 3); D5/D7/D8/D16 re-anchored on the C core, the ZC ruling-out
+an E2E result (step 4); `poc/estimators.py` and `poc/run_scoring.py`
+deleted — no scoring path references them (step 5); candidate schema
+carries `estimator` + `mcu` in the IR meta, mutations cover all three
+axes, provenance carries `firmware_sha256` (step 6); fixtures regenerated
+from the E2E evaluator and README/architecture rewritten around the
+single evaluator (step 7). The reference candidate's E2E card reproduces
+the pre-redesign headline (tuned JFET σ_B = 0.0007–0.0093 nT across the
+field range vs the old 50 µT-only 0.0010 nT; the C zoom rides at
+0.72–0.95× the flat-density CRB approximation, which is loose at tank
+resonance — both estimators ride the true bound).
+
+---
+
 **Requirement (2026-09-11):** every evaluation must score a single design —
 one candidate = **one circuit + one estimator implementation** — end to end.
 Multiple evaluators are fine, but each must evaluate the full E2E system.

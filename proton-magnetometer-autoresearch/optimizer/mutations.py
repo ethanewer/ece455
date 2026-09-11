@@ -4,13 +4,18 @@ Mutations act on a candidate kwargs dict (the arguments of
 circuit_spec.afe_spec). NO agent/LLM in the loop: score-guided search
 only, every operator is deterministic given (parent, rng).
 
-Operators:
+A candidate = circuit + estimator variant + MCU config (REDESIGN.md), and
+the mutation operators cover all three axes of the same artifact:
   * topology swap: tuned <-> untuned input;
   * tank retune: c_tune moves to a random field point's f_L (B8 axis);
   * gain stage: preamp_gain x {0.5, 1.5, 2};
   * bandpass recenter: mfb_scale x {0.9, 1.1};
   * amplifier swap: e_n/i_n pairs from the parts DB (INA828 <-> ADA4898
-    <-> 2N6550-class JFET).
+    <-> 2N6550-class JFET);
+  * estimator variant: zoom <-> fft (C-core variants; the ruled-out zc
+    variant is NOT a search axis -- it exists for the adversary/lock
+    tests);
+  * clock grade: mcu.clock_ppm in {0.5, 2, 20} (TCXO classes).
 """
 from __future__ import annotations
 
@@ -48,10 +53,12 @@ def base_candidates() -> list:
         dict(label="seed untuned INA", e_amp=7e-9, i_amp=170e-15,
              tuned=False, preamp_gain=100.0, mfb_scale=1.0,
              wire_d_mm=0.15, winding_len_m=0.08,
+             estimator="zoom", mcu=dict(tick_s=8e-9, clock_ppm=0.5),
              coil=dict(n_turns=530, radius_m=0.015, b_pol=0.02)),
         dict(label="seed tuned JFET", e_amp=1.4e-9, i_amp=0.1e-12,
              tuned=True, preamp_gain=4.0, mfb_scale=1.0,
              wire_d_mm=0.56, winding_len_m=0.30,
+             estimator="zoom", mcu=dict(tick_s=8e-9, clock_ppm=0.5),
              coil=dict(n_turns=1500, radius_m=0.030, b_pol=0.05,
                        c_tune="210n")),   # resonance of the derived L
     ]
@@ -61,7 +68,7 @@ def base_candidates() -> list:
 def mutate(parent: dict, rng: np.random.Generator) -> dict:
     """One random mutation of the parent. Returns a NEW kwargs dict."""
     child = copy.deepcopy(parent)
-    ops = ["topology", "gain", "bandpass", "amp"]
+    ops = ["topology", "gain", "bandpass", "amp", "estimator", "mcu"]
     if child.get("tuned"):
         ops.append("retune")
     op = rng.choice(ops)
@@ -91,6 +98,14 @@ def mutate(parent: dict, rng: np.random.Generator) -> dict:
     elif op == "amp":
         label, e_n, i_n = AMPS[int(rng.integers(len(AMPS)))]
         child["e_amp"], child["i_amp"] = e_n, i_n
+    elif op == "estimator":
+        # C-core variants only; the ruled-out zc is not a search axis.
+        child["estimator"] = {"zoom": "fft", "fft": "zoom"}.get(
+            child.get("estimator", "zoom"), "zoom")
+    elif op == "mcu":
+        mcu = dict(child.get("mcu") or {"tick_s": 8e-9, "clock_ppm": 0.5})
+        mcu["clock_ppm"] = float(rng.choice([0.5, 2.0, 20.0]))
+        child["mcu"] = mcu
     return child
 
 

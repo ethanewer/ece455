@@ -226,7 +226,7 @@ the reviewer never edits files.
 - [ ] **D6 [human]** Accept the transducer model (V₀ from `estimate_v0`) as
   the interim anchor until F1 pins it, or supply measured coil values.
 
-### Pause-point status (2026-09-10, session end)
+### Pause-point status (2026-09-10, session end — SUPERSEDED by R1)
 
 Tree state at pause: E3 audit triaged and its 9 code findings fixed; B1
 implemented and verified; fixtures regenerated for the final physics; full
@@ -454,15 +454,33 @@ fixed; must come back clean) + F2's measured coil.
 
 ## R. Redesign — single E2E evaluator (user directive 2026-09-11)
 
-- [ ] **R1 [no-API]** Adopt REDESIGN.md: one candidate = one circuit + one
+- [x] **R1 [no-API]** Adopt REDESIGN.md: one candidate = one circuit + one
   estimator implementation; every evaluator scores the full E2E system.
-  The C core becomes the single estimator in all scoring paths (Python
-  keeps physics/CRB/record-synthesis as harness mathematics only);
-  alternative algorithms (FFT-peak, ZC) become C candidates, not Python
-  parallel references. See REDESIGN.md for the problem statement, the
-  target architecture, the 7-step migration plan, and acceptance criteria.
-  Status: document written; migration not started — steps 1–7 land under
-  this section as separate checked items when the redesign is executed.
+  *Done 2026-09-11: `poc/evaluate.py` is the only J-producing path
+  (SPICE characterization of the candidate → candidate-shaped records →
+  the C estimator core via `poc/fe_binding.py` → worst-band σ_B + gates +
+  provenance incl. firmware hash). The C core gained the fft/zc variants
+  (`fft_est.c`, `zc_est.c`); the Python estimator layer (`poc/estimators.py`)
+  and the generic-front-end scoring layer (`poc/run_scoring.py`) are
+  DELETED. Locks re-anchored on the C core: D7 (`tests/test_estimator_reference.py`:
+  zoom 1.05× CRB / fft 1.08× / zc 3797× + 100% gross, plus C-vs-numpy port
+  equivalence), D16 (`tests/test_repeatability_m4.py`), D8 fixtures
+  regenerated from the E2E evaluator (`tests/fixtures/score_cards/reference_cards.json`),
+  D5 adversaries re-verified against `evaluate()`, D11/D12 rewired to the
+  single fixture + C-core ablations (`tools/reproduce.py`). Candidate
+  schema: `estimator` + `mcu` in the IR meta; optimizer mutations cover
+  topology/parts/gain/bandpass/estimator/clock; the ZC ruling-out is an
+  E2E result (gross-gate failure on the thin-budget circuit; ~940× shaped-CRB
+  ranking on the fat-SNR one). Post-implementation reviews (Review 2
+  scientific + Review 3 deep audit, the REDESIGN §7 re-audit) triaged per
+  E4 and landed: shaped Fisher CRB from the candidate's own SPICE spectrum
+  (`crb.freq_crb_shaped`; C zoom now 0.9–1.1×), the rail-ripple gate SCORED
+  from the C records (fixed-tank chain fails at 25 µT — the tank amplifies
+  the ripple; the per-band family passes: 0.0018/0.0007/0.0005 nT at
+  25/50/65 µT), the tuned reference on the coupled winding (R=20 Ω,
+  L=26.6 mH), a reported mains-tone column, and the audit's doc-rot list.*
+  *Note: the pause-point flake (`test_run_scoring_byte_identical` under
+  CPU load) is MOOT — that entrypoint is deleted.*
 
 ---
 

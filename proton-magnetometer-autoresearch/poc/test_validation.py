@@ -8,15 +8,16 @@ as the harness evolves:
   2. colored-noise CRB vs an INDEPENDENT Fisher computation through an
      explicitly constructed dense covariance matrix (no DFT-domain bin
      weighting involved -- the shortcut in crb.py is easy to get wrong);
-  3. the recommended estimator (zoom_fit) sits on the colored CRB;
+  3. the shipped estimator (the C core's zoom variant, via fe_binding)
+     sits on the colored CRB;
   4. the physics V0 model lands in a physically sensible range;
   5. the gyromagnetic constants are the shielded-proton set.
 """
 import numpy as np
 
 import crb
+import fe_binding
 import fid
-from estimators import zoom_fit
 
 
 def test_white_crb_matches_rife_boorstyn():
@@ -74,6 +75,9 @@ def test_colored_crb_vs_dense_covariance():
 
 
 def test_zoom_sits_on_colored_crb():
+    """The C zoom core (the shipped estimator, via fe_binding) rides the
+    colored CRB on unit vectors. Post-REDESIGN this is the harness's only
+    estimator-on-bounds check; the E2E design score is evaluate()."""
     sigma_in = fid.input_noise_rms()
     t = 0.2 + np.arange(30_000) / 20_000.0
     bound_nt = crb.freq_crb_colored(t, 2e-6, fid.larmor_hz(50e-6), 1.5, 0.0,
@@ -83,9 +87,28 @@ def test_zoom_sits_on_colored_crb():
     for i in range(120):
         phase = np.random.default_rng(30_000 + i).uniform(-np.pi, np.pi)
         rec = fid.generate_record(rng=i, phase=phase)
-        errs.append(zoom_fit(rec) - rec["f_larmor"])
+        errs.append(fe_binding.estimate("zoom", rec["v_adc"], rec["fs"],
+                                        rec["blanking_s"])
+                    - rec["f_larmor"])
     rms_nt = float(np.sqrt(np.mean(np.square(errs)))) / fid.GAMMA_HZ_PER_NT
     assert rms_nt / bound_nt < 1.15, (rms_nt, bound_nt)
+
+
+def test_shaped_crb_reduces_to_flat():
+    """crb.freq_crb_shaped with a FLAT in-band density must reproduce
+    freq_crb_colored (the flat formula is the validated special case;
+    the shaped Fisher is the E2E card's CRB)."""
+    fs, n = 20_000.0, 900
+    t = np.arange(n) / fs
+    amp, freq, tau, sigma = 1e-6, 2128.8, 1.5, 1e-7
+    f_lo, f_hi = fid.NOISE_BAND
+    want = crb.freq_crb_colored(t, amp, freq, tau, 0.0, fs, f_lo, f_hi,
+                                sigma)
+    bins = np.fft.rfftfreq(n, 1.0 / fs)
+    s1 = np.where((bins >= f_lo) & (bins <= f_hi),
+                  sigma**2 / (f_hi - f_lo), 1e30)
+    got = crb.freq_crb_shaped(t, amp, freq, tau, 0.0, fs, s1)
+    assert abs(got / want - 1.0) < 0.01, (got, want)
 
 
 def test_estimate_v0_sensible():

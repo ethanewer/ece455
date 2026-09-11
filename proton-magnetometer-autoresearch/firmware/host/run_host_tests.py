@@ -27,6 +27,9 @@ ROOT = Path(__file__).resolve().parents[2]   # project root (this file:
 CORE = ROOT / "firmware" / "core"            # firmware/host/run_host_tests.py)
 VEC = ROOT / "firmware" / "host" / "vectors"
 sys.path.insert(0, str(ROOT / "tools"))
+sys.path.insert(0, str(ROOT / "poc"))
+
+import fe_binding  # noqa: E402  (the shared C-core binding, REDESIGN.md step 1)
 
 F_LO, F_HI = 500.0, 3500.0           # the AFE band
 TOL_MIRROR_HZ = 0.01                 # C float vs numpy mirror
@@ -34,43 +37,12 @@ TOL_FIXED_HZ = 0.05                  # Q31 path vs mirror
 TOL_TRUTH_HZ = 0.5                   # sanity gate at operating SNR
 
 
-def lib(mode: str):
-    name = "libfreq_est.so" if mode == "float" else "libfreq_est_fixed.so"
-    if not (CORE / name).exists():
-        raise SystemExit(f"missing {name}; run make -C firmware/core")
-    return ctypes.CDLL(str(CORE / name))
-
-
 def run_core(mode: str, v: np.ndarray, fs: float, t0: float,
              f_lo: float = F_LO, f_hi: float = F_HI) -> float:
     """Call the C core on one record. 'fixed' scales the record to Q31
     (int32, peak = 2^31-1) as an MCU ADC would deliver it."""
-    L = lib(mode)
-    out = ctypes.c_double(0.0)
-    if mode == "float":
-        fn = L.freq_est_f32
-        fn.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.c_int,
-                       ctypes.c_double, ctypes.c_double,
-                       ctypes.c_double, ctypes.c_double,
-                       ctypes.POINTER(ctypes.c_double)]
-        x = np.ascontiguousarray(v, dtype=np.float32)
-        rc = fn(x.ctypes.data_as(ctypes.POINTER(ctypes.c_float)),
-                len(x), fs, t0, f_lo, f_hi, ctypes.byref(out))
-        assert rc == 0, f"freq_est_f32 rc={rc}"
-        return out.value
-    else:
-        peak = float(np.max(np.abs(v)))
-        q = np.round(v / peak * (2.0**31 - 1)).astype(np.int32)
-        x = np.ascontiguousarray(q)
-        fn = L.freq_est_fixed
-        fn.argtypes = [ctypes.POINTER(ctypes.c_int32), ctypes.c_int,
-                       ctypes.c_double, ctypes.c_double,
-                       ctypes.c_double, ctypes.c_double,
-                       ctypes.POINTER(ctypes.c_double)]
-        rc = fn(x.ctypes.data_as(ctypes.POINTER(ctypes.c_int32)),
-                len(x), fs, t0, f_lo, f_hi, ctypes.byref(out))
-        assert rc == 0, f"freq_est_fixed rc={rc}"
-        return out.value
+    name = "zoom" if mode == "float" else "zoom_fixed"
+    return fe_binding.estimate(name, v, fs, t0, f_lo, f_hi)
 
 
 def main() -> int:

@@ -1,9 +1,12 @@
 /*
  * freq_est.c -- portable FID frequency estimator core (C1).
  *
- * Spec-level mirror of poc/estimators.py::zoom_fit; a numpy mirror of THIS
- * algorithm lives in tools/freq_est_mirror.py, and the two are
- * cross-validated on the same golden vectors in the firmware host tests.
+ * THE estimator implementation (REDESIGN.md): every scoring path in the
+ * repository runs THIS code through poc/fe_binding.py; the Python
+ * estimator references were retired. A numpy mirror of this algorithm
+ * lives in tools/freq_est_mirror.py (C-side debugging only, never
+ * scored), and the two are cross-validated on the same golden vectors
+ * in the firmware host tests.
  *
  * Pipeline:
  *   1. mean removal;

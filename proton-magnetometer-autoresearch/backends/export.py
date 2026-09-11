@@ -110,22 +110,44 @@ def candidate_card(spec: dict, score_card: dict, outdir: str) -> Path:
     from backends.kicad import build_circuit
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
-    # score table
+    # Post-REDESIGN the E2E card nests per-band results under "bands";
+    # the headline gates are the WORST band's (J is the worst-band score).
+    gates = score_card.get("gates")
+    if gates is None and score_card.get("bands"):
+        worst = next((c for c in score_card["bands"]
+                      if c["b_earth_uT"] == score_card.get("worst_band_uT")),
+                     score_card["bands"][0])
+        gates = worst["gates"]
+    gates = gates or {}
+    # score table. Post-REDESIGN the E2E card nests per-band metrics under
+    # "bands" -- the exported card must carry them (they are what
+    # promotion decisions are made from), not just the top-level scalars.
     rows = {k: v for k, v in score_card.items()
-            if isinstance(v, (int, float, str, bool))}
+            if k not in ("bands", "provenance", "tabs")}
     (out / "score.json").write_text(json.dumps(rows, indent=1))
     with (out / "score.md").open("w") as f:
         f.write("# %s\n\n" % spec["title"])
         f.write("| metric | value |\n|---|---|\n")
         for k, v in sorted(rows.items()):
-            if k in ("gates",):
+            if k in ("gates", "J_per_band", "mcu"):
                 continue
             if isinstance(v, float):
                 v = f"{v:.4g}"
             f.write("| %s | %s |\n" % (k, v))
-        f.write("\ngates: %s\n" % ", ".join(
+        f.write("\ngates (worst band): %s\n" % ", ".join(
             "%s:%s" % (k, "ok" if v else "FAIL")
-            for k, v in score_card.get("gates", {}).items()))
+            for k, v in gates.items()))
+        bands = score_card.get("bands") or []
+        if bands:
+            f.write("\n| band | V0 [uV] | sigma_in [nV] | CRB [nT] | "
+                    "sigma_B [nT] | J [nT] |\n|---|---|---|---|---|---|\n")
+            for c in bands:
+                f.write("| %.1f uT | %.2f | %.0f | %.4f | %.4f | %s |\n"
+                        % (c["b_earth_uT"], c["v0_uV"],
+                           c["sigma_in_band_uV"] * 1e3, c["crb_nt"],
+                           c["rms_nt"],
+                           "inf" if c["J_nt"] == float("inf")
+                           else "%.4f" % c["J_nt"]))
     # SVG schematic via kicad-cli from the generated .kicad_sch
     try:
         from backends.kicad import write_schematic

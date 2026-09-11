@@ -1,5 +1,8 @@
-"""D16: M4 metrics from the scoring-harness spec
-(docs/research/research-frequency-estimation.md, "Scoring harness spec"):
+"""D16 (re-anchored, REDESIGN.md step 4): M4 metrics from the
+scoring-harness spec (docs/research/research-frequency-estimation.md,
+"Scoring harness spec"), measured on the C estimator core (the single
+estimator implementation) via fe_binding -- on unit vectors, so this is a
+bound-tracking regression of the estimator build, not a design score.
 
   M4  cycle-to-cycle repeatability (stationary-field run);
       averaging-gain check.
@@ -20,8 +23,8 @@ import pytest
 from conftest import POC  # noqa: F401
 
 import crb
+import fe_binding
 import fid
-from estimators import ESTIMATORS
 
 # Reference config 1 from the spec: eta_ps = 20 dB, tau = 1 s, t_d = 0.1 s,
 # T = 1.5 s. sigma = A/eta with A = 1e-6 -> sigma = 1e-7.
@@ -34,7 +37,8 @@ def _run_cycles(est_name, **kw):
     for i in range(kw.pop("n_cycles")):
         phase = np.random.default_rng(50_000 + i).uniform(-np.pi, np.pi)
         rec = fid.generate_record(rng=i, phase=phase, **kw)
-        f_hat.append(ESTIMATORS[est_name](rec))
+        f_hat.append(fe_binding.estimate(est_name, rec["v_adc"], rec["fs"],
+                                         rec["blanking_s"]))
     return np.asarray(f_hat)
 
 
@@ -44,7 +48,7 @@ def test_m4_repeatability_and_averaging_gain():
                 i_amp=0.05e-12, gain=5000.0, adc_bits=16, adc_fs=2.048,
                 n_cycles=N_CYCLES)
     # eta_ps = v0/sigma = 20 dB -> sigma_in = 1e-7 V.
-    f_hat = _run_cycles("zoom_fit", sigma_in=1e-7, **base)
+    f_hat = _run_cycles("zoom", sigma_in=1e-7, **base)
 
     f_true = fid.larmor_hz(base["b_tesla"])
     errs = f_hat - f_true
@@ -79,7 +83,7 @@ def test_m4_averaging_breaks_on_correlated_residuals():
                 record_s=1.5, r_coil=120.0, l_coil=2e-3, e_amp=7e-9,
                 i_amp=0.05e-12, gain=5000.0, adc_bits=16, adc_fs=2.048,
                 n_cycles=N_CYCLES)
-    f_hat = _run_cycles("zoom_fit", sigma_in=1e-7, **base)
+    f_hat = _run_cycles("zoom", sigma_in=1e-7, **base)
     f_true = fid.larmor_hz(base["b_tesla"])
     errs = f_hat - f_true
     sigma_rep = float(np.std(errs, ddof=1))

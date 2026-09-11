@@ -4,14 +4,22 @@ The scoring fan-out spawns one of these per candidate with a per-candidate
 timeout; a non-converging SPICE candidate is a SCORED REJECTION (J = inf,
 sim_status recorded), not a crash.
 
+The score comes from the single E2E evaluator (poc/evaluate.py,
+REDESIGN.md): one candidate = one circuit + one C-core estimator variant +
+one MCU config; J = worst-band sigma_B over the operating field range
+(E3 audit finding 9), with provenance (git SHA, tool versions, seeds, spec
+hash, firmware hash).
+
 Usage:
     python3 optimizer/eval_one.py '<candidate-kwargs-json>' [--fast]
 
+The candidate kwargs are poc/circuit_spec.afe_spec's (label, e_amp, i_amp,
+coil, tuned, preamp_gain, mfb_scale, wire_d_mm, winding_len_m, estimator,
+mcu).
+
 Prints one JSON line: {"J_nt": ..., "provenance": {...}, ...}
 """
-import hashlib
 import json
-import subprocess
 import sys
 from pathlib import Path
 
@@ -20,82 +28,36 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / "poc"))
 
 import circuit_spec as cs  # noqa: E402
-
-
-def provenance() -> dict:
-    """Stamp git SHA + tool versions + seeds into every score card."""
-    def git_sha():
-        try:
-            return subprocess.run(
-                ["git", "rev-parse", "HEAD"], cwd=str(ROOT),
-                capture_output=True, text=True, timeout=5).stdout.strip()
-        except Exception:
-            return "unknown"
-
-    def ngspice_version():
-        try:
-            out = subprocess.run(["ngspice", "--version"], capture_output=True,
-                                 text=True, timeout=5)
-            for line in (out.stdout + out.stderr).splitlines():
-                if "ngspice" in line.lower():
-                    return line.strip().split()[1]
-        except Exception:
-            return "unknown"
-        return "unknown"
-
-    return {
-        "git_sha": git_sha(),
-        "ngspice": ngspice_version(),
-        "python": sys.version.split()[0],
-        "numpy": __import__("numpy").__version__,
-        "mc_seeds": "phase=20000+i, record rng=7 (zoom), N_MC=%d" % cs.N_MC,
-    }
+import evaluate as ev  # noqa: E402
 
 
 def main() -> int:
     kwargs = json.loads(sys.argv[1])
-    fast = "--fast" in sys.argv
-    if fast:
-        cs.N_MC = 40          # search-time MC; survivors get full scoring
+    n_mc = 40 if "--fast" in sys.argv else ev.N_MC  # search-time MC
 
     from backends.kicad import build_circuit  # noqa: F401 (env init only)
     from spec import ir as spec_ir
 
     spec = cs.afe_spec(**kwargs)
     spec_ir.validate(spec)                       # A1 contract: reject invalid
-    netlist = cs.emit_netlist(spec)
-    spec_hash = hashlib.sha256(netlist.encode()).hexdigest()[:16]
 
     from backends.spice import run_ngspice_status
+    netlist = cs.emit_netlist(spec)
     proc, _ = run_ngspice_status(netlist, timeout_s=240)
     card = {
         "spec_title": kwargs.get("label", "candidate"),
         "kwargs": kwargs,
-        "spec_hash": spec_hash,
         "sim_status": proc.returncode,
-        "provenance": provenance(),
     }
     if proc.returncode != 0:
         # scored rejection: non-converging/timeout candidate
-        card.update(J_nt=float("inf"), sim_stderr=proc.stderr[-500:])
+        card.update(J_nt=float("inf"), spec_hash="n/a",
+                    sim_stderr=proc.stderr[-500:])
         print(json.dumps(card))
         return 0
     tabs = cs.parse_tables(proc.stdout)
     sim = cs.simulate_from_tabs(spec, tabs)
-    # B-sweep worst case (E3 audit finding 9): the search must minimize
-    # the WORST cycle over the operating field range, not the 50 uT point
-    # -- otherwise it can lock a 50 uT curiosity (tank pull) or a
-    # band-edge SNR hole and never see the other bands.
-    sweep = [cs.score_at(sim, spec, b) for b in
-             (25e-6, 37.5e-6, 50e-6, 62e-6, 65e-6)]
-    result = max(sweep, key=lambda c: c["J_nt"])   # the worst-band card
-    result["J_nt_worst"] = result["J_nt"]
-    result["J_per_band"] = {f"{c['b_earth_uT']:.0f}uT": c["J_nt"]
-                            for c in sweep}
-    keep = {k: result[k] for k in result
-            if k not in ("tabs",)}
-    card.update(keep)
-    card["J_nt"] = result["J_nt_worst"]      # optimize the worst case
+    card.update(ev.evaluate_with_sim(spec, sim, n_mc=n_mc))
     print(json.dumps(card))
     return 0
 

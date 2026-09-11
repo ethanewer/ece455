@@ -17,6 +17,7 @@ remain are human decisions (labeled per TODO.md's label scheme).
 | Fab/BOM + cards (A5/A6) | done | `backends/export.py` |
 | Optimizer skeleton (A7) | done | `optimizer/` — subprocess pool, timeouts, dedupe, elite archive, provenance |
 | Score completion (B2–B8) | done | time-walk, rail ripple (ablation + J gate), 1/f+CMRR analytic, parts DB, gain staging, B-sweep |
+| R1 single E2E evaluator | done | `poc/evaluate.py` is the only J-producing path (REDESIGN.md); the C core is the single estimator; Python estimators retired |
 | Firmware core (C1–C4) | done | `firmware/core/freq_est.c` (float + fixed), golden vectors, sensitivity job, RP2040 emulator check |
 | Verification (D1–D16) | done | `tests/` suite + CI (`.github/workflows/ci.yml`) |
 | External reviews (E0–E6) | done; E3 verdict recorded | E3 deep audit ran 2026-09-10; its 14 verified findings are triaged in TODO.md — 9 fixed in code, the rest documented or re-gated |
@@ -35,7 +36,7 @@ python3 tools/reproduce.py               # regenerate + diff every headline numb
 | Item | Decision | Input |
 |---|---|---|
 | **B7** | Decide whether survey productivity (cycle time vs tow speed) is a scored term or reported-only | The dead-time finding: 500 ms blanking costs only 1.22× in σ_B; a scored cycle-time term needs a survey requirement to score against |
-| **C6** | Pick the MCU family + TCXO grade (±0.5 vs ±2 ppm) vs board budget | The ppm table (`run_scoring.py` §3c): ±20 ppm = 1.0 nT bias at 50 µT (eats the whole budget); ±0.5 ppm = 0.025 nT |
+| **C6** | Pick the MCU family + TCXO grade (±0.5 vs ±2 ppm) vs board budget | The ppm table (README clock-reality note; reported per score card as `clock_bias_nt`): ±20 ppm = 1.0 nT bias at 50 µT (eats the whole budget); ±0.5 ppm = 0.025 nT |
 | **D6** | Accept the Curie-law transducer model as the interim V₀ anchor — or supply measured coil values | `fid.estimate_v0` (spin-1/2 law); the V₀×T2* grid in architecture.md §0 |
 | **E5** | Read the E3 audit verdict and sign off | The audit runs `cursor-agent -p` per `.pi/skills/external-review/SKILL.md`; its record lands in TODO.md |
 | **F1–F4** | Bench work (see `docs/experiments.md`) — the wet capture anchors V₀/T2*, the coil measurement anchors R/L/tuning | Acceptance criteria are the harness's predicted ranges |
@@ -72,9 +73,10 @@ Once G1/G2 are signed off:
    Budget: each fast candidate ≈ 6–10 s (ngspice + 40-record MC); full
    scoring of survivors runs with `--gens 0` style promotion via
    `optimizer/eval_one.py` WITHOUT `--fast`.
-4. **Per-band families**: the B-sweep score is the worst case over
-   25–65 µT (`circuit_spec.score_b_sweep`); run the per-band family
-   (`band_candidates()` + `score_at`) before promoting a survivor.
+4. **Per-band families**: every E2E card's J is already the worst case
+   over 25–65 µT (`evaluate()`, with per-band Js on the card); run the
+   per-band family (`python3 poc/circuit_spec.py --bsweep`) before
+   promoting a survivor.
 5. **Human review**: survivors compile to candidate cards
    (`backends/export.py::candidate_card` — score table + SVG schematic)
    and fab packages (gerbers/drill/STEP/BOM with indicative costing).

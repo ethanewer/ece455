@@ -59,7 +59,7 @@ def budget(r_coil=120.0, l_coil=2e-3, e_amp=7e-9, i_amp=0.05e-12,
     Defaults model the INA828-class reference: 1/f corner 10 Hz (INA828's
     0.1-10 Hz spec), 50 Hz common-mode on the shield at CMRR 100 dB, and
     50 mV of switching-regulator ripple at PSRR 60 dB -- the values the
-    scored ablations in run_scoring.py use.
+    unit-vector ablations in tools/reproduce.py use.
     """
     sigma_white = fid.input_noise_rms(r_coil, l_coil, e_amp, i_amp)
     f_lo, f_hi = fid.NOISE_BAND

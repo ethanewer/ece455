@@ -1,24 +1,19 @@
-"""Machine-first circuit representation demo: JSON spec -> ngspice -> nT score.
+"""Machine-first circuit representation + SPICE characterization.
 
-The auto-research loop needs a circuit format that is (a) trivially emitted
-and diffed by code, (b) simulatable end-to-end, and (c) compilable to
-buildable KiCad artifacts (that leg is SKiDL's job in the real pipeline --
-same component/net graph, different backend). This demo implements (a)+(b)
-with the audit-v0.0 fixes:
+This module builds the candidate circuit specs (afe_spec) and runs their
+SPICE characterization (simulate): complex H(f), EMF-referred noise
+spectrum, ring-down tau from a polarization-pulse .tran, and the causal
+impulse response h(t) from a .tran unit impulse (ground truth).
 
-  * the SPICE .ac transfer H(f) shapes BOTH the signal and the noise (an
-    earlier revision brick-walled noise in software and reduced the netlist
-    to a scalar gain, so the score could not see topology);
-  * candidates include a real bandpass and a tuned-input topology (the
-    axis that can reorder which amplifier is optimal);
-  * amplifier current noise is modeled too (a physical resistor
-    R = 4kT/i_n^2 in parallel at the input), which matters once the tuned
-    input lifts the source impedance by ~Q;
-  * blanking/recovery is scored by an actual .tran run (polarization pulse
-    -> ring-down -> measured decay constant), not just deleted samples;
-  * V0 comes from fid.estimate_v0 (Curie-law coil model), not a chosen
-    number;
-  * ONE objective function J is implemented (sigma_B + fail-fast gates).
+It does NOT score. Scoring is the single E2E evaluator poc/evaluate.py
+(REDESIGN.md): candidate-shaped records -> the C estimator core -> J.
+This module's main() is the CLI front end to that evaluator for the
+reference candidates.
+
+Candidate axes (all in the spec's meta): topology (tuned/untuned), parts
+(e_amp/i_amp), gain staging, bandpass centering, coil geometry (coupled to
+V0 -- E3 audit), the ESTIMATOR VARIANT (a C-core name; REDESIGN.md), and
+the MCU/clock configuration.
 
 Amplifier noise the ngspice-native way: voltage noise as a series resistor
 R = e_n^2/(4kT) into a noiseless behavioral gain block; current noise as a
@@ -29,15 +24,12 @@ physical resistors are bulletproof.
 Run:  python3 circuit_spec.py     (requires ngspice on PATH)
 """
 import re
-import subprocess
 from pathlib import Path
 
 import os
-# Reproducibility (D11): BLAS thread scheduling makes scipy least_squares
-# trajectories non-deterministic run-to-run (the nlls divergence tail flips
-# which near-threshold records diverge -> raw RMS 397 vs 436 nT on the same
-# tree). Pin single-threaded BLAS before numpy loads; the physics is
-# unaffected and the printed tables become byte-stable.
+# Reproducibility (D11): pin single-threaded BLAS before numpy loads so
+# LAPACK-backed numerics (ring-down fits, CRB solves) are run-to-run
+# deterministic and the printed cards are byte-stable.
 for _v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS",
            "NUMEXPR_NUM_THREADS"):
     os.environ.setdefault(_v, "1")
@@ -46,14 +38,9 @@ import numpy as np
 
 import crb
 import fid
-import estimators
 
 K_B = 1.380649e-23
 T0 = 300.0
-N_MC = 150
-MC_SIGMA_REL = 1.0 / np.sqrt(2.0 * N_MC)
-ADC_FS = 2.048
-ADC_BITS = 16
 FS = 20_000.0
 SWEEP = (100.0, FS / 2.0)          # .ac/.noise sweep to Nyquist
 BLANKING_S = 0.2
@@ -101,7 +88,8 @@ def mfb_bandpass_components(scale: float = 1.0) -> list:
 
 
 def afe_spec(label, e_amp, i_amp, coil, tuned=False, preamp_gain=100.0,
-             mfb_scale=1.0, wire_d_mm=None, winding_len_m=None) -> dict:
+             mfb_scale=1.0, wire_d_mm=None, winding_len_m=None,
+             estimator="zoom", mcu=None) -> dict:
     """FID EMF -> [tuning C] -> amp-noise network -> ideal preamp
     (x preamp_gain) -> MFB bandpass -> AA RC -> ideal x10 -> adc.
 
@@ -174,10 +162,15 @@ def afe_spec(label, e_amp, i_amp, coil, tuned=False, preamp_gain=100.0,
         {"name": "Ipol", "type": "I", "nodes": ["nc", "nin"],
          "value": "PWL(0 1m 0.4m 1m 0.5m 0 120m 0)"},
     ]
+    # REDESIGN.md section 2: a candidate = circuit + estimator + MCU
+    # config. The estimator names a C-core variant (fe_binding.ESTIMATORS);
+    # mcu carries the capture tick and clock grade. Both are scored axes.
+    mcu = mcu or {"tick_s": 8e-9, "clock_ppm": 0.5}
     return {
         "title": label,
         "meta": {"coil": coil, "e_amp": e_amp, "i_amp": i_amp,
-                 "tuned": tuned, "preamp_gain": preamp_gain},
+                 "tuned": tuned, "preamp_gain": preamp_gain,
+                 "estimator": estimator, "mcu": dict(mcu)},
         "components": comps,
         "control": [
             # dec 4000 (~0.6 Hz at 2.1 kHz): the .ac grid must resolve a
@@ -218,17 +211,6 @@ def emit_netlist(spec: dict) -> str:
 
 def run_ngspice(netlist: str) -> str:
     return _backend().run_ngspice(netlist, workdir=WORKDIR)
-
-
-def run_ngspice_orig(netlist: str) -> str:
-    WORKDIR.mkdir(exist_ok=True)
-    nl = WORKDIR / "afe.cir"
-    nl.write_text(netlist)
-    proc = subprocess.run(["ngspice", "-b", str(nl)],
-                          capture_output=True, text=True, timeout=300)
-    if proc.returncode != 0:
-        raise RuntimeError(f"ngspice failed:\n{proc.stdout[-2000:]}\n{proc.stderr[-2000:]}")
-    return proc.stdout
 
 
 def parse_tables(stdout: str) -> dict:
@@ -273,14 +255,6 @@ def shape_transfer(ac_tab, freqs):
     return np.interp(freqs, f_h, mag)
 
 
-def ph_edge_continued(ph_u, f_h, f_below):
-    """Phase below the sweep edge, continued linearly from the first two
-    .ac points (constant group delay) -- used with the -40 dB/dec
-    magnitude continuation that makes the band-limited IR causal."""
-    slope = (ph_u[1] - ph_u[0]) / (f_h[1] - f_h[0])
-    return ph_u[0] + slope * (f_below - f_h[0])
-
-
 def simulate(spec: dict) -> dict:
     """Field-independent SPICE leg: run ngspice once, return the complex
     H(f), the EMF-referred noise spectrum, tau_ring, and the noise RMS
@@ -288,32 +262,6 @@ def simulate(spec: dict) -> dict:
     range -- per-unit responses do not depend on B."""
     out = run_ngspice(emit_netlist(spec))
     return simulate_from_tabs(spec, parse_tables(out))
-
-
-def minimum_phase_ir(mag_half: np.ndarray, n: int) -> np.ndarray:
-    """Causal minimum-phase impulse response from the half-spectrum
-    magnitude |H(f)| (length n//2+1), via the exponential cepstrum.
-
-    The analog chains this harness scores (passive RLC ladders + VCVS
-    gains) are minimum-phase, so |H| determines the causal phase exactly
-    (Kramers-Kronig). Returns the length-n causal IR.
-    """
-    L_half = np.log(np.maximum(np.asarray(mag_half, dtype=float), 1e-300))
-    L_full = np.concatenate([L_half, L_half[-2:0:-1]])
-    C = np.fft.ifft(L_full).real                    # real cepstrum
-    C_min = C.copy()
-    C_min[1:n // 2] = 2.0 * C_min[1:n // 2]
-    C_min[n // 2 + 1:] = 0.0
-    if n % 2 == 0:
-        C_min[n // 2] = C[n // 2]
-    return np.real(np.fft.ifft(np.exp(np.fft.fft(C_min))))
-
-
-def lin_spec_control(spec: dict, lin_ctrl: list) -> list:
-    """Control block for the second (linear-grid AC) pass: keep nothing
-    from the nominal control except a fresh print of the complex
-    transfer on the exact rfft bin grid."""
-    return lin_ctrl
 
 
 def simulate_from_tabs(spec: dict, tabs: dict) -> dict:
@@ -331,7 +279,7 @@ def simulate_from_tabs(spec: dict, tabs: dict) -> dict:
         else float(np.trapz(e_n**2, f_n))
     sigma_in = float(np.sqrt(sigma2))
     # In-band (500-3500 Hz) input-referred RMS: the SNR_rms convention
-    # (run_scoring.py / architecture.md) uses the NOISE_BAND integral, NOT
+    # (architecture.md) uses the NOISE_BAND integral, NOT
     # the full sweep -- the two differ by ~5 dB and must never be
     # cross-compared (audit E6: the analog table quoted the full-sweep
     # sigma next to a "SNR_rms" label defined in-band).
@@ -376,10 +324,6 @@ def simulate_from_tabs(spec: dict, tabs: dict) -> dict:
     #   v3 (this): .tran impulse response -- noiseless tank pull
     #       measured 0.01-0.03 mHz (vs 1.2 mHz wrapped / 16.5 mHz
     #       cepstral). Verified 100% of IR energy in the first 100 ms.
-    n_full = int(round((blank_eff + RECORD_S) * FS))
-    n_blank = int(round(blank_eff * FS))
-    n_rec = int(round(RECORD_S * FS))
-    freqs_full = np.fft.rfftfreq(n_full, 1.0 / FS)
     T = 1.0 / FS
     ir_ctrl = [f"tran {T:g} {n_full * T:.6g} 0 10u",
                "linearize",
@@ -413,126 +357,6 @@ def simulate_from_tabs(spec: dict, tabs: dict) -> dict:
                 sigma_in_band=sigma_in_band, tau_ring=tau_ring,
                 blank_eff=blank_eff, n_full=n_full, n_blank=n_blank,
                 n_rec=n_rec, ir_causal_frac=ir_causal_frac)
-
-
-def score_at(sim: dict, spec: dict, b_earth: float = 50e-6) -> dict:
-    """Field-point scoring: MC + CRB + gates at one Earth-field value (B8).
-    V0 and f_L both scale with b_earth through the transducer model; the
-    simulated H(f)/noise are per-unit and reused across the sweep."""
-    tabs = sim["tabs"]
-    ac_tab = tabs["vm(adc)"]
-    f_h, mag_h = ac_tab
-    f_n, e_n = sim["f_n"], sim["e_n"]
-    sigma_in = sim["sigma_in"]
-    sigma_in_band = sim["sigma_in_band"]
-    tau_ring = sim["tau_ring"]
-    blank_eff = sim["blank_eff"]
-
-    coil = spec["meta"]["coil"]
-    v0 = fid.estimate_v0(b_pol=coil["b_pol"], n_turns=coil["n_turns"],
-                         coil_radius_m=coil["radius_m"], b_earth=b_earth)
-    f_l = fid.larmor_hz(b_earth)
-    h_t = sim["h_t"]
-    e_bins = sim["e_bins"]
-    n_full, n_blank, n_rec = sim["n_full"], sim["n_blank"], sim["n_rec"]
-
-    rng0 = np.random.default_rng(7)
-    # zoom_fit and zc_fit only: nlls_fit is the staged reference scored in
-    # run_scoring.py (its zoom seeding makes it ~4x slower; it adds nothing
-    # beyond zoom here, which already sits at 1.02x CRB).
-    errs = {name: [] for name in ("zoom_fit", "zc_fit")}
-    gross = {name: 0 for name in errs}
-    peak_adc = 0.0
-    lsb = ADC_FS / (2 ** ADC_BITS)
-    v_rail = ADC_FS / 2.0
-    from scipy.signal import fftconvolve, minimum_phase
-    for i in range(N_MC):
-        phase = np.random.default_rng(20_000 + i).uniform(-np.pi, np.pi)
-        t_full = np.arange(n_full) / FS
-        # EMF-domain signal from FID start (t=0), through the causal
-        # netlist response, then slice the record window at blank_eff.
-        sig_full = v0 * np.exp(-t_full / T2_STAR) \
-            * np.sin(2 * np.pi * f_l * t_full + phase)
-        sig_adc = fftconvolve(sig_full, h_t)[:n_full]
-        # EMF-referred noise shaped by the SPICE inoise spectrum, then
-        # through H(f) once more (e_in x H = onoise at the ADC node).
-        w = rng0.normal(0.0, 1.0, n_full)
-        noise_emf = np.fft.irfft(np.fft.rfft(w) * e_bins, n_full)
-        rms = float(np.sqrt(np.mean(noise_emf**2)))
-        if rms > 0:
-            noise_emf *= sigma_in / rms
-        noise_adc = fftconvolve(noise_emf, h_t)[:n_full]
-        v_sum = sig_adc[n_blank:] + noise_adc[n_blank:]
-        # ADC input range: clip at the rails before quantization (mirrors
-        # fid.generate_record; gain-cranked candidates must distort, not
-        # silently wrap -- audit E6 round 2).
-        n_clip = int(np.count_nonzero(np.abs(v_sum) > v_rail))
-        v_ad = np.round(np.clip(v_sum, -v_rail, v_rail) / lsb) * lsb
-        peak_adc = max(peak_adc, float(np.max(np.abs(v_ad))))
-        t = blank_eff + np.arange(n_rec) / FS
-        rec = {"t": t, "v_adc": v_ad, "f_larmor": f_l, "fs": FS,
-               "tau": T2_STAR, "n_clipped": n_clip}
-        for name in errs:
-            fh = estimators.ESTIMATORS[name](rec)
-            if not np.isfinite(fh):
-                gross[name] += 1
-                fh = f_l + 10.0
-            errs[name].append(fh - f_l)
-
-    res = {"spec": spec["title"], "v0_uV": v0 * 1e6, "sigma_in_uV": sigma_in * 1e6,
-           "sigma_in_band_uV": sigma_in_band * 1e6,
-           "gain_fl": float(np.interp(f_l, f_h, mag_h)),
-           "tau_ring_ms": tau_ring * 1e3, "blank_eff_ms": blank_eff * 1e3,
-           "snr_rms_db": 20 * np.log10((v0 / np.sqrt(2)) / sigma_in),
-           "snr_rms_band_db": 20 * np.log10((v0 / np.sqrt(2)) / sigma_in_band)}
-
-    # Reference CRB: in-band noise density around f_L from the SPICE spectrum.
-    band = (f_l - 300, f_l + 300)
-    m = (f_n >= band[0]) & (f_n <= band[1])
-    e_bar = float(np.sqrt(np.mean(e_n[m]**2))) if m.sum() else sigma_in / np.sqrt(fid.NOISE_BAND[1] - fid.NOISE_BAND[0])
-    t_ax = blank_eff + np.arange(n_rec) / FS
-    res["crb_nt"] = crb.freq_crb_colored(
-        t_ax, v0, f_l, T2_STAR, 0.0, FS, fid.NOISE_BAND[0],
-        fid.NOISE_BAND[1], e_bar * np.sqrt(fid.NOISE_BAND[1] - fid.NOISE_BAND[0])
-    ) / fid.GAMMA_HZ_PER_NT
-
-    # ONE objective function J (architecture.md section 0):
-    #   J = sigma_B  [nT]   with fail-fast gates; no dead-time cost term
-    #   (dead time is already inside sigma_B via the record start time).
-    gates = {}
-    for name in errs:
-        rms_nt = float(np.sqrt(np.mean(np.square(errs[name])))) / fid.GAMMA_HZ_PER_NT
-        g = float(np.mean(np.abs(errs[name]) > 1.0))
-        res[f"rms_{name}"] = rms_nt
-        res[f"gross_{name}"] = g
-    res["clip_margin"] = peak_adc / (0.9 * ADC_FS / 2)
-    gates["no_clipping"] = res["clip_margin"] < 1.0
-    gates["recovery_inside_blanking"] = blank_eff < 0.5 * T2_STAR
-    gates["gross_errors"] = res["gross_zoom_fit"] < 0.01
-    # Rail-ripple gate (E3 audit finding 5; week-2 problem 4 -- the
-    # failure mode that killed two prior teams): a 50 mV buck ripple at
-    # 2 kHz referred through the parts-DB-class PSRR of the FIRST stage
-    # (60 dB -> 50 uV referred, i.e. ~5x the 2 uV reference V0 and ~
-    # 120x the physics-grid V0) must sit below the FID amplitude or the
-    # coarse FFT seed hijacks onto the tone (measured: 3026 nT RMS in
-    # run_scoring [3e]). This makes the PSRR budget a scored gate, not a
-    # docstring. ripple_referred = 50 mV * 10^(-PSRR/20) with PSRR 100 dB
-    # as the pass bar at V0 >= 0.4 uV; proportional bar at smaller V0.
-    ripple_referred_uv = 50.0e-3 * 10.0 ** (-100.0 / 20.0) * 1e6  # 0.5 uV
-    v0_uv = v0 * 1e6
-    res["ripple_margin"] = ripple_referred_uv / max(v0_uv, 1e-9)
-    gates["rail_ripple_survivable"] = res["ripple_margin"] < 1.0
-    res["gates"] = gates
-    res["J_nt"] = res["rms_zoom_fit"] if all(gates.values()) else float("inf")
-    res["b_earth_uT"] = b_earth * 1e6
-    return res
-
-
-def score(spec: dict, b_earth: float = 50e-6) -> dict:
-    """netlist -> ngspice (H, noise spectrum, ring-down) -> MC -> J.
-    Kept as the single-field entry point (D8/D11 fixtures pin this); the
-    B-sweep uses simulate() once + score_at() per field point."""
-    return score_at(simulate(spec), spec, b_earth=b_earth)
 
 
 # ---------------------------------------------------------------------------
@@ -711,23 +535,10 @@ def band_candidates(b_fields=(25e-6, 50e-6, 65e-6)) -> list:
     return out
 
 
-def score_b_sweep(spec_kwargs: dict, b_fields=(25e-6, 37.5e-6, 50e-6,
-                                               62e-6, 65e-6)) -> list:
-    """One simulate() per candidate, scored across the operating field
-    range (B8). Returns per-field cards; the family score is the WORST
-    case over the field range (the optimizer must not optimize one
-    point)."""
-    spec = afe_spec(spec_kwargs.pop("label", "bsweep candidate"),
-                    **spec_kwargs)
-    sim = simulate(spec)
-    return [score_at(sim, spec, b) for b in b_fields]
-
-
-def main():
-    import json
-    import sys
-    dump_json = "--json" in sys.argv
-    candidates = [
+def reference_candidates() -> list:
+    """The three reference candidates (one per candidate class) as
+    afe_spec kwargs. The D8/D11 fixtures pin their E2E cards."""
+    return [
         ("untuned + INA828-class (7 nV, 170 fA)",
          dict(e_amp=7e-9, i_amp=170e-15, tuned=False,
               coil=dict(r_coil=120, l_coil="2m", n_turns=530,
@@ -736,80 +547,108 @@ def main():
          dict(e_amp=18e-9, i_amp=10e-15, tuned=False,
               coil=dict(r_coil=120, l_coil="2m", n_turns=530,
                         radius_m=0.015, b_pol=0.02))),
+        # Tuned candidate on the COUPLED coil (wire geometry derives
+        # r_coil/l_coil, c_tune resonates the derived L at 50 uT): the
+        # headline must be a winding that actually produces its V0 and
+        # its noise (E3 finding 3 / post-redesign audit). 0.56 mm wire
+        # over a 0.30 m axis -> r_coil ~ 20 ohm, l_coil ~ 26.6 mH, Q ~ 18.
         ("tuned series-resonant + JFET (1.4 nV, 0.1 pA)",
          dict(e_amp=1.4e-9, i_amp=0.1e-12, tuned=True, preamp_gain=4.0,
-              coil=dict(r_coil=20, l_coil="100m", c_tune="56n", n_turns=1500,
-                        radius_m=0.030, b_pol=0.05))),
+              wire_d_mm=0.56, winding_len_m=0.30,
+              coil=dict(n_turns=1500, radius_m=0.030, b_pol=0.05,
+                        c_tune="210n"))),
     ]
-    print(f"Scoring AFE candidates from SPICE (N_MC={N_MC}, "
-          f"+/-{MC_SIGMA_REL*100:.0f}% MC sigma; V0 from fid.estimate_v0; "
-          f"H(f) shapes signal and noise)\n")
-    rows = []
-    for label, kw in candidates:
-        spec = afe_spec(label, **kw)
-        r = score(spec)
-        rows.append(r)
-        g = " ".join(f"{k}:{'ok' if v else 'FAIL'}" for k, v in r["gates"].items())
-        print(f"{r['spec']}")
-        print(f"  V0={r['v0_uV']:.2f}uV  "
-              f"sigma_in(100-Nyq)={r['sigma_in_uV']*1e3:.0f}nV  "
-              f"sigma_in(500-3500)={r['sigma_in_band_uV']*1e3:.0f}nV  "
-              f"gain(fL)={r['gain_fl']:.0f}  "
-              f"SNR_rms(full-band)={r['snr_rms_db']:.1f}dB  "
-              f"SNR_rms(in-band)={r['snr_rms_band_db']:.1f}dB  "
-              f"tau_ring={r['tau_ring_ms']:.1f}ms  "
-              f"blank_eff={r['blank_eff_ms']:.0f}ms")
-        print(f"  CRB={r['crb_nt']:.4f}nT  zoom={r['rms_zoom_fit']:.4f}nT  "
-              f"zc={r['rms_zc_fit']:.4f}nT  clip={r['clip_margin']:.2f}")
-        print(f"  gates: {g}   J = {r['J_nt']:.4f} nT\n")
+
+
+def _round_floats(o):
+    """Recursively round floats to 12 significant digits (D11): the .tran
+    impulse response's adaptive solver lands on ULP-level different
+    internal grids run-to-run; byte-identity needs a stable textual form."""
+    if isinstance(o, float) and o == o and o != float("inf"):
+        return float(f"{o:.12g}")
+    if isinstance(o, dict):
+        return {k: _round_floats(v) for k, v in o.items()}
+    if isinstance(o, list):
+        return [_round_floats(v) for v in o]
+    return o
+
+
+def _print_card(card):
+    worst = card["bands"][[c["b_earth_uT"] for c in card["bands"]].index(
+        card["worst_band_uT"])]
+    g = " ".join(f"{k}:{'ok' if v else 'FAIL'}"
+                 for k, v in worst["gates"].items())
+    print(f"{card['spec']}  [estimator={card['estimator']}, "
+          f"clock={card['mcu']['clock_ppm']}ppm]")
+    print(f"  worst band {card['worst_band_uT']:.1f} uT: "
+          f"V0={worst['v0_uV']:.2f}uV  "
+          f"sigma_in(500-3500)={worst['sigma_in_band_uV']*1e3:.0f}nV  "
+          f"gain(fL)={worst['gain_fl']:.0f}  "
+          f"SNR_rms(in-band)={worst['snr_rms_band_db']:.1f}dB  "
+          f"tau_ring={worst['tau_ring_ms']:.1f}ms")
+    print(f"  CRB={worst['crb_nt']:.4f}nT  sigma_B={worst['rms_nt']:.4f}nT "
+          f"({worst['rms_nt']/worst['crb_nt']:.2f}x CRB)  "
+          f"gross={worst['gross']:.0%}  clip={worst['clip_margin']:.2f}")
+    print(f"  gates: {g}")
+    print(f"  J (worst band) = {card['J_nt']:.4f} nT   per-band: "
+          + "  ".join(f"{b}={j:.4f}" for b, j in card["J_per_band"].items())
+          + "\n")
+
+
+def main():
+    import json
+    import sys
+    import evaluate as ev
+
+    dump_json = "--json" in sys.argv
+    print(f"E2E evaluation of reference candidates "
+          f"(evaluate(): SPICE -> candidate-shaped records -> C estimator; "
+          f"N_MC={ev.N_MC}, +/-{ev.MC_SIGMA_REL*100:.0f}% MC sigma; "
+          f"J = worst-band sigma_B over 25-65 uT)\n")
+    cards = []
+    for label, kw in reference_candidates():
+        card = ev.evaluate(dict(kw, label=label))
+        cards.append(card)
+        _print_card(card)
+
+    # The ZC ruling-out as an E2E result (REDESIGN.md section 2), scored
+    # through the identical evaluator: on the thin-budget INA circuit the
+    # zc variant fails the gross gate; on the fat-SNR tuned circuit the
+    # score ranks it orders of magnitude off the bound.
+    label, kw = reference_candidates()[0]
+    zc_ina = ev.evaluate(dict(kw, label=label + " [zc variant]",
+                              estimator="zc"),
+                         b_fields=(50e-6,))
+    zb = zc_ina["bands"][0]
+    print(f"{zc_ina['spec']}: gross={zb['gross']:.0%} -> J = inf "
+          f"(gross_errors gate FAIL)\n")
+    label, kw = reference_candidates()[2]
+    zc_tuned = ev.evaluate(dict(kw, label=label + " [zc variant]",
+                                estimator="zc"),
+                           b_fields=(50e-6,))
+    zb = zc_tuned["bands"][0]
+    print(f"{zc_tuned['spec']}: sigma_B={zb['rms_nt']:.4f} nT "
+          f"({zb['rms_nt']/zb['crb_nt']:.0f}x CRB, gross={zb['gross']:.0%}) "
+          f"vs zoom {cards[2]['bands'][2]['rms_nt']:.4f} nT -- ruled out "
+          f"by the score on the identical circuit\n")
+
     if dump_json:
-        # D8/D11 fixture: full score card per candidate. Floats are rounded
-        # to 12 significant digits: the .tran impulse response's adaptive
-        # solver lands on ULP-level different internal grids run-to-run,
-        # and byte-identity (D11) needs a stable textual form.
-        def _round(v):
-            if isinstance(v, float) and v == v and v not in (float("inf"),):
-                return float(f"{v:.12g}")
-            return v
-        rows_out = [{k: _round(v) for k, v in r.items()} for r in rows]
-        print(json.dumps(rows_out, indent=1))
+        # D8/D11 fixture: full E2E card per reference candidate, without
+        # provenance (git SHA/tool versions are per-tree, not per-physics).
+        rows = [{k: v for k, v in c.items() if k != "provenance"}
+                for c in cards]
+        print(json.dumps(_round_floats(rows), indent=1))
 
     if "--bsweep" in sys.argv:
-        # B8: score across the operating field range. One simulate() per
-        # candidate; the family score is the WORST case over the field
-        # range so the optimizer cannot tune for one point.
-        print("\nB-sweep (B8): physics-V0 x field range 25-65 uT; "
-              "fixed-band vs per-band candidates\n")
-        families = [
-            ("fixed 2.1 kHz chain (demo tuned JFET)",
-             dict(e_amp=1.4e-9, i_amp=0.1e-12, tuned=True, preamp_gain=4.0,
-                  coil=dict(r_coil=20, l_coil="100m", c_tune="56n",
-                            n_turns=1500, radius_m=0.030, b_pol=0.05))),
-            ("untuned INA (demo)", dict(
-                e_amp=7e-9, i_amp=170e-15, tuned=False,
-                coil=dict(r_coil=120, l_coil="2m", n_turns=530,
-                          radius_m=0.015, b_pol=0.02))),
-        ]
-        for fam_label, kw in families:
-            cards = score_b_sweep(kw)
-            js = [c["J_nt"] for c in cards]
-            print(f"{fam_label}")
-            for c in cards:
-                g = " ".join(f"{k}:{'ok' if v else 'FAIL'}"
-                             for k, v in c["gates"].items())
-                print(f"  B={c['b_earth_uT']:.1f} uT: f_L={fid.larmor_hz(c['b_earth_uT']*1e-6):.0f}Hz "
-                      f"V0={c['v0_uV']:.2f}uV J={c['J_nt']:.4f} nT "
-                      f"gain(fL)={c['gain_fl']:.0f} [{g}]")
-            print(f"  -> worst-case J over field range = "
-                  f"{max(js):.4f} nT\n")
+        # Per-band candidate family (B8, model-consistent coil): each
+        # family member at its own field point.
         print("per-band family (B8, model-consistent coil):")
         for label, b, kw in band_candidates():
-            spec = afe_spec(label, **kw)
-            sim = simulate(spec)
-            card = score_at(sim, spec, b)
+            card = ev.evaluate(dict(kw, label=label), b_fields=(b,))
+            band = card["bands"][0]
             print(f"  {label}: J = {card['J_nt']:.4f} nT "
-                  f"(gain(fL)={card['gain_fl']:.0f}, "
-                  f"clip={card['clip_margin']:.2f})")
+                  f"(gain(fL)={band['gain_fl']:.0f}, "
+                  f"clip={band['clip_margin']:.2f})")
 
 
 if __name__ == "__main__":

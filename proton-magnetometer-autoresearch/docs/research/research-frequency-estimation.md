@@ -1,12 +1,18 @@
 # Research: frequency-estimation bounds and estimators for the FID
 
-> Compiled February 2026. The estimators named here are implemented in
-> `poc/estimators.py` (fft_peak, zoom_fit, zc_fit, nlls_fit) and
-> regression-tested in `poc/test_validation.py` (audit v0.0 follow-up: the
-> research pass originally left its scratch scripts in /tmp; they are now
-> in-repo). SNR convention in this report: eta = A0/sigma, PER-SAMPLE
+> Compiled February 2026. NOTE (post-REDESIGN): the estimators named here
+> now live EXCLUSIVELY in the C core (`firmware/core/`: freq_est.c = zoom,
+> fft_est.c, zc_est.c); the Python reference implementations were retired
+> (one estimator implementation per algorithm -- REDESIGN.md). The
+> behavioral claims are regression-locked on the C core in
+> `tests/test_estimator_reference.py` and `poc/test_validation.py`.
+> SNR convention in this report: eta = A0/sigma, PER-SAMPLE
 > amplitude SNR (20 dB <=> eta = 10) -- distinct from the record RMS SNR
-> (V0/sqrt2)/sigma_in used in run_scoring.py output.
+> (V0/sqrt2)/sigma_in used in the E2E cards. The NLS Monte-Carlo tables in
+> this report are literature/survey results (staged NLLS was retired with
+> the Python estimator layer -- it was never the shipped algorithm) and are
+> not re-runnable from the tree; the estimator claims that ARE locked are
+> the C-core rows above.
 
 ## Bottom line
 

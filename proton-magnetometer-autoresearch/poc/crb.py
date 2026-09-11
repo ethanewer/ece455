@@ -5,8 +5,10 @@ Model: v(t) = A*exp(-t/tau)*sin(2*pi*f*t + phi) + white noise of sigma.
 The Fisher information matrix is computed numerically from analytic partial
 derivatives (exact, includes cross-terms between amplitude, frequency,
 decay, and phase), so dead time, finite records, and parameter coupling are
-all handled. The frequency CRB is [J^-1]_ff; validated against Monte-Carlo
-variance of the NLLS estimator in run_scoring.py.
+all handled. The frequency CRB is [J^-1]_ff; validated against an
+independent dense-covariance Fisher and a Monte-Carlo ensemble covariance
+(test_validation.py, tests/test_crb_ensemble.py), and the C estimator core
+is regression-locked to ride it (tests/test_estimator_reference.py).
 
 Fisher information for additive white Gaussian noise:
     J[i,j] = (1/sigma^2) * sum_k  ds/dtheta_i(t_k) * ds/dtheta_j(t_k)
@@ -68,7 +70,8 @@ def freq_crb_colored(t, amp, freq, tau, phase, fs, f_lo, f_hi, sigma):
         J_ij = (F ds_i)^H diag(1/S) (F ds_j),
     computed in the DFT domain. Out-of-band (S = 0) carries no information
     here, which makes the bound slightly conservative (safe for a floor).
-    Validated against Monte-Carlo of the NLLS estimator in run_scoring.py.
+    Validated against the C estimator core's Monte-Carlo
+    (tests/test_estimator_reference.py).
     """
     p = partials(t, amp, freq, tau, phase)
     n = len(t)
@@ -104,6 +107,50 @@ def freq_crb_colored(t, amp, freq, tau, phase, fs, f_lo, f_hi, sigma):
         for j, kj in enumerate(keys):
             cross = np.real(np.conj(D[ki]) * D[kj])
             jj[i, j] = beta / (sigma**2 * n) * np.sum(w * cross)
+    try:
+        cov = np.linalg.inv(jj)
+        return float(np.sqrt(max(cov[1, 1], 0.0)))
+    except np.linalg.LinAlgError:
+        return float("nan")
+
+
+def freq_crb_shaped(t, amp, freq, tau, phase, fs, s1_at_bins):
+    """CRLB for ARBITRARY one-sided noise density S1(f) [Hz].
+
+    s1_at_bins: S1(f) = e_n(f)^2 sampled at the rfft bins of len(t) (V^2/Hz,
+    one-sided), e.g. the candidate's SPICE EMF-referred noise spectrum.
+
+    Fisher information for a circulant Gaussian process, DFT domain:
+        J_ij = sum_bins w_k Re(conj(D_i) D_j) / (n * (fs/2) * S1(f_k)),
+    w = 2 for interior bins, 1 at DC/Nyquist. For a FLAT S1 over
+    [f_lo, f_hi] (and S1 = sigma^2/(f_hi-f_lo) elsewhere ignored) this
+    reduces EXACTLY to the validated freq_crb_colored formula
+    (beta/(sigma^2 n) = 1/(n (fs/2) S1)); locked by a unit test in
+    poc/test_validation.py.
+
+    This is the CRB the E2E evaluator reports: the flat-density
+    approximation of freq_crb_colored is INVALID under a shaped spectrum
+    (a tuned tank's EMF-referred density dips at resonance, and the
+    flat-window mean overestimates the bound ~1.4x there -- the estimator
+    appeared to 'beat the CRB' at 0.72x; against the shaped Fisher it
+    sits at ~1.0x, audit of the single-evaluator pipeline).
+    """
+    p = partials(t, amp, freq, tau, phase)
+    n = len(t)
+    keys = PARAM_ORDER
+    D = {k: np.fft.rfft(p[k]) for k in keys}
+    n_bins = len(D["amp"])
+    s1 = np.asarray(s1_at_bins, dtype=float)
+    assert len(s1) == n_bins, (len(s1), n_bins)
+    w = np.full(n_bins, 2.0)
+    w[0] = 1.0
+    w[-1] = 1.0
+    weight = w / (n * (fs / 2.0) * np.maximum(s1, 1e-300))
+    jj = np.zeros((len(keys), len(keys)))
+    for i, ki in enumerate(keys):
+        for j, kj in enumerate(keys):
+            cross = np.real(np.conj(D[ki]) * D[kj])
+            jj[i, j] = np.sum(weight * cross)
     try:
         cov = np.linalg.inv(jj)
         return float(np.sqrt(max(cov[1, 1], 0.0)))

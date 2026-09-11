@@ -174,18 +174,19 @@ def test_tank_q_and_ringdown_identities():
     """The corrected tuned tank must satisfy Q = 2*pi*f0*L/R and
     tau_ring ~ 2Q/omega (audit E6 round 2: lock the corrected topology's
     physics so a revert to the non-resonant wiring cannot pass silently).
-    Values from the committed tuned candidate: L = 100 mH, R_coil = 20 ohm,
-    C_tune = 56 nF, Q_unloaded = 66.8, tau = 2Q/omega = 10.0 ms; SPICE
-    measured tau_ring = 11.1 ms (loaded Q + envelope-fit tolerance)."""
-    l_coil, r_coil, c_tune = 100e-3, 20.0, 56e-9
+    Values from the committed tuned candidate (the COUPLED coil):
+    L = 26.6 mH, R_coil = 20 ohm, C_tune = 210 nF, Q_unloaded = 17.8,
+    tau = 2Q/omega = 2.7 ms; SPICE measured tau_ring = 3.1 ms (loaded Q +
+    envelope-fit tolerance)."""
+    l_coil, r_coil, c_tune = 26.6e-3, 20.0, 210e-9
     f0 = 1.0 / (2.0 * np.pi * np.sqrt(l_coil * c_tune))
     q_unloaded = 2.0 * np.pi * f0 * l_coil / r_coil
-    assert f0 == pytest.approx(2126.8, rel=0.001)
-    assert q_unloaded == pytest.approx(66.8, rel=0.01)
+    assert f0 == pytest.approx(2130.0, rel=0.005)
+    assert q_unloaded == pytest.approx(17.8, rel=0.02)
     tau_ideal = 2.0 * q_unloaded / (2.0 * np.pi * f0)
-    # The committed tuned card measured 11.1 ms (loaded Q 63.4 + fit tol).
-    assert tau_ideal == pytest.approx(10.0e-3, rel=0.01)
-    assert 11.1e-3 / tau_ideal < 1.2       # measured/ideal within loading
+    # The committed tuned card measured 3.1 ms (loaded Q + fit tol).
+    assert tau_ideal == pytest.approx(2.7e-3, rel=0.02)
+    assert 3.1e-3 / tau_ideal < 1.2        # measured/ideal within loading
 
 
 def test_score_card_tuned_gain_implies_step_up():
@@ -197,8 +198,12 @@ def test_score_card_tuned_gain_implies_step_up():
     cards = {c["spec"]: c for c in json.loads(
         (Path(__file__).resolve().parent / "fixtures" / "score_cards"
          / "reference_cards.json").read_text())}
-    ina = cards["untuned + INA828-class (7 nV, 170 fA)"]
-    tun = cards["tuned series-resonant + JFET (1.4 nV, 0.1 pA)"]
+    def band50(card):
+        return next(c for c in card["bands"]
+                    if abs(c["b_earth_uT"] - 50.0) < 0.1)
+
+    ina = band50(cards["untuned + INA828-class (7 nV, 170 fA)"])
+    tun = band50(cards["tuned series-resonant + JFET (1.4 nV, 0.1 pA)"])
     # Chain gain ratio = tank step-up / (preamp ratio 4/100).
     step_up = (tun["gain_fl"] / ina["gain_fl"]) / (4.0 / 100.0)
-    assert 30.0 < step_up < 90.0, step_up   # Q_class tank step-up present
+    assert 10.0 < step_up < 30.0, step_up   # Q~18 tank step-up present

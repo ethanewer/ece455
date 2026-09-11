@@ -18,7 +18,6 @@ Usage:
 """
 import argparse
 import concurrent.futures
-import hashlib
 import json
 import subprocess
 import sys
@@ -33,10 +32,13 @@ PER_CANDIDATE_TIMEOUT_S = 300
 
 
 def netlist_hash(kwargs: dict) -> str:
+    """Full-candidate hash (REDESIGN.md): netlist + estimator + MCU config
+    -- a mutation of ANY candidate axis produces a new key, so the dedupe
+    never rescores the same artifact."""
     sys.path.insert(0, str(ROOT / "poc"))
     import circuit_spec as cs
-    netlist = cs.emit_netlist(cs.afe_spec(**kwargs))
-    return hashlib.sha256(netlist.encode()).hexdigest()[:16]
+    import evaluate as ev
+    return ev.spec_hash(cs.afe_spec(**kwargs))
 
 
 def evaluate(kwargs: dict, fast: bool = True) -> dict:

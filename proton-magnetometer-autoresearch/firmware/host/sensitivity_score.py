@@ -1,5 +1,10 @@
 """C3: CI sensitivity-score job for the firmware estimator core.
 
+NOTE (REDESIGN.md section 3): this is a UNIT REGRESSION of the C core --
+bound-tracking over synthetic unit vectors with an idealized front end.
+It is NOT a design score and evaluates no candidate; the design score is
+the single E2E evaluator poc/evaluate.py.
+
 Runs the HOST-BUILT C core (byte-identical to what ships, per the MCU
 research doc's contract) over the synthetic-FID matrix:
 
@@ -22,7 +27,6 @@ binds there).
 Emits firmware/host/sensitivity_report.json. Run:
     make -C firmware/core test        (includes this job)
 """
-import ctypes
 import json
 import sys
 from pathlib import Path
@@ -51,20 +55,8 @@ BASE = dict(v0=2e-6, fs=20_000.0, blanking_s=0.2, record_s=1.5,
 
 
 def run_core(v, fs, t0):
-    so = ROOT / "firmware" / "core" / "libfreq_est.so"
-    if not so.exists():
-        raise SystemExit("missing libfreq_est.so; run make -C firmware/core")
-    L = ctypes.CDLL(str(so))
-    fn = L.freq_est_f32
-    fn.argtypes = [ctypes.POINTER(ctypes.c_float), ctypes.c_int,
-                   ctypes.c_double, ctypes.c_double, ctypes.c_double,
-                   ctypes.c_double, ctypes.POINTER(ctypes.c_double)]
-    x = np.ascontiguousarray(v, dtype=np.float32)
-    out = ctypes.c_double(0.0)
-    rc = fn(x.ctypes.data_as(ctypes.POINTER(ctypes.c_float)), len(x),
-            fs, t0, 500.0, 3500.0, ctypes.byref(out))
-    assert rc == 0
-    return out.value
+    import fe_binding
+    return fe_binding.estimate("zoom", v, fs, t0)
 
 
 def quantize_timestamps(t, tick_s):
@@ -135,7 +127,7 @@ def main():
 
 def MCU_CLOCK_BIAS():
     """Deterministic scale bias at 50 uT for candidate clocks (from the
-    ppm table in run_scoring.py section 3c: bias_nT = B[uT] * ppm / 1000)."""
+    ppm table in the README clock-reality note: bias_nT = B[uT] * ppm / 1000)."""
     return {"crystal_20ppm@50uT": 1.0, "tcx0_2ppm@50uT": 0.1,
             "tcxo_0.5ppm@50uT": 0.025}
 

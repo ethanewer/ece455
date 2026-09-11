@@ -16,11 +16,13 @@ VECTORS := $(ROOT)/firmware/host/vectors/manifest.json
 
 all: libfreq_est.so libfreq_est_fixed.so
 
-libfreq_est.so: freq_est.c freq_est.h
-	$(CC) $(CFLAGS) -shared freq_est.c -o $@ -lm
+SRCS := freq_est.c fft_est.c zc_est.c
 
-libfreq_est_fixed.so: freq_est.c freq_est.h
-	$(CC) $(CFLAGS) -DFE_FIXED_POINT -shared freq_est.c -o $@ -lm
+libfreq_est.so: $(SRCS) freq_est.h
+	$(CC) $(CFLAGS) -shared $(SRCS) -o $@ -lm
+
+libfreq_est_fixed.so: $(SRCS) freq_est.h
+	$(CC) $(CFLAGS) -DFE_FIXED_POINT -shared $(SRCS) -o $@ -lm
 
 # Regenerate golden vectors only if the manifest is missing.
 $(VECTORS):

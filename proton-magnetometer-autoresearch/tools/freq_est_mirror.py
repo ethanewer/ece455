@@ -7,11 +7,12 @@ this mirror on identical golden vectors and require agreement, so any C
 side bug (fixed-point saturation, NCO table, FIR indexing) shows up as a
 C-vs-mirror divergence, and the mirror gives Python-level debugging.
 
-This is deliberately an ALGORITHM mirror, not a wrapper of
-poc/estimators.zoom_fit: zoom_fit uses scipy's resample_poly FIR and a
-Hilbert-transform tau; the MCU core uses its own windowed-sinc FIR and the
-mixed-signal envelope. Both are validated against the CRB gates
-(sensitivity-score job), which is the acceptance test that matters.
+This is deliberately an ALGORITHM mirror of the C core, for C-side
+debugging (a C-vs-mirror divergence localizes the bug to the C port).
+It is a test tool, NEVER a scored estimator: post-REDESIGN the C core is
+the single estimator implementation in every scoring path, and this
+mirror is how the host tests catch C-side bugs (NCO table, FIR indexing,
+fixed-point saturation).
 """
 import numpy as np
 

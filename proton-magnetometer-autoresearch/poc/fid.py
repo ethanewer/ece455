@@ -150,9 +150,9 @@ def generate_record(b_tesla=50e-6, v0=2e-6, tau=1.5, phase=0.0,
 
     v0 and b_tesla are deliberately INDEPENDENT knobs: the transducer chain
     (B_pol -> magnetization -> EMF) is modeled separately in estimate_v0,
-    and both circuit_spec.py and the run_scoring.py grid set v0 from it.
-    Callers that want physical consistency should do the same rather than
-    sweeping b_tesla at a fixed v0 (FID amplitude in reality scales as
+    and the E2E evaluator (poc/evaluate.py) sets v0 from it. Callers that
+    want physical consistency should do the same rather than sweeping
+    b_tesla at a fixed v0 (FID amplitude in reality scales as
     B_earth * B_pol through the precession frequency and Curie law).
 
     sigma_in overrides the analytic input-referred RMS noise (e.g. with a
@@ -229,3 +229,76 @@ def generate_record(b_tesla=50e-6, v0=2e-6, tau=1.5, phase=0.0,
             "sigma_in": sigma_in, "lsb": lsb, "fs": fs,
             "blanking_s": blanking_s, "record_s": record_s, "tau": tau,
             "n_clipped": n_clipped}
+
+
+# ---------------------------------------------------------------------------
+# E2E record synthesis (REDESIGN.md section 3): this module's second role is
+# the record synthesizer for the E2E scoring path -- given the CANDIDATE's
+# SPICE characterization (impulse response h(t), EMF-referred noise
+# spectrum) it produces the ADC records the C estimator core is scored on.
+# generate_record() above remains the unit-vector generator for the C-core
+# regression tests (golden vectors, sensitivity job); it is NOT a design
+# evaluation path.
+# --------------------------------------------------------------------------- #
+def _fftconvolve(a: np.ndarray, h: np.ndarray) -> np.ndarray:
+    """Full linear convolution via rfft (numpy-only fftconvolve)."""
+    n = len(a) + len(h) - 1
+    L = 1 << (n - 1).bit_length()
+    return np.fft.irfft(np.fft.rfft(a, L) * np.fft.rfft(h, L), L)[:n]
+
+
+def synthesize_adc_record(v0: float, f_l: float, tau: float,
+                          h_t: np.ndarray, e_bins: np.ndarray,
+                          sigma_in: float, phase: float,
+                          noise_w: np.ndarray, blank_s: float,
+                          fs: float = 20_000.0,
+                          adc_bits: int = 16, adc_fs: float = 2.048,
+                          ripple=None):
+    """One E2E record from the candidate's SPICE characterization.
+
+    v0, f_l, tau : FID physics (Curie-law amplitude, Larmor frequency, T2*)
+    h_t          : the candidate's causal impulse response (SPICE .tran
+                   ground truth), sampled at fs from t=0 for
+                   blank_s + record_s
+    e_bins       : the candidate's EMF-referred noise spectrum interpolated
+                   onto the rfft bins of len(h_t)
+    sigma_in     : full-sweep noise RMS the spectrum integrates to [V]
+    phase        : FID phase for this MC record
+    noise_w      : len(h_t) white unit-variance samples (the MC noise draw)
+    blank_s      : effective blanking [s] (record starts at blank_s)
+    ripple       : optional (freq_hz, input_referred_amp_v) rail-ripple
+                   tone added to the EMF before the circuit response
+
+    Returns (v_adc, n_clipped, peak_abs): the quantized ADC record, the
+    clipped-sample count, and the peak |v_adc| for the clipping gate.
+
+    The signal starts at t=0 (INSIDE the blanking window) and passes
+    through the causal netlist response BEFORE the record window is
+    sliced: multiplying a record that starts at blank_s by |H| alone
+    rings the resonator at the record-start discontinuity and produced a
+    spurious ~-3 mHz "tank pull" (audit E6 round 2).
+    """
+    n_full = len(h_t)
+    n_blank = int(round(blank_s * fs))
+    t_full = np.arange(n_full) / fs
+    sig = v0 * np.exp(-t_full / tau) * np.sin(2.0 * np.pi * f_l * t_full
+                                              + phase)
+    if ripple is not None:
+        f_r, a_r = ripple
+        sig = sig + a_r * np.sin(2.0 * np.pi * f_r * t_full)
+    sig_adc = _fftconvolve(sig, h_t)[:n_full]
+    # EMF-referred noise shaped by the candidate's SPICE spectrum, then
+    # through H once more (e_in x H = onoise at the ADC node).
+    noise_emf = np.fft.irfft(np.fft.rfft(noise_w) * e_bins, n_full)
+    rms = float(np.sqrt(np.mean(noise_emf**2)))
+    if rms > 0:
+        noise_emf *= sigma_in / rms
+    noise_adc = _fftconvolve(noise_emf, h_t)[:n_full]
+    v = sig_adc[n_blank:] + noise_adc[n_blank:]
+    # ADC rails before quantization: gain-cranked candidates distort, not
+    # wrap (B6); the clip count feeds the no_clipping gate.
+    v_rail = adc_fs / 2.0
+    n_clip = int(np.count_nonzero(np.abs(v) > v_rail))
+    lsb = adc_fs / (2 ** adc_bits)
+    v_adc = np.round(np.clip(v, -v_rail, v_rail) / lsb) * lsb
+    return v_adc, n_clip, float(np.max(np.abs(v_adc)))
