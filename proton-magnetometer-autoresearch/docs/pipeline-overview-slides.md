@@ -166,6 +166,20 @@
 
 ---
 
+# LTspice amplification response
+
+- Transfer: `V(adc) / V(nin)`
+- Left axis: gain magnitude
+- Right axis: phase
+- Peak: 45.7 dB, or 192 V/V
+- Peak frequency: 2.12 kHz
+- −3 dB band: 1.74 to 2.58 kHz
+- File: [AC schematic](assets/week3-working-receiver-50ut-transfer.asc)
+
+![LTspice amplification transfer function](assets/ltspice-week3-amplifier-transfer-function.png)
+
+---
+
 # LTspice receiver waveform
 
 - 50 µT state
