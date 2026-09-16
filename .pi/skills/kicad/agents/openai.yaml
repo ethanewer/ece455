@@ -1,0 +1,3 @@
+interface:
+  display_name: "KiCad PCB"
+  short_description: "Route, validate, render, and export KiCad boards"

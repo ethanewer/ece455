@@ -37,6 +37,7 @@
     "clip_margin": 0.00651041666667,
     "n_clipped": 0,
     "clock_bias_nt": 0.0125,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 2.46692077104,
     "rms_tone_nt": 8840.02723778,
@@ -44,7 +45,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": false,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    },
@@ -68,6 +70,7 @@
     "clip_margin": 0.00674777560764,
     "n_clipped": 0,
     "clock_bias_nt": 0.01875,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 1.64461384736,
     "rms_tone_nt": 0.401776116858,
@@ -75,7 +78,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    },
@@ -99,6 +103,7 @@
     "clip_margin": 0.00739203559028,
     "n_clipped": 0,
     "clock_bias_nt": 0.025,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 1.23346038552,
     "rms_tone_nt": 0.258783861761,
@@ -106,7 +111,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    },
@@ -130,6 +136,7 @@
     "clip_margin": 0.00701904296875,
     "n_clipped": 0,
     "clock_bias_nt": 0.031,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 0.994726117356,
     "rms_tone_nt": 0.218266658006,
@@ -137,7 +144,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    },
@@ -161,6 +169,7 @@
     "clip_margin": 0.00718858506944,
     "n_clipped": 0,
     "clock_bias_nt": 0.0325,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 0.94881568117,
     "rms_tone_nt": 0.197844354611,
@@ -168,7 +177,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    }
@@ -213,6 +223,7 @@
     "clip_margin": 0.0165812174479,
     "n_clipped": 0,
     "clock_bias_nt": 0.0125,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 2.46692077104,
     "rms_tone_nt": 24574.6013245,
@@ -220,7 +231,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": false,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    },
@@ -244,6 +256,7 @@
     "clip_margin": 0.016852484809,
     "n_clipped": 0,
     "clock_bias_nt": 0.01875,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 1.64461384736,
     "rms_tone_nt": 1769.89762331,
@@ -251,7 +264,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    },
@@ -275,6 +289,7 @@
     "clip_margin": 0.017327202691,
     "n_clipped": 0,
     "clock_bias_nt": 0.025,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 1.23346038552,
     "rms_tone_nt": 0.635358176032,
@@ -282,7 +297,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    },
@@ -306,6 +322,7 @@
     "clip_margin": 0.0163099500868,
     "n_clipped": 0,
     "clock_bias_nt": 0.031,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 0.994726117356,
     "rms_tone_nt": 0.603694420177,
@@ -313,7 +330,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    },
@@ -337,6 +355,7 @@
     "clip_margin": 0.0166490342882,
     "n_clipped": 0,
     "clock_bias_nt": 0.0325,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 0.94881568117,
     "rms_tone_nt": 0.484035857584,
@@ -344,7 +363,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    }
@@ -389,6 +409,7 @@
     "clip_margin": 0.000508626302083,
     "n_clipped": 0,
     "clock_bias_nt": 0.0125,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 0.0871645339101,
     "rms_tone_nt": 0.00990116963097,
@@ -396,7 +417,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": false
+     "rail_ripple_survivable": false,
+     "clock_within_budget": true
     },
     "J_nt": Infinity
    },
@@ -420,6 +442,7 @@
     "clip_margin": 0.00217013888889,
     "n_clipped": 0,
     "clock_bias_nt": 0.01875,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 0.0581096892734,
     "rms_tone_nt": 0.00396934433236,
@@ -427,7 +450,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": true
+     "rail_ripple_survivable": true,
+     "clock_within_budget": true
     },
     "J_nt": 0.00259080105127
    },
@@ -451,6 +475,7 @@
     "clip_margin": 0.0365532769097,
     "n_clipped": 0,
     "clock_bias_nt": 0.025,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 0.0435822669551,
     "rms_tone_nt": 0.000729430976388,
@@ -458,7 +483,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": true
+     "rail_ripple_survivable": true,
+     "clock_within_budget": true
     },
     "J_nt": 0.00072025484606
    },
@@ -482,6 +508,7 @@
     "clip_margin": 0.00311957465278,
     "n_clipped": 0,
     "clock_bias_nt": 0.031,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 0.0351469894799,
     "rms_tone_nt": 0.00193878750288,
@@ -489,7 +516,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": true
+     "rail_ripple_survivable": true,
+     "clock_within_budget": true
     },
     "J_nt": 0.00190464320114
    },
@@ -513,6 +541,7 @@
     "clip_margin": 0.00230577256944,
     "n_clipped": 0,
     "clock_bias_nt": 0.0325,
+    "t2_star_s": 1.5,
     "timestamp_quant_rel": 0.00016,
     "ripple_margin": 0.0335248207347,
     "rms_tone_nt": 0.00224575350566,
@@ -520,7 +549,8 @@
      "no_clipping": true,
      "recovery_inside_blanking": true,
      "gross_errors": true,
-     "rail_ripple_survivable": true
+     "rail_ripple_survivable": true,
+     "clock_within_budget": true
     },
     "J_nt": 0.00210416046348
    }

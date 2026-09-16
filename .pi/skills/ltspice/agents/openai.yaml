@@ -1,0 +1,3 @@
+interface:
+  display_name: "LTspice"
+  short_description: "Create and capture real LTspice simulations"

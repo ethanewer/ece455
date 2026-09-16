@@ -42,9 +42,15 @@ same rule to two files, you are doing it wrong.
 
 ## Skills available
 
-- `external-review`: run an external review over changes via the cursor-agent
-  CLI. Run the software-quality (bugbot) review before committing. Run the
-  scientific-correctness review when a change touches physical models,
-  constants, noise parameters, or scoring math. Run the deep audit for
-  whole-pipeline changes. Read `external-review/SKILL.md` for the exact
-  invocations.
+- `external-review`: run an external review over verifier changes via the
+  cursor-agent CLI. Skip reviews when no verifier changes were made. Read
+  `external-review/SKILL.md` for the exact scope and invocations.
+- `ltspice`: create, run, validate, and capture real LTspice schematics and
+  waveforms on macOS, including required privacy permissions and GUI control.
+- `kicad`: generate, route, validate, render, and export KiCad PCBs, including
+  external FreeRouting autorouting through the Specctra DSN/SES workflow.
+- `markdown-slides`: build concise Markdown slide decks with separators,
+  verified local figures, inline citations, and no duplicated images.
+- `proton-autoresearch`: operate the proton-magnetometer auto-research
+  pipeline, preserve the verifier boundary, and run bounded Cursor proposal
+  iterations when requested.

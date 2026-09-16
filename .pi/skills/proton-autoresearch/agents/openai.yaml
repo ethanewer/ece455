@@ -1,0 +1,3 @@
+interface:
+  display_name: "Proton Autoresearch"
+  short_description: "Operate the magnetometer optimization pipeline"

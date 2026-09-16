@@ -10,3 +10,23 @@ _sklib.py
 *-erc.rpt
 *-drc.rpt
 skidl_REPL.*
+
+# Generated SKiDL and simulator outputs.
+*_sklib.py
+*.net
+*.raw
+
+# KiCad local state, backups, and autorouter handoff files.
+*.kicad_prl
+*.kicad_sch-bak
+*.kicad_pcb-bak
+*.kicad_pro-bak
+~*.lck
+*-backups/
+.history/
+*.dsn
+*.ses
+
+# Reproducible fabrication exports; retain the editable board sources.
+**/fabrication/
+**/routed-fabrication/

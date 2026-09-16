@@ -1,0 +1,3 @@
+interface:
+  display_name: "Markdown Slides"
+  short_description: "Build concise Markdown decks with verified figures"

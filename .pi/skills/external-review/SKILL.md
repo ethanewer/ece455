@@ -1,6 +1,6 @@
 ---
 name: external-review
-description: "Run an external review or audit over changes via the cursor-agent CLI. Three separate reviews: software-quality (Cursor bugbot, run before committing), scientific-correctness (physical model accuracy, realistic noise parameters, scoring math), and a deep auto-research audit of the whole pipeline. Pick the review that matches your change; run them as separate invocations. The reviewer returns text only and never edits files."
+description: "Run an external review over verifier changes via the cursor-agent CLI. Three separate reviews are available: software quality, scientific correctness, and a deep auto-research audit. Skip reviews when no verifier changes were made."
 ---
 
 # External review (cursor-agent via CLI)
@@ -13,10 +13,11 @@ edits project files.
 
 | What you are changing | Review to run |
 |---|---|
-| Code, netlists, or docs; about to commit | 1. software quality (bugbot) |
-| A physical model, physical constants, noise parameters, scoring or estimator math, or docs that make physics claims | 2. scientific correctness |
-| Both of the above in one diff | 1 and 2, as separate invocations |
-| A large pipeline change, before starting an optimizer on the score, or periodically as a checkpoint | 3. deep auto-research audit |
+| Verifier implementation, gates, or scoring code | 1. software quality (bugbot) |
+| Verifier physical model, constants, noise parameters, or scoring math | 2. scientific correctness |
+| Both of the above in one verifier diff | 1 and 2, as separate invocations |
+| A whole-pipeline verifier change or an explicitly requested audit | 3. deep auto-research audit |
+| Candidate-only changes, docs, slides, screenshots, or generated PCB artifacts with no verifier change | no review |
 
 Never fold two review types into one prompt; a physics finding can hide
 behind a code finding and vice versa. When in doubt run the scientific
@@ -48,7 +49,7 @@ poll. Otherwise block in bash with a generous timeout.
 
 ## Review 1: software quality (bugbot)
 
-Cursor's bugbot review subagent over the diff. Run before committing:
+Cursor's bugbot review subagent over the verifier diff. Run before committing verifier changes:
 
 ```bash
 cursor-agent -p -f --trust --workspace /Users/ethanewer/ece455 \
