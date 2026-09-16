@@ -125,6 +125,7 @@ def score_band(sim: dict, spec: dict, b_earth: float,
     mcu = spec["meta"].get("mcu", DEFAULT_MCU)
 
     coil = spec["meta"]["coil"]
+    t2_star = coil.get("t2_star_s", cs.T2_STAR)
     v0 = fid.estimate_v0(b_pol=coil["b_pol"], n_turns=coil["n_turns"],
                          coil_radius_m=coil["radius_m"], b_earth=b_earth)
     f_l = fid.larmor_hz(b_earth)
@@ -149,7 +150,7 @@ def score_band(sim: dict, spec: dict, b_earth: float,
         phase = np.random.default_rng(20_000 + i).uniform(-np.pi, np.pi)
         w = rng0.normal(0.0, 1.0, len(h_t))
         v_adc, n_clip, peak = fid.synthesize_adc_record(
-            v0, f_l, cs.T2_STAR, h_t, e_bins, sigma_in, phase,
+            v0, f_l, t2_star, h_t, e_bins, sigma_in, phase,
             noise_w=w, blank_s=blank_eff, fs=cs.FS,
             adc_bits=ADC_BITS, adc_fs=ADC_FS)
         peak_adc = max(peak_adc, peak)
@@ -160,7 +161,7 @@ def score_band(sim: dict, spec: dict, b_earth: float,
         errs.append(fh - f_l)
         # Paired record + the referred ripple tone (same realization).
         v_rip, _, _ = fid.synthesize_adc_record(
-            v0, f_l, cs.T2_STAR, h_t, e_bins, sigma_in, phase,
+            v0, f_l, t2_star, h_t, e_bins, sigma_in, phase,
             noise_w=w, blank_s=blank_eff, fs=cs.FS,
             adc_bits=ADC_BITS, adc_fs=ADC_FS, ripple=ripple)
         fh_r = fe_binding.estimate(estimator, v_rip, cs.FS, blank_eff)
@@ -169,7 +170,7 @@ def score_band(sim: dict, spec: dict, b_earth: float,
         errs_ripple.append(fh_r - f_l)
         # Paired record + the mains-harmonic tone (reported, not gated).
         v_tone, _, _ = fid.synthesize_adc_record(
-            v0, f_l, cs.T2_STAR, h_t, e_bins, sigma_in, phase,
+            v0, f_l, t2_star, h_t, e_bins, sigma_in, phase,
             noise_w=w, blank_s=blank_eff, fs=cs.FS,
             adc_bits=ADC_BITS, adc_fs=ADC_FS, ripple=tone)
         fh_t = fe_binding.estimate(estimator, v_tone, cs.FS, blank_eff)
@@ -208,7 +209,7 @@ def score_band(sim: dict, spec: dict, b_earth: float,
     bins = np.fft.rfftfreq(n_rec, 1.0 / cs.FS)
     s1_bins = np.interp(bins, f_n, e_n) ** 2
     res["crb_nt"] = crb.freq_crb_shaped(
-        t_ax, v0, f_l, cs.T2_STAR, 0.0, cs.FS, s1_bins
+        t_ax, v0, f_l, t2_star, 0.0, cs.FS, s1_bins
     ) / fid.GAMMA_HZ_PER_NT
 
     res["rms_nt"] = float(np.sqrt(np.mean(errs**2))) / fid.GAMMA_HZ_PER_NT
@@ -223,6 +224,7 @@ def score_band(sim: dict, spec: dict, b_earth: float,
     # -- reported, never folded into sigma_B); the capture tick's
     # timestamp quantization is reported and must be negligible.
     res["clock_bias_nt"] = f_l * mcu["clock_ppm"] * 1e-6 / fid.GAMMA_HZ_PER_NT
+    res["t2_star_s"] = t2_star
     res["timestamp_quant_rel"] = mcu["tick_s"] * cs.FS
     assert res["timestamp_quant_rel"] < 1e-3, \
         "MCU tick is not negligible against the sample period"
@@ -232,7 +234,7 @@ def score_band(sim: dict, spec: dict, b_earth: float,
     #   (dead time is already inside sigma_B via the record start time).
     gates = {}
     gates["no_clipping"] = res["clip_margin"] < 1.0
-    gates["recovery_inside_blanking"] = blank_eff < 0.5 * cs.T2_STAR
+    gates["recovery_inside_blanking"] = blank_eff < 0.5 * t2_star
     gates["gross_errors"] = res["gross"] < 0.01
     # Rail-ripple gate (E3 audit finding 5, SCORED per REDESIGN.md section
     # 4): the candidate must survive the 100 dB-PSRR-referred buck ripple
@@ -245,6 +247,11 @@ def score_band(sim: dict, spec: dict, b_earth: float,
     gates["rail_ripple_survivable"] = (res["gross_ripple"] < 0.01
                                        and res["rms_ripple_nt"]
                                        <= 2.0 * res["rms_nt"])
+    # Clock bias is deterministic and belongs in eligibility, not just a
+    # report column. 0.1 nT is the current per-cycle allocation.
+    gates["clock_within_budget"] = res["clock_bias_nt"] <= 0.1
+    if "hardware_characterized" in coil:
+        gates["hardware_characterized"] = coil["hardware_characterized"]
     res["rms_tone_nt"] = rms_tone_nt
     res["gates"] = gates
     res["J_nt"] = res["rms_nt"] if all(gates.values()) else float("inf")
@@ -294,6 +301,8 @@ def evaluate_with_sim(spec: dict, sim: dict, b_fields=B_SWEEP,
         "ir_causal_frac": sim.get("ir_causal_frac"),
         "provenance": provenance(n_mc),
     }
+    if spec["meta"]["coil"].get("design_id"):
+        card["coil_design"] = spec["meta"]["coil"]
     if with_tolerance:
         card["tolerance"] = cs.tolerance_sweep(spec)
     return card

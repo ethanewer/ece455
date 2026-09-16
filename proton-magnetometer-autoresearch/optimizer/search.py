@@ -27,7 +27,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-ARCHIVE = ROOT / "optimizer" / "runs" / "elite.json"
+ARCHIVE = ROOT / "optimizer" / "runs" / "elite-week3-v1.json"
 PER_CANDIDATE_TIMEOUT_S = 300
 
 

@@ -17,9 +17,11 @@ V₀ and T2* with measurements.
 assumptions with measurements. This is the single most decision-relevant
 missing number in the whole pipeline.
 
-**Setup**: Hook-Line-class coil (530 turns, 3 cm bore), polarization
-pulse 20 mT, water sample, ADC capture with the reference AFE staging
-(preamp ×100, INA828-class), 200 ms blanking, 1.5 s record, 20 kS/s.
+**Setup**: Week3 pair (two 6 × 6 cm sensing coils inside the 360-turn
+polarizer), 3 A polarization pulse, water sample, ADC capture with the
+reference AFE staging (preamp ×100, INA828-class), 200 ms blanking, 0.95 s
+record, 20 kS/s. Verify the sensing connection and whether one or both coils
+contain polarized sample before interpreting a differential signal.
 
 **Acceptance criteria** (harness predictions to reproduce —
 architecture.md §0 grid, INA-class e_n):

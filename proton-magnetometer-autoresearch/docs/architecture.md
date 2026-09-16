@@ -1,3 +1,7 @@
+> Hardware update: the default candidates and optimizer now use the
+> [Week3 coil profile](coil-design-week3.md). Numeric results and old coil
+> examples below are historical regression benchmarks unless labeled Week3.
+
 # Auto-research pipeline for the proton-magnetometer receiver
 
 **Scope.** We have a coil and a power source. This pipeline designs and scores
@@ -258,8 +262,9 @@ the 2 kHz ripple while the FID sits off-resonance — and scores
 0.0007–0.0026 nT at 37.5–65 µT, 0.9–1.1× the SHAPED Fisher bound built
 from its own SPICE noise spectrum (`crb.freq_crb_shaped`; the flat-density
 approximation is invalid at a tank resonance). The per-band family (tank
-retuned per field band) passes everywhere: 0.0018/0.0007/0.0005 nT at
-25/50/65 µT. The ZC variant
+retuned per field band) passed everywhere: 0.0018/0.0007/0.0005 nT at
+25/50/65 µT. These are legacy-coil regression results; the live Week3 profile
+is described in `coil-design-week3.md`. The ZC variant
 of the thin-budget INA circuit fails the gross gate E2E (100% gross) — the
 zero-crossing ruling-out is a pipeline result.
 
@@ -425,7 +430,7 @@ physics loop, and not yet a layout/coupling simulator. Mapping:
 | Week-2 open problem | Pipeline contribution | Not covered by the harness |
 |---|---|---|
 | 1. Close the physics loop on the bench | Acceptance numbers for the first wet capture (expected V₀ grid, expected σ, SNR targets); V₀×T2* grid shows how much margin each coil class buys | The capture itself; V₀/T2* remain model predictions until then |
-| 2. Leave breadboards; layout/EMI | Future KiCad backend with ERC/DRC gates | Pulse-to-receiver coupling, star grounding, shielding — layout physics are not in the score |
+| 2. Leave breadboards; layout/EMI | KiCad backend with ERC/DRC gates | Pulse-to-receiver coupling, star grounding, shielding — layout physics are not in the score |
 | 3. Blanking knife-edge | Two halves: `.tran` ring-down τ (recovery physics, gated) + CRB-vs-blanking curve (bias long: 500 ms costs 1.35×) | Switch charge injection, snubber/dummy-coil design |
 | 4. Power rails, modular boards | Rail ripple is a SCORED ablation (regenerated through the C core by `tools/reproduce.py`: 50 mV at 2 kHz referred 50 µV destroys the cycle; PSRR 100 dB survives) and a failing GATE in J (ripple ≲ V₀) | Layout EMI/star grounding still unscored; PSRR uses a flat 100 dB model, not the part's curve |
 | 5. Gain and noise budget | Directly scored (e_n AND i_n resistors, real tank, preamp_gain axis with a clipping gate); rail-ripple gate in J | CMRR/PSRR as scored *terms* (analytic only), 1/f analytic (+0.31%), e_nO/GBW of real amplifiers, gain-split optimization |

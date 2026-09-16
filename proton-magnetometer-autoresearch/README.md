@@ -28,6 +28,15 @@ Do not treat the score as a hardware objective until F2 anchors the coil model.
   — white CRB vs Rife–Boorstyn closed form, colored CRB vs an independent
   dense-covariance Fisher, C-estimator-vs-bound, γp constants.
 
+The active coil inputs now follow Hunter Vania's **Week3 three-coil design**:
+3 A polarizer (13.6 mT ideal-solenoid value; 9.38 mT conservative model)
+and two 6 × 6 cm sensing coils. The
+provisional sensing model uses 552 turns per coil and a series-opposed pair
+(14 Ω, 22 mH) with 264 nF tuning. See [the design mapping and open
+assumptions](docs/coil-design-week3.md). The default CLI and optimizer use
+this model. Its score cards remain ineligible until bench characterization;
+the historical fixtures remain available with `--legacy`.
+
 ## Run the pipeline
 
 ```sh
@@ -35,7 +44,7 @@ pip install -r requirements.txt   # (or python3.12 -m venv .venv for skidl)
 brew install ngspice              # once
 cd pipeline
 python3 test_validation.py        # ~1 min: bound/estimator regression tests
-python3 circuit_spec.py           # E2E cards for the reference candidates
+python3 circuit_spec.py           # E2E cards for the Week3 candidates
 python3 circuit_spec.py --bsweep  # + per-band candidate family
 
 cd ..                             # standing verification suite
@@ -47,7 +56,11 @@ python3 tools/reproduce.py        # D4/D11/D12: regenerate + diff fixtures/docs
 The optimizer entry point and the pre-GO gate checklist live in
 [`docs/runbook.md`](docs/runbook.md).
 
-## Results snapshot
+## Historical results snapshot (pre-Week3 hardware)
+
+The analog results below use the old coils and are retained as regression
+benchmarks, not predictions for the Week3 build. Reproduce them with
+`python3 pipeline/circuit_spec.py --legacy` or `python3 tools/reproduce.py`.
 
 All numbers below are **conditional on the transducer model**
 (`fid.estimate_v0`, spin-1/2 Curie law) — the first wet capture replaces its

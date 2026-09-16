@@ -106,6 +106,12 @@ def afe_spec(label, e_amp, i_amp, coil, tuned=False, preamp_gain=100.0,
     fixtures) keep them, but the optimizer's mutations use the derived
     path.
     """
+    if coil.get("design_id"):
+        from coil_design import current_coil
+        expected = current_coil()
+        if wire_d_mm is not None or any(
+                coil.get(k) != v for k, v in expected.items() if k != "c_tune"):
+            raise ValueError("Week3 hardware is fixed; only tuning capacitance may vary")
     if wire_d_mm is not None:
         derived = coil_model(n_turns=coil["n_turns"],
                              radius_m=coil["radius_m"],
@@ -514,16 +520,12 @@ def band_candidates(b_fields=(25e-6, 50e-6, 65e-6)) -> list:
     """Per-band candidate family (B8): for each field point, retune the
     input tank to f_L(band) and re-center the MFB bandpass (scale all
     three resistors: f0 ~ 1/k), gains re-staged for the tank step-up.
-    Coil built from the physical winding model, so V0 and noise stay
-    coupled (E6 finding 3)."""
+    Uses the fixed Week3 series-opposed sensing pair."""
     out = []
     for b in b_fields:
         f_l = fid.larmor_hz(b)
-        # Model-consistent winding: 0.56 mm wire over a 0.30 m axis ->
-        # r_coil ~ 20 ohm, l_coil ~ 26.6 mH, Q ~ 18 (Overhauser-paper
-        # coil class). V0 and noise drivers are coupled by construction.
-        cw = coil_model(n_turns=1500, radius_m=0.030, wire_d_mm=0.56,
-                        b_pol=0.05, winding_len_m=0.30)
+        from coil_design import current_coil
+        cw = current_coil()
         c_tune = 1.0 / (2.0 * np.pi * f_l) ** 2 / cw["l_coil"]
         k = 2130.0 / f_l                       # MFB recentering factor
         label = (f"band {b*1e6:.0f} uT: tank {f_l:.0f} Hz, "
@@ -600,13 +602,15 @@ def main():
     import sys
     import evaluate as ev
 
+    from coil_design import current_candidates
+    candidates = reference_candidates() if "--legacy" in sys.argv else current_candidates()
     dump_json = "--json" in sys.argv
-    print(f"E2E evaluation of reference candidates "
+    print(f"E2E evaluation of {'legacy' if '--legacy' in sys.argv else 'Week3'} candidates "
           f"(evaluate(): SPICE -> candidate-shaped records -> C estimator; "
           f"N_MC={ev.N_MC}, +/-{ev.MC_SIGMA_REL*100:.0f}% MC sigma; "
           f"J = worst-band sigma_B over 25-65 uT)\n")
     cards = []
-    for label, kw in reference_candidates():
+    for label, kw in candidates:
         card = ev.evaluate(dict(kw, label=label))
         cards.append(card)
         _print_card(card)
@@ -615,22 +619,21 @@ def main():
     # through the identical evaluator: on the thin-budget INA circuit the
     # zc variant fails the gross gate; on the fat-SNR tuned circuit the
     # score ranks it orders of magnitude off the bound.
-    label, kw = reference_candidates()[0]
+    label, kw = candidates[0]
     zc_ina = ev.evaluate(dict(kw, label=label + " [zc variant]",
                               estimator="zc"),
                          b_fields=(50e-6,))
     zb = zc_ina["bands"][0]
-    print(f"{zc_ina['spec']}: gross={zb['gross']:.0%} -> J = inf "
-          f"(gross_errors gate FAIL)\n")
-    label, kw = reference_candidates()[2]
+    print(f"{zc_ina['spec']}: gross={zb['gross']:.0%}, J={zc_ina['J_nt']}\n")
+    label, kw = candidates[2]
     zc_tuned = ev.evaluate(dict(kw, label=label + " [zc variant]",
                                 estimator="zc"),
                            b_fields=(50e-6,))
     zb = zc_tuned["bands"][0]
     print(f"{zc_tuned['spec']}: sigma_B={zb['rms_nt']:.4f} nT "
           f"({zb['rms_nt']/zb['crb_nt']:.0f}x CRB, gross={zb['gross']:.0%}) "
-          f"vs zoom {cards[2]['bands'][2]['rms_nt']:.4f} nT -- ruled out "
-          f"by the score on the identical circuit\n")
+          f"vs zoom {cards[2]['bands'][2]['rms_nt']:.4f} nT "
+          f"on the identical circuit\n")
 
     if dump_json:
         # D8/D11 fixture: full E2E card per reference candidate, without

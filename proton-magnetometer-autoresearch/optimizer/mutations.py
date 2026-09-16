@@ -41,28 +41,9 @@ AMPS = [
 
 
 def base_candidates() -> list:
-    """Seed population.
-
-    Coil geometry is the ONLY coil input (E3 audit finding 1): wire gauge
-    + axis length go to afe_spec, which derives r_coil/l_coil from the
-    winding -- the same geometry that sets V0. The optimizer therefore
-    cannot raise signal without paying winding resistance (closing the
-    E6 finding 3 exploit that elite.json's first run found).
-    """
-    seeds = [
-        dict(label="seed untuned INA", e_amp=7e-9, i_amp=170e-15,
-             tuned=False, preamp_gain=100.0, mfb_scale=1.0,
-             wire_d_mm=0.15, winding_len_m=0.08,
-             estimator="zoom", mcu=dict(tick_s=8e-9, clock_ppm=0.5),
-             coil=dict(n_turns=530, radius_m=0.015, b_pol=0.02)),
-        dict(label="seed tuned JFET", e_amp=1.4e-9, i_amp=0.1e-12,
-             tuned=True, preamp_gain=4.0, mfb_scale=1.0,
-             wire_d_mm=0.56, winding_len_m=0.30,
-             estimator="zoom", mcu=dict(tick_s=8e-9, clock_ppm=0.5),
-             coil=dict(n_turns=1500, radius_m=0.030, b_pol=0.05,
-                       c_tune="210n")),   # resonance of the derived L
-    ]
-    return seeds
+    """Latest fixed hardware; only downstream AFE/estimator/MCU mutate."""
+    from coil_design import current_candidates
+    return [dict(kw, label=label) for label, kw in current_candidates()]
 
 
 def mutate(parent: dict, rng: np.random.Generator) -> dict:

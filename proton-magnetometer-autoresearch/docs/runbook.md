@@ -1,3 +1,7 @@
+> Active hardware: [Week3 coil mapping](coil-design-week3.md). Optimizer seeds
+> and the default circuit CLI use this profile. Historical score fixtures use
+> `--legacy`; do not promote pre-Week3 elites into the current archive.
+
 # Runbook — steps to start real auto-research runs
 
 This is the operator's checklist for unlocking the optimizer (TODO G2).
@@ -63,7 +67,7 @@ Once G1/G2 are signed off:
    Watch: every candidate gets a `sim_status` (0 = converged; anything
    else is a scored rejection, never a crash), every card carries
    provenance (git SHA, tool versions, seeds, spec hash), and the elite
-   archive persists in `optimizer/runs/elite.json`.
+   archive persists in `optimizer/runs/elite-week3-v1.json`.
 3. **Real run**:
 
    ```sh

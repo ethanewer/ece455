@@ -48,7 +48,7 @@ def _run(cmd, cwd):
 
 def regenerate_cards():
     """Run the E2E CLI; returns (banner, cards)."""
-    r = _run([sys.executable, "circuit_spec.py", "--json"], POC)
+    r = _run([sys.executable, "circuit_spec.py", "--legacy", "--json"], POC)
     if r.returncode != 0:
         raise RuntimeError(r.stdout[-2000:] + r.stderr[-2000:])
     payload = r.stdout[r.stdout.index("[\n"):]
