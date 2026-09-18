@@ -23,5 +23,7 @@ jobs:
         run: make test
       - name: Test portable estimator
         run: make firmware CC=gcc
+      - name: Generate receiver analysis figures
+        run: make figures
       - name: Validate receiver netlist
         run: python receiver_design/verify.py

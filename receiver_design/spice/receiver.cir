@@ -1,0 +1,111 @@
+* Complete receiver using the HiLetgo ADS1256 module and XIAO RP2350
+* Nominal 50 uT operating point; ADS1256 at 30 kSPS, differential, PGA=64
+.param fL=2128.819237
+.param V0=1.008442079u
+.param T2s=0.95
+.param VDD=3.3
+.param PGA=64
+
+* Induced FID test source and external nominal series-opposed sensing pair.
+Vfid source 0 DC 0 AC 1 SINE(0 {V0} {fL} 0 {1/T2s})
+Rcoil source coil_l 14
+Lcoil coil_l coil_hi 22m
+
+* Physical C0G tuning bank, total 254.068 nF.
+C1 coil_hi 0 220n
+C2 coil_hi 0 33n
+C3 coil_hi 0 1n
+C4 coil_hi 0 68p
+
+* Coupling, clamp-current limit, bias, and default-on shunt blanker.
+C5 coil_hi protected 1u
+R1 protected pre_in 1k
+R2 pre_in vref 1Meg
+D1 0 pre_in BAS116
+D2 pre_in avdd BAS116
+Sblank pre_in vref blank 0 TMUXSW
+R3 avdd blank 100k
+Vblank blank 0 0
+
+* Filtered XIAO 3V3_OUT analog rail. USB VBUS separately powers ADS1256.
+V3V3 xiao_3v3 0 {VDD}
+Rfb xiao_3v3 avdd_f 0.25
+Lfb avdd_f avdd 0.95u
+C10 avdd 0 10u
+C11 avdd 0 100n
+C12 avdd 0 100n
+C13 avdd 0 1u
+Vusb vbus5 0 5
+C14 vbus5 0 10u
+C15 vbus5 0 100n
+Rfb5 vbus5 opamp_f 0.25
+Lfb5 opamp_f opamp5 0.95u
+C21 opamp5 0 10u
+C22 opamp5 0 100n
+
+* Half-supply reference buffered by U1D. OPA4197 uses the filtered 5 V rail;
+* its specified minimum supply is 4.5 V, so it is not powered from 3V3_OUT.
+R4 opamp5 vref_raw 10k
+R5 vref_raw 0 10k
+C6 vref_raw 0 10u
+XU1D vref_raw vref vref opamp5 0 OPA4197
+
+* U1A non-inverting preamplifier, gain 4.01.
+XU1A pre_in stage1_n stage1 opamp5 0 OPA4197
+R6 stage1_n vref 1k
+R7 stage1 stage1_n 3.01k
+
+* U1B high-pass stage, fc=723 Hz and inverting gain 4.02.
+C7 stage1 hp_in 22n
+R8 hp_in stage2_n 10k
+R9 stage2 stage2_n 40.2k
+XU1B vref stage2_n stage2 opamp5 0 OPA4197
+
+* U1C unity-gain low-pass stage, feedback pole 4.82 kHz.
+R10 stage2 stage3_n 10k
+R11 stage3_n stage3 10k
+C8 stage3_n stage3 3.3n
+XU1C vref stage3_n stage3 opamp5 0 OPA4197
+
+* Differential ADS1256 input. AIN1 is buffered 2.5 V. R12/C9 add a
+* 7.23 kHz differential input pole. The module's input buffer must be enabled.
+R12 stage3 ads_ain0 1k
+C9 ads_ain0 vref 22n
+Rads ads_ain0 vref 1G
+Cads ads_ain0 vref 5p
+
+* ADS1256 internal PGA representation. With module VREF=2.5 V and PGA=64,
+* differential input full scale is nominally +/-2*VREF/PGA = +/-78.125 mV.
+* This source models the selected ADC's specified PGA, not board-level gain.
+Epga pga_out 0 ads_ain0 vref {PGA}
+Rload pga_out 0 1Meg
+
+* U3 XIAO RP2350 uses SPI0 through explicit 3.3V/5V logic buffers:
+* D8/GPIO2 SCLK, D10/GPIO3 MOSI, D9/GPIO4 MISO, D3/GPIO5 CS,
+* D2/GPIO28 DRDY, D4/GPIO6 PDWN, and D1/GPIO27 BLANK.
+* ADS1256 configuration: AIN0-AIN1 differential, input buffer on, PGA=64,
+* 30 kSPS. Firmware must use DRDY and report fitted frequency/field over USB.
+
+* Compact finite-gain OPA4197 model for cross-tool AC and noise checks.
+.subckt OPA4197 inp inn out vdd vss
+Rdiff inp inn 1T
+Renoise en 0 1826
+Bplus nplus 0 V=V(inp)+V(en)
+Eol raw 0 nplus inn 100k
+Rdom raw nint 1k
+Cdom nint 0 1.5915u
+Ebuf nbuf 0 nint 0 1
+Rout nbuf out 20
+Cout out 0 2p
+.ends OPA4197
+
+.model BAS116 D(Is=2p Rs=1 Cjo=2p Bv=85 Ibv=100n)
+.model TMUXSW SW(Ron=1.8 Roff=1T Vt=1.0 Vh=0.1)
+
+.options plotwinsize=0
+.ac dec 1000 100 100k
+.noise V(pga_out) Vfid dec 1000 500 5000
+* ADS1256 converter noise, INL, clock error, and alias response are not in this
+* compact model. Verify them on the purchased module at PGA=64 and 30 kSPS.
+.save all
+.end

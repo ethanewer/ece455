@@ -12,8 +12,10 @@ dist/
 *.raw
 *.log
 *.net
+!receiver_design/kicad/receiver.net
 *.erc
 *-backups/
+*_sklib.py
 *.kicad_prl
 
 local*

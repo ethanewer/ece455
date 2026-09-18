@@ -5,16 +5,13 @@ The adapter is independent of the active receiver design:
   * emit_netlist: the JSON-able component/net graph -> ngspice batch
     netlist (including the pagination-tolerant `print`-table convention);
   * run_ngspice / run_ngspice_status: batch subprocess execution; the
-    _status variant never raises on failure -- a non-converging candidate
-    is a scored rejection (returncode + stderr), not a crash (A7's
-    sim_status requirement);
+    _status variant returns process status without raising;
   * parse_tables: the pagination-tolerant table parser (repeated headers
     are page breaks; `---` rules, node listings, and ngspice wall-clock
     timestamps are skipped; rows carry trailing tabs; the tran axis uses
     `time` where ac/noise use `frequency`).
 
-Unit-tested against the committed golden netlist + stdout fixture in
-tests/test_ngspice_layer.py.
+Unit-tested against the committed stdout fixture in tests/test_eda.py.
 """
 from __future__ import annotations
 
@@ -55,16 +52,13 @@ def run_ngspice(netlist: str, workdir: Path = WORKDIR,
 def run_ngspice_status(netlist: str,
                        workdir: Path = WORKDIR,
                        timeout_s: float = 300.0):
-    """Batch ngspice without raising. Returns (CompletedProcess, circuit
-    path). A non-zero returncode (non-convergence, syntax error, timeout)
-    is data for the scorer, not an exception.
+    """Batch ngspice without raising. Returns (CompletedProcess, path).
 
-    Each call gets a UNIQUE circuit file (E3 audit finding 10: parallel
-    scoring workers sharing one candidate.cir clobbered each other's
-    netlists, producing cards whose results didn't match their specs)."""
+    Each call gets a unique circuit file so independent analyses cannot
+    overwrite one another."""
     workdir.mkdir(parents=True, exist_ok=True)
     tag = hashlib.sha256(netlist.encode()).hexdigest()[:16]
-    nl = workdir / f"candidate_{os.getpid()}_{tag}.cir"
+    nl = workdir / f"analysis_{os.getpid()}_{tag}.cir"
     nl.write_text(netlist)
     try:
         proc = subprocess.run(["ngspice", "-b", str(nl)], capture_output=True,

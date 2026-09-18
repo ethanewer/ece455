@@ -33,4 +33,4 @@ The ideal pair resonance with the source's 264 nF is 2088 Hz, about 49.1 uT. The
 
 ## Measurements still required
 
-Measure DC resistance, inductance, mutual inductance, resonance, Q, ring-down, sample placement, sensing polarity, polarizer field, turnoff transient, FID amplitude, and T2 star. The current values remain conditional until those results update `coil.py`, the LTspice files, and the KiCad design. The signal model assumes equilibrium magnetization. Measure water T1 and account for incomplete saturation during the nominal 5 second pulse.
+Measure DC resistance, inductance, mutual inductance, resonance, Q, ring-down, sample placement, sensing polarity, polarizer field, turnoff transient, FID amplitude, and T2 star. The current values remain conditional until those results update `coil.py`, the ngspice model, and the KiCad design. The signal model assumes equilibrium magnetization. Measure water T1 and account for incomplete saturation during the nominal 5 second pulse.

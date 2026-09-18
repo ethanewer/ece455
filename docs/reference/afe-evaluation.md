@@ -2,7 +2,7 @@
 
 > How to score an AFE design (blanking → preamp → bandpass → gain → ADC) for
 > a proton-precession magnetometer using open-source tools. Full procedure is
-> This report records the research basis. The active simulation is under `receiver_design/ltspice/`.
+> This report records the research basis. The active simulation is `receiver_design/spice/receiver.cir`; generated figures are under `receiver_design/analysis/`.
 > Compiled February 2026.
 
 ## 1. Executive summary

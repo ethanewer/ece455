@@ -38,7 +38,7 @@ Measure the assembled receiver with a calibrated source and analyzer:
 - PSRR versus frequency, including the 2 kHz converter-ripple case
 - CMRR with the installed sensor pair
 
-Export measured transfer and noise data in a text format that tests can load. Compare LTspice and measured curves using explicit tolerances. Do not tune ideal gain blocks to conceal missing amplifier bandwidth or saturation behavior.
+Export measured transfer and noise data in a text format that tests can load. Compare ngspice and measured curves using explicit tolerances. Do not tune ideal gain blocks to conceal missing amplifier bandwidth or saturation behavior.
 
 ## Frequency estimator
 

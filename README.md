@@ -1,18 +1,15 @@
 # ECE 455 proton magnetometer
 
-This branch tracks one receiver design. It does not contain an automated design search or auto-research loop.
+This repository tracks one receiver design. It does not contain automated design search, mutation, candidate ranking, or research loops.
 
 ## Repository layout
 
-- `receiver_design/` contains the active LTspice and KiCad files. Edit these files when changing the receiver.
-- `verification_modeling/` contains reusable physics, noise, CRB, coil, circuit-format, and ngspice code. These modules do not choose or optimize a design.
-- `frequency_estimator_firmware/` contains the portable C frequency estimator and its pinned host-test vectors.
-- `tests/` checks units, transducer assumptions, noise generation, CRB mathematics, the active coil profile, circuit serialization, and ngspice parsing.
-- `receiver_design/verify.py` runs ngspice and KiCad checks against the active design.
-- `docs/verification-plan.md` lists the bench measurements needed to replace model assumptions.
-- `.pi/skills/` holds shared Cursor review, KiCad, and LTspice instructions. Claude and Codex use symlinks to the same files.
-
-Historical reports and weekly notes are under `docs/past_work/` and `docs/week_2/`. Supporting papers and links are under `docs/resources/`.
+- `receiver_design/` contains the active ngspice model, generated analysis outputs, KiCad connectivity source, BOM, and design documentation.
+- `verification_modeling/` contains reusable physics, coil, CRB, circuit, ngspice, and plotting adapters. These modules do not select or optimize a design.
+- `frequency_estimator_firmware/` contains the portable C frequency estimator and host tests.
+- `tests/` checks physics, coil assumptions, circuit serialization, ngspice parsing, and report generation.
+- `docs/circuit-tooling.md` documents the Python/ngspice/KiCad workflow.
+- `docs/verification-plan.md` lists bench measurements needed to replace model assumptions.
 
 ## Setup
 
@@ -20,26 +17,25 @@ Historical reports and weekly notes are under `docs/past_work/` and `docs/week_2
 python3 -m venv .venv
 . .venv/bin/activate
 pip install -e '.[test]'
-```
-
-Install external EDA tools separately when needed:
-
-```sh
 brew install ngspice
-# KiCad and LTspice are macOS applications.
 ```
 
-## Verification
+Install KiCad separately for schematic, PCB, ERC, DRC, rendering, and fabrication exports. LTspice is not part of the active workflow.
+
+## Commands
 
 ```sh
 make test       # Python tests
-make firmware   # compile the C estimator and check pinned vectors
-make eda        # ngspice check; KiCad DRC runs when kicad-cli is installed
-make verify     # all of the above
+make firmware   # compile and test the portable estimator
+make figures    # regenerate transient and frequency-response CSV/PNG outputs
+make kicad      # regenerate connectivity and run available KiCad CLI checks
+make pcb        # require a physical PCB and passing DRC
+make eda        # figures, KiCad generation/checks, connectivity, AC, and noise
+make verify     # all applicable tests and EDA checks
 ```
 
-Use `python3 receiver_design/verify.py --require-tools` when both ngspice and KiCad must be present. CI runs the Python, firmware, and ngspice checks. KiCad DRC remains a local gate because GitHub's standard runners do not include KiCad.
+## Current status
 
-## Current design status
+The active receiver has explicit OPA4197 stages, protection, default-safe blanking, an external HiLetgo ADS1256 module interface, logic-level translation, XIAO RP2350 connectivity, and defined USB power rails. Nominal ngspice transient, AC, and noise analyses run automatically.
 
-The coil profile and receiver files came from the `autoresearch` branch, but the search and scoring orchestration did not. The receiver simulation uses ideal gain blocks and conditional coil values. The routed KiCad board is a DRC-clean connectivity demonstration, not a fabrication-ready receiver. It lacks final active-device, switching, ADC, protection, power, and connector implementation. See `receiver_design/README.md` and `docs/verification-plan.md` before making hardware claims.
+There is not yet a reviewed graphical KiCad schematic or physical PCB. `make pcb` therefore fails intentionally. A connectivity netlist and simulated figures do not establish fabrication readiness or measured hardware performance. See `receiver_design/README.md` and `docs/verification-plan.md`.

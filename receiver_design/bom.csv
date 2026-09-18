@@ -1,0 +1,43 @@
+Reference,Qty,Value or part,Package,Function
+J1,1,FID sensing coil connector,Altech AK100 2-pin 5.00mm,External sensor pair
+C1,1,220 nF C0G 2%,1206,Tuning bank
+C2,1,33 nF C0G 2%,0805,Tuning bank
+C3,1,1 nF C0G 1%,0603,Tuning bank
+C4,1,68 pF C0G 1%,0603,Tuning bank
+C5,1,1 uF X7R 25 V,1210,Input AC coupling
+R1,1,1 kohm 1%,0603,Input surge current limit
+R2,1,1 Mohm 1%,0603,Input bias to VREF
+D1 D2,2,BAS116H,SOD-323,Low-leakage input clamps
+U2,1,TMUX1101DBVR,SOT-23-5,Default-on shunt blanker
+R3,1,100 kohm 1%,0603,Blank-enable pull-up
+U1,1,OPA4197IPWR,TSSOP-14,Reference buffer and three explicit analog stages
+R4 R5,2,10 kohm 0.1%,0603,Half-supply divider
+C6,1,10 uF 10 V,0805,Reference filtering
+R6,1,1 kohm 0.1%,0603,U1A gain setting
+R7,1,3.01 kohm 0.1%,0603,U1A gain setting
+C7,1,22 nF C0G 2%,0603,U1B high-pass input
+R8,1,10 kohm 0.1%,0603,U1B input resistor
+R9,1,40.2 kohm 0.1%,0603,U1B gain-4.02 feedback
+R10,1,10 kohm 0.1%,0603,U1C input resistor
+R11,1,10 kohm 0.1%,0603,U1C unity-gain feedback
+C8,1,3.3 nF C0G 2%,0603,U1C 4.82 kHz feedback pole
+R12,1,1 kohm 0.1%,0603,ADS1256 differential input isolation
+C9,1,22 nF C0G 2%,0603,ADS1256 differential input filter
+FB1,1,600 ohm at 100 MHz 500 mA,0603,TMUX1101 and clamp 3.3 V supply isolation
+FB2,1,600 ohm at 100 MHz 500 mA,0603,OPA4197 5 V supply isolation
+C10,1,10 uF 10 V,0805,Analog 3.3 V bulk bypass
+C11 C12,2,100 nF X7R,0603,Analog local bypass
+C13,1,1 uF X7R,0603,Analog rail bypass
+C14,1,10 uF 10 V,0805,ADS1256 module 5 V bulk bypass
+C15 C16 C17 C18,4,100 nF X7R,0603,One local bypass per 5 V AHCT buffer
+C19 C20,2,100 nF X7R,0603,One local bypass per 3.3 V LVC buffer
+C21,1,10 uF 10 V,0805,OPA4197 filtered 5 V bulk bypass
+C22,1,100 nF X7R,0603,OPA4197 local 5 V bypass
+U3,1,Seeed Studio XIAO RP2350,SMD castellated plus rear pads,MCU SPI USB and power management
+U4 U5 U6 U7,4,SN74AHCT1G125DBVR,SOT-23-5,3.3 V to 5 V SPI control translation
+U8 U9,2,SN74LVC1G125DBVR,SOT-23-5,5 V to 3.3 V DOUT and DRDY translation
+J2,1,HiLetgo ADS1256 digital interface,1x8 2.54 mm logical header,5V GND SCLK DIN DOUT CS DRDY PDWN
+J3,1,HiLetgo ADS1256 analog interface,1x8 2.54 mm logical header,AIN0 signal and AIN1 VREF; AIN2-AIN7 unused
+MOD1,1,HiLetgo ADS1256 5V 8-channel 24-bit ADC module,Amazon ASIN B09KGXC44Q,External ADC module with ADR03 2.5 V reference
+TP1-TP12,12,Plated test point,2.0 mm,Ground rails signals blanking and DRDY probes
+SENSOR,1,14 ohm and 22 mH nominal,External series-opposed pair,FID pickup coil supplied outside PCB
