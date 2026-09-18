@@ -1,1 +1,19 @@
 *.DS_Store
+.venv/
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+build/
+dist/
+
+# EDA output regenerated from committed source files.
+*.raw
+*.log
+*.net
+*.erc
+*-backups/
+*.kicad_prl
+
+local*
