@@ -9,6 +9,12 @@ from pathlib import Path
 import os
 
 HERE = Path(__file__).resolve().parent
+PIPELINE_DIR = HERE.parents[1] / "local" / "skidl"
+PIPELINE_DIR.mkdir(parents=True, exist_ok=True)
+# SKiDL creates runtime logs and library caches in the process directory.
+# Keep those uncommitted outputs out of the repository root.
+os.chdir(PIPELINE_DIR)
+
 KICAD = Path("/Applications/KiCad.app/Contents/SharedSupport")
 for version in ("", "6", "7", "8", "9", "10"):
     os.environ.setdefault(f"KICAD{version}_SYMBOL_DIR", str(KICAD / "symbols"))

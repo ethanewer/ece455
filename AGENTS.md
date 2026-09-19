@@ -4,6 +4,8 @@ This repository develops one proton magnetometer design. Do not add automated se
 
 Delete obsolete tracked files instead of retaining them as historical context. Git history preserves prior versions, while files left in the working tree consume future agents' context and can be mistaken for active artifacts.
 
+Put uncommitted logs, scratch files, renders, reports, build products, and other pipeline output under `local/`, grouped in task-specific subdirectories. Do not write pipeline output at the repository root. Git tracks `local/.gitkeep` and ignores the rest of `local/`. Keep intentional, reviewable generated artifacts in their documented committed locations.
+
 ## Sources of truth
 
 - Active receiver artifacts: `receiver_design/`

@@ -9,6 +9,7 @@ import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+PIPELINE_DIR = HERE.parents[1] / "local" / "kicad"
 
 
 def run(command: list[str], cwd: Path | None = None) -> None:
@@ -21,19 +22,20 @@ def main() -> None:
     parser.add_argument("--require-board", action="store_true")
     args = parser.parse_args()
     cli = shutil.which("kicad-cli") or "/Applications/KiCad.app/Contents/MacOS/kicad-cli"
+    PIPELINE_DIR.mkdir(parents=True, exist_ok=True)
 
-    run([sys.executable, str(HERE / "generate.py")], cwd=HERE)
+    run([sys.executable, str(HERE / "generate.py")], cwd=PIPELINE_DIR)
     schematic = HERE / "receiver.kicad_sch"
     board = HERE / "receiver.kicad_pcb"
     if (schematic.exists() or board.exists()) and not Path(cli).exists() and shutil.which(cli) is None:
         raise SystemExit("kicad-cli is required to validate KiCad design artifacts")
     if schematic.exists():
-        run([cli, "sch", "erc", "--output", str(HERE / "receiver-erc.txt"),
+        run([cli, "sch", "erc", "--output", str(PIPELINE_DIR / "receiver-erc.txt"),
              "--exit-code-violations", str(schematic)])
     else:
         print("STATUS graphical schematic has not been generated yet")
     if board.exists():
-        run([cli, "pcb", "drc", "--output", str(HERE / "receiver-drc.txt"),
+        run([cli, "pcb", "drc", "--output", str(PIPELINE_DIR / "receiver-drc.txt"),
              "--format", "report", "--severity-all", "--exit-code-violations",
              str(board)])
     else:

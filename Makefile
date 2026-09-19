@@ -25,3 +25,4 @@ verify: test firmware eda
 clean:
 	$(MAKE) -C frequency_estimator_firmware/core clean
 	rm -rf .pytest_cache build *.egg-info
+	find local -depth -mindepth 1 ! -path local/.gitkeep -delete

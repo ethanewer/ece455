@@ -15,6 +15,8 @@ make eda       # figures, KiCad generation/checks, connectivity, AC, and noise
 
 `make pcb` intentionally fails until `receiver_design/kicad/receiver.kicad_pcb` exists. This prevents a connectivity netlist from being mistaken for a physical design.
 
+Uncommitted pipeline output belongs under `local/`. SKiDL runtime files go to `local/skidl/`, and KiCad ERC and DRC reports go to `local/kicad/`. Git keeps the `local/` directory but ignores its contents. Committed analysis CSV and PNG files remain under `receiver_design/analysis/` because they are review artifacts, not scratch output.
+
 ## Simulation architecture
 
 `receiver_design/spice/receiver.cir` is the active circuit model. `receiver_design/analyze.py` invokes the reusable `verification_modeling.eda.report` adapter. The adapter:

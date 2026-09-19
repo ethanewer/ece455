@@ -8,14 +8,10 @@ __pycache__/
 build/
 dist/
 
-# EDA output regenerated from committed source files.
-*.raw
-*.log
-*.net
-!receiver_design/kicad/receiver.net
-*.erc
+# KiCad editor state that remains beside source designs.
 *-backups/
-*_sklib.py
 *.kicad_prl
 
-local*
+# Uncommitted pipeline output. Keep the directory itself in Git.
+local/*
+!local/.gitkeep
