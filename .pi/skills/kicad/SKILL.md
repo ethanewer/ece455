@@ -1,6 +1,6 @@
 ---
 name: kicad
-description: Generate, inspect, route, validate, render, and export KiCad PCBs and fabrication files. Use for .kicad_pcb work, DRC, layer images, 3D renders, Gerbers, or external FreeRouting autorouting through DSN/SES.
+description: Generate, inspect, route, validate, render, and export KiCad schematics, PCBs, and fabrication files. Use for .kicad_sch or .kicad_pcb work, ERC, DRC, layer images, 3D renders, Gerbers, or external FreeRouting autorouting through DSN/SES.
 ---
 
 # KiCad
@@ -15,6 +15,15 @@ Treat the board file and KiCad DRC as the source of truth. A visually plausible 
 - Check that the global library tables do not point into a stale macOS `AppTranslocation` path. Recreate the tables in KiCad or add a project-local `fp-lib-table` using `${KICAD10_FOOTPRINT_DIR}` when standard-library DRC warnings appear.
 - For automated GUI screenshots, grant the host process Accessibility, Automation, and Screen & System Audio Recording permissions.
 - Use the CLI for deterministic DRC, exports, and renders. Use the GUI when KiCad exposes no equivalent CLI operation.
+
+## Receiver artifact workflow
+
+- `receiver_design/kicad/generate.py` and `receiver.net` describe connectivity only. They are not a graphical schematic or PCB.
+- Regenerate `receiver.net` with `make kicad`; do not hand-edit it. Keep timestamp, source-path, line-ending, and trailing-whitespace normalization in the generator.
+- Before drawing an ADS1256 module footprint or placing headers, measure or verify the exact purchased module's header order, pitch, spacing, and board outline. Do not derive physical order from logical connector numbering.
+- Audit every safety-critical pin and net in a new graphical schematic against `receiver_design/verify.py` and `generate.py`, then pass KiCad ERC. Reject generated schematics with off-grid endpoints, unjoined wires, missing power drivers, or unintended net merges even if the file opens.
+- Do not restore the deleted passive-only PCB. Start the physical board from the accepted complete receiver connectivity.
+- `make pcb` is the fabrication gate. Its failure is expected while `receiver.kicad_pcb` is absent.
 
 ## Board workflow
 

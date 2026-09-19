@@ -15,7 +15,7 @@ Review the current directories according to their roles:
 
 | Path | Role |
 |---|---|
-| `receiver_design/` | Active LTspice and KiCad design files plus the EDA verification script |
+| `receiver_design/` | Active ngspice model, generated analysis reports, KiCad connectivity, and EDA verification scripts |
 | `verification_modeling/` | Python physics, noise, CRB, coil, circuit-format, and ngspice code |
 | `frequency_estimator_firmware/` | Portable C estimator, host binding, mirror implementation, and golden vectors |
 | `tests/` | Python regression tests |
@@ -32,7 +32,7 @@ Treat `docs/current_work/`, `docs/past_work/`, `docs/resources/`, and `docs/week
 |---|---|
 | Python or C implementation, tests, parsers, process execution, Makefile, or CI | Software quality |
 | Physics, constants, units, noise, CRBs, signal generation, coil values, or acceptance limits | Scientific correctness |
-| LTspice, KiCad, or component-value changes | Design consistency, plus scientific correctness if claims or models changed |
+| ngspice, KiCad, or component-value changes | Design consistency, plus scientific correctness if claims or models changed |
 | A change spanning several rows | Run each applicable review separately |
 | Explicit repository-wide audit | Full design-verification audit |
 | Prose-only or image-only change with no technical claim | No external review by default |
@@ -54,13 +54,13 @@ The executable is normally `~/.local/bin/cursor-agent`. Run it from the reposito
 - `--workspace` must remain `/Users/ethanewer/ece455`.
 - `--model <model>` selects a reviewer model when requested.
 
-Reviews may take several minutes. Run them with the process monitor when available, and do not poll them.
+Reviews may take several minutes. Run them with the process monitor when available, and do not poll them. Run review types one at a time. Concurrent Cursor review sessions have stalled without producing reports. Redirect each report to a file under `/tmp`, then read it after the process exits.
 
 By default, review uncommitted changes. If the working tree is clean, review the latest commit and state that choice. Use a comparison against `main` only when the user requests a branch-wide review.
 
 ## Software-quality review
 
-Use this for changes to `verification_modeling/`, `frequency_estimator_firmware/`, `receiver_design/verify.py`, `tests/`, the Makefile, or CI.
+Use this for changes to `verification_modeling/`, `frequency_estimator_firmware/`, receiver Python scripts, `tests/`, the Makefile, or CI.
 
 ```bash
 ~/.local/bin/cursor-agent -p -f --trust \
@@ -70,7 +70,7 @@ Use this for changes to `verification_modeling/`, `frequency_estimator_firmware/
    Scope: uncommitted changes. If there are none, review the latest commit and say so.
    This is a single-design proton magnetometer repository. Do not recommend automated search or research-loop infrastructure.
    Review correctness, error handling, determinism, subprocess safety, numerical edge cases, portability, stale paths, and missing regression tests.
-   Check interfaces among verification_modeling, frequency_estimator_firmware, receiver_design/verify.py, tests, Makefile, and CI.
+   Check interfaces among verification_modeling, frequency_estimator_firmware, receiver_design Python scripts, tests, Makefile, and CI.
    Run cheap tests when useful. Use /tmp for scratch files.
    Do not edit or create repository files.
    Return either 'No findings' or a Severity | file:line | Finding table sorted by severity, followed by commands run."
@@ -98,14 +98,14 @@ Use this when a change affects physical models, constants, units, signal generat
 
 ## Design-consistency review
 
-Use this after LTspice, KiCad, or component-value changes.
+Use this after ngspice, KiCad, or component-value changes.
 
 ```bash
 ~/.local/bin/cursor-agent -p -f --trust \
   --workspace /Users/ethanewer/ece455 \
   "Perform a read-only consistency review of the active design under receiver_design.
    Review the uncommitted changes. If there are none, review the latest commit and say so.
-   1. Compare component values, net names, signal stages, assumptions, and interfaces across LTspice files, the portable SPICE netlist, KiCad files, verification_modeling/coil.py, and active documentation.
+   1. Compare component values, net names, signal stages, assumptions, and interfaces across receiver_design/spice/receiver.cir, generated analysis reports, KiCad files, verification_modeling/coil.py, and active documentation.
    2. Run python3 receiver_design/verify.py when ngspice or KiCad is installed. Report skipped tools rather than claiming a pass.
    3. Treat DRC as a connectivity and geometry check only. Identify missing active devices, protection, switching, ADC, clock, power, connectors, footprints, and layout review where applicable.
    4. Separate simulated behavior, DRC results, nominal assumptions, and measured evidence.
@@ -126,7 +126,7 @@ Use only for an explicit repository-wide audit or a change spanning modeling, de
    1. Read README.md, docs/README.md, docs/coil-design.md, docs/verification-plan.md, verification_modeling, frequency_estimator_firmware, receiver_design, tests, Makefile, and CI.
    2. Run make test and make firmware. Run python3 receiver_design/verify.py --require-tools only when both external tools are installed; otherwise run it without --require-tools and report skips.
    3. Independently check key constants, units, coil calculations, noise calculations, resonance, ring-down, ADC behavior, estimator bounds, and golden-vector provenance.
-   4. Trace active values across documentation, Python models, LTspice, KiCad, firmware, and tests. Identify stale or conflicting copies.
+   4. Trace active values across documentation, Python models, ngspice, generated reports, KiCad, firmware, and tests. Identify stale or conflicting copies.
    5. Separate verified software behavior, simulated behavior, nominal hardware assumptions, and measured hardware evidence.
    6. Identify missing tests, weak failure checks, incomplete hardware, stale reports, and claims unsupported by measurement.
    Do not edit, create, or commit repository files. Use /tmp for scratch files.
