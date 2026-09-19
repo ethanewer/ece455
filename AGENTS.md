@@ -2,6 +2,8 @@
 
 This repository develops one proton magnetometer design. Do not add automated search, mutation, candidate ranking, or agent-driven research loops to `main`.
 
+Delete obsolete tracked files instead of retaining them as historical context. Git history preserves prior versions, while files left in the working tree consume future agents' context and can be mistaken for active artifacts.
+
 ## Sources of truth
 
 - Active receiver artifacts: `receiver_design/`
@@ -27,5 +29,4 @@ The `.pi/skills/` files are the shared skill source. `.claude/skills/` and `.cod
 Available project skills:
 
 - `external-review` runs read-only software, scientific, or full design-verification reviews with Cursor CLI.
-- `kicad` covers board validation, rendering, routing, and fabrication export.
-- `ltspice` covers LTspice simulation, validation, GUI automation, and screenshots.
+- `kicad` covers schematic and board validation, rendering, routing, and fabrication export.
