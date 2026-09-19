@@ -11,11 +11,14 @@ make figures   # transient CSV/PNG and AC-response CSV/PNG
 make kicad     # regenerate connectivity and run every available KiCad CLI check
 make pcb       # require a physical PCB and a zero-violation DRC result
 make eda       # figures, KiCad generation/checks, connectivity, AC, and noise
+make export    # timestamped engineering report under local/export-YYYYMMDD-HHMMSS
 ```
 
 `make pcb` intentionally fails until `receiver_design/kicad/receiver.kicad_pcb` exists. This prevents a connectivity netlist from being mistaken for a physical design.
 
 Uncommitted pipeline output belongs under `local/`. SKiDL runtime files go to `local/skidl/`, and KiCad ERC and DRC reports go to `local/kicad/`. Git keeps the `local/` directory but ignores its contents. Committed analysis CSV and PNG files remain under `receiver_design/analysis/` because they are review artifacts, not scratch output.
+
+`make export` runs connectivity and ngspice checks against the current files, then creates a new timestamped directory. Each export contains transient and frequency-response CSV/PNG pairs, a construction schematic in SVG and PNG, the BOM in CSV and Markdown, exact SPICE and connectivity inputs, a manifest, and a verification log. If a PCB exists, the command first requires strict DRC, then includes the `.kicad_pcb` source, a routed-copper SVG, and a KiCad 3D PNG. Until a board exists, it writes `PCB-NOT-AVAILABLE.txt` rather than fabricating an image.
 
 ## Simulation architecture
 

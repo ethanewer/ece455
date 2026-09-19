@@ -1,6 +1,6 @@
 PYTHON ?= python3
 
-.PHONY: test firmware figures kicad pcb eda verify clean
+.PHONY: test firmware figures kicad pcb eda verify export clean
 
 test:
 	$(PYTHON) -m pytest
@@ -21,6 +21,9 @@ eda: figures kicad
 	$(PYTHON) receiver_design/verify.py
 
 verify: test firmware eda
+
+export:
+	$(PYTHON) receiver_design/export.py
 
 clean:
 	$(MAKE) -C frequency_estimator_firmware/core clean

@@ -22,6 +22,7 @@ Run `make test` for analysis changes, `make firmware` for estimator changes, and
 - The active simulator is ngspice. `receiver_design/spice/receiver.cir` is the circuit source. Do not restore the retired LTspice files as active artifacts.
 - `receiver_design/kicad/generate.py` defines fixed-topology connectivity. It generates `receiver.net`; do not hand-edit the netlist.
 - `receiver_design/analyze.py` generates the committed CSV, PNG, and Markdown files in `receiver_design/analysis/`. Regenerate them after changing the SPICE model or report adapter.
+- `make export` tests the active receiver and creates a timestamped review package under `local/`. Never create PCB images when the physical board is absent; the export must record that status explicitly.
 - There is no accepted graphical schematic or PCB yet. `make pcb` must fail until `receiver.kicad_pcb` exists and passes strict DRC.
 - Before creating the PCB footprint or adapter layout, verify the exact purchased HiLetgo ADS1256 module header order and dimensions. Logical connector numbering is not physical pinout evidence.
 - Keep generated text deterministic. Remove timestamps, working-directory-dependent paths, CRLF endings, and trailing whitespace in generators rather than patching generated files.
