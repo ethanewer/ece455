@@ -1,5 +1,7 @@
 from pathlib import Path
 
+from PIL import Image
+
 from receiver_design.export import write_bom_markdown
 from receiver_design.schematic import build_receiver_schematic
 
@@ -14,6 +16,9 @@ def test_construction_schematic_is_rendered(tmp_path: Path) -> None:
     assert "ADS1256" in svg_text
     assert "COIL_HI (untuned)" in svg_text
     assert "1.5-2.5 kHz bandpass" in svg_text
+    assert "fill: #ffffff" in svg_text
+    with Image.open(png) as image:
+        assert image.convert("RGBA").getpixel((0, 0)) == (255, 255, 255, 255)
 
 
 def test_bom_markdown_preserves_rows(tmp_path: Path) -> None:

@@ -22,7 +22,7 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
     """Write SVG and PNG schematics of the buildable analog signal path."""
     output_dir.mkdir(parents=True, exist_ok=True)
     d = schemdraw.Drawing(show=False)
-    d.config(unit=1.8, fontsize=8.5, lw=1.3)
+    d.config(unit=1.8, fontsize=8.5, lw=1.3, bgcolor="white")
 
     d += elm.Label().at((0, 15.2)).label(
         "Proton magnetometer receiver: broadband coil input, blanking, and 1.5-2.5 kHz bandpass",
@@ -160,6 +160,6 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
 
     svg_path = output_dir / "receiver-construction-schematic.svg"
     png_path = output_dir / "receiver-construction-schematic.png"
-    d.save(svg_path)
-    d.save(png_path, dpi=200)
+    d.save(svg_path, transparent=False)
+    d.save(png_path, transparent=False, dpi=200)
     return svg_path, png_path
