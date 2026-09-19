@@ -43,30 +43,6 @@
           (value "")))))
   (components
     (comp
-      (ref "C1")
-      (value "220n C0G 2%")
-      (description "Unpolarized capacitor")
-      (footprint "Capacitor_SMD:C_1206_3216Metric")
-      (fields
-        (field
-          (name "Description") "Unpolarized capacitor")
-        (field
-          (name "Footprint") "Capacitor_SMD:C_1206_3216Metric")
-        (field
-          (name "Datasheet"))
-        (field
-          (name "SKiDL Tag") "C1")
-        (field
-          (name "SKiDL Line") "generate.py:31"))
-      (libsource
-        (lib "Device")
-        (part "C"))
-      (sheetpath
-        (names "/")
-        (tstamps "/"))
-      (component_classes)
-      (tstamps "b514d237-c153-5f6d-afe2-53badf97a864"))
-    (comp
       (ref "C10")
       (value "10u 10V")
       (description "Unpolarized capacitor")
@@ -307,30 +283,6 @@
       (component_classes)
       (tstamps "89c18bff-9d0a-560d-9afc-db5208f57a70"))
     (comp
-      (ref "C2")
-      (value "33n C0G 2%")
-      (description "Unpolarized capacitor")
-      (footprint "Capacitor_SMD:C_0805_2012Metric")
-      (fields
-        (field
-          (name "Description") "Unpolarized capacitor")
-        (field
-          (name "Footprint") "Capacitor_SMD:C_0805_2012Metric")
-        (field
-          (name "Datasheet"))
-        (field
-          (name "SKiDL Tag") "C2")
-        (field
-          (name "SKiDL Line") "generate.py:31"))
-      (libsource
-        (lib "Device")
-        (part "C"))
-      (sheetpath
-        (names "/")
-        (tstamps "/"))
-      (component_classes)
-      (tstamps "507fddd0-e494-5270-a7e4-2511aa140519"))
-    (comp
       (ref "C20")
       (value "100n X7R")
       (description "Unpolarized capacitor")
@@ -403,54 +355,6 @@
       (component_classes)
       (tstamps "424c71f2-6ef1-5cf5-8bb2-ac922033ba2a"))
     (comp
-      (ref "C3")
-      (value "1n C0G 1%")
-      (description "Unpolarized capacitor")
-      (footprint "Capacitor_SMD:C_0603_1608Metric")
-      (fields
-        (field
-          (name "Description") "Unpolarized capacitor")
-        (field
-          (name "Footprint") "Capacitor_SMD:C_0603_1608Metric")
-        (field
-          (name "Datasheet"))
-        (field
-          (name "SKiDL Tag") "C3")
-        (field
-          (name "SKiDL Line") "generate.py:31"))
-      (libsource
-        (lib "Device")
-        (part "C"))
-      (sheetpath
-        (names "/")
-        (tstamps "/"))
-      (component_classes)
-      (tstamps "299afff0-b6cf-50c0-a677-db76bcc001ee"))
-    (comp
-      (ref "C4")
-      (value "68p C0G 1%")
-      (description "Unpolarized capacitor")
-      (footprint "Capacitor_SMD:C_0603_1608Metric")
-      (fields
-        (field
-          (name "Description") "Unpolarized capacitor")
-        (field
-          (name "Footprint") "Capacitor_SMD:C_0603_1608Metric")
-        (field
-          (name "Datasheet"))
-        (field
-          (name "SKiDL Tag") "C4")
-        (field
-          (name "SKiDL Line") "generate.py:31"))
-      (libsource
-        (lib "Device")
-        (part "C"))
-      (sheetpath
-        (names "/")
-        (tstamps "/"))
-      (component_classes)
-      (tstamps "6f9a1813-19d4-5d20-adea-8868e7232e30"))
-    (comp
       (ref "C5")
       (value "1u X7R 25V")
       (description "Unpolarized capacitor")
@@ -500,7 +404,7 @@
       (tstamps "a6fd326a-61cc-55ba-9b64-3e8df39c0c42"))
     (comp
       (ref "C7")
-      (value "22n C0G 2%")
+      (value "100n C0G 2%")
       (description "Unpolarized capacitor")
       (footprint "Capacitor_SMD:C_0603_1608Metric")
       (fields
@@ -524,7 +428,7 @@
       (tstamps "16338a68-8eed-55bf-a491-963475c6f7f3"))
     (comp
       (ref "C8")
-      (value "3.3n C0G 2%")
+      (value "6.2n C0G 2%")
       (description "Unpolarized capacitor")
       (footprint "Capacitor_SMD:C_0603_1608Metric")
       (fields
@@ -764,7 +668,7 @@
       (tstamps "91628e47-8f83-5ba1-abed-4cb134d83eea"))
     (comp
       (ref "R10")
-      (value "10k 0.1%")
+      (value "10.2k 0.1%")
       (description "Resistor")
       (footprint "Resistor_SMD:R_0603_1608Metric")
       (fields
@@ -788,7 +692,7 @@
       (tstamps "99b6d9e4-efbb-57f3-bc7c-dc7822d36beb"))
     (comp
       (ref "R11")
-      (value "10k 0.1%")
+      (value "10.2k 0.1%")
       (description "Resistor")
       (footprint "Resistor_SMD:R_0603_1608Metric")
       (fields
@@ -956,7 +860,7 @@
       (tstamps "380e2b43-9216-5117-9f41-94795d9c3e8a"))
     (comp
       (ref "R7")
-      (value "3.01k 0.1%")
+      (value "58k 0.1%")
       (description "Resistor")
       (footprint "Resistor_SMD:R_0603_1608Metric")
       (fields
@@ -980,7 +884,7 @@
       (tstamps "45fbc468-780f-56f4-b6ba-53310b6a0e74"))
     (comp
       (ref "R8")
-      (value "10k 0.1%")
+      (value "1.05k 0.1%")
       (description "Resistor")
       (footprint "Resistor_SMD:R_0603_1608Metric")
       (fields
@@ -1004,7 +908,7 @@
       (tstamps "d4602b99-fd19-5b52-9a62-e3fbb9d2ed0c"))
     (comp
       (ref "R9")
-      (value "40.2k 0.1%")
+      (value "59k 0.1%")
       (description "Resistor")
       (footprint "Resistor_SMD:R_0603_1608Metric")
       (fields
@@ -1342,12 +1246,12 @@
       (ref "U2")
       (value "TMUX1101DBVR")
       (description "SPST Analog Switch, 1.08V to 5.5V Supply, 3pA Leakage Current, Normally OFF, 1.8Ohm Ron, SOT-23-5")
-      (footprint None)
+      (footprint "Package_TO_SOT_SMD:SOT-23-5")
       (fields
         (field
           (name "Description") "SPST Analog Switch, 1.08V to 5.5V Supply, 3pA Leakage Current, Normally OFF, 1.8Ohm Ron, SOT-23-5")
         (field
-          (name "Footprint"))
+          (name "Footprint") "Package_TO_SOT_SMD:SOT-23-5")
         (field
           (name "Datasheet") "https://www.ti.com/lit/ds/symlink/tmux1101.pdf")
         (field
@@ -1692,22 +1596,6 @@
       (name "COIL_HI")
       (class "Default")
       (node
-        (ref "C1")
-        (pin "1")
-        (pintype "PASSIVE"))
-      (node
-        (ref "C2")
-        (pin "1")
-        (pintype "PASSIVE"))
-      (node
-        (ref "C3")
-        (pin "1")
-        (pintype "PASSIVE"))
-      (node
-        (ref "C4")
-        (pin "1")
-        (pintype "PASSIVE"))
-      (node
         (ref "C5")
         (pin "1")
         (pintype "PASSIVE"))
@@ -1723,10 +1611,6 @@
       (code 11)
       (name "GND")
       (class "Default")
-      (node
-        (ref "C1")
-        (pin "2")
-        (pintype "PASSIVE"))
       (node
         (ref "C10")
         (pin "2")
@@ -1768,10 +1652,6 @@
         (pin "2")
         (pintype "PASSIVE"))
       (node
-        (ref "C2")
-        (pin "2")
-        (pintype "PASSIVE"))
-      (node
         (ref "C20")
         (pin "2")
         (pintype "PASSIVE"))
@@ -1781,14 +1661,6 @@
         (pintype "PASSIVE"))
       (node
         (ref "C22")
-        (pin "2")
-        (pintype "PASSIVE"))
-      (node
-        (ref "C3")
-        (pin "2")
-        (pintype "PASSIVE"))
-      (node
-        (ref "C4")
         (pin "2")
         (pintype "PASSIVE"))
       (node

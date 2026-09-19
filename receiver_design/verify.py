@@ -33,6 +33,9 @@ def artifact_check() -> None:
     required_spice = (
         "XU1A", "XU1B", "XU1C", "XU1D", "OPA4197", "TMUXSW",
         "ads_ain0", "Epga", ".param PGA=64", "30 kSPS", "D8/GPIO2",
+        "R7 stage1 stage1_n 58k", "C7 stage1 hp_in 100n",
+        "R8 hp_in stage2_n 1.05k", "R9 stage2 stage2_n 59k",
+        "R10 stage2 stage3_n 10.2k", "C8 stage3_n stage3 6.2n",
     )
     required_connectivity = (
         "OPA4197IPWR", "TMUX1101DBVR", "XIAO-RP2350-SMD",
@@ -46,6 +49,11 @@ def artifact_check() -> None:
     for token in required_connectivity:
         if token not in connectivity:
             raise SystemExit(f"KiCad connectivity netlist is missing {token}")
+    for removed_ref in ("C1", "C2", "C3", "C4"):
+        if f'(ref "{removed_ref}")' in connectivity:
+            raise SystemExit(
+                f"obsolete fixed tuning capacitor remains: {removed_ref}"
+            )
 
     # Catch truncated output and verify safety-critical pin assignments rather
     # than treating the presence of net names as proof of connectivity.

@@ -25,7 +25,7 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
     d.config(unit=1.8, fontsize=8.5, lw=1.3)
 
     d += elm.Label().at((0, 15.2)).label(
-        "Proton magnetometer receiver: tuned input, blanking, and analog filter",
+        "Proton magnetometer receiver: broadband coil input, blanking, and 1.5-2.5 kHz bandpass",
         fontsize=16,
     )
     d += elm.Label().at((0, 14.65)).label(
@@ -37,7 +37,7 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
         fontsize=8,
     )
 
-    # Tuned sensor and protected input.
+    # Untuned broadband sensor and protected input.
     d += elm.SourceSin().at((0, 12.0)).down(length=1.6).label("Vfid\nexternal", loc="left")
     d += elm.Ground()
     d += elm.Resistor().at((0, 12.0)).right(length=1.6).label("Rcoil 14Ω")
@@ -45,14 +45,8 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
     coil_hi = d.here
     d += elm.Dot().at(coil_hi)
     d += elm.Label().at((coil_hi[0], coil_hi[1] + 0.5)).label(
-        "COIL_HI", color="#174a7e", fontsize=8.5
+        "COIL_HI (untuned)", color="#174a7e", fontsize=8.5
     )
-    d += elm.Capacitor().at(coil_hi).down(length=1.6)
-    d += elm.Label().at((coil_hi[0] + 0.45, 10.8)).label("C1-C4 tuning bank", fontsize=8)
-    d += elm.Label().at((coil_hi[0] + 0.45, 9.75)).label(
-        "C1 220n + C2 33n + C3 1n + C4 68p, all C0G", fontsize=7.5
-    )
-    d += elm.Ground()
     d += elm.Capacitor().at(coil_hi).right(length=1.65).label("C5 1µF", loc="bottom")
     d += elm.Resistor().right(length=1.65).label("R1 1k", loc="top")
     pre_in = d.here
@@ -82,47 +76,56 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
     d += elm.Arrow().up(length=0.4).label("VREF_2V5", loc="right")
     feedback_y = 10.05
     _wire(d, u1a.out, (u1a.out[0], feedback_y))
-    d += elm.Resistor().at((u1a.out[0], feedback_y)).left(length=2.15).label("R7 3.01k", loc="bottom")
+    d += elm.Resistor().at((u1a.out[0], feedback_y)).left(length=2.15).label("R7 58k", loc="bottom")
     _wire(d, d.here, (u1a.in1[0], feedback_y))
     _wire(d, (u1a.in1[0], feedback_y), u1a.in1)
-    _net(d, u1a.out, "STAGE1  gain 4.01")
+    _net(d, u1a.out, "STAGE1  gain 59.0")
 
     # U1B AC-coupled high-pass stage.
     d += elm.Label().at((0, 8.5)).label("High-pass and gain stage", fontsize=12)
     d += elm.Arrow().at((0, 7.25)).right(length=0.7).label("STAGE1", loc="top")
-    d += elm.Capacitor().right(length=1.7).label("C7 22n C0G")
-    d += elm.Resistor().right(length=1.7).label("R8 10k")
+    d += elm.Capacitor().right(length=1.7).label("C7 100n C0G")
+    d += elm.Resistor().right(length=1.7).label("R8 1.05k")
     input_end = d.here
     u1b = d.add(elm.Opamp().at((6.1, 6.62)).right().label("U1B"))
     _wire(d, input_end, u1b.in1)  # Inverting '-' input.
     d += elm.Arrow().at(u1b.in2).left(length=0.8).label("VREF_2V5", loc="bottom")
     feedback_y = 4.75
     _wire(d, u1b.out, (u1b.out[0], feedback_y))
-    d += elm.Resistor().at((u1b.out[0], feedback_y)).left(length=2.15).label("R9 40.2k", loc="bottom")
+    d += elm.Resistor().at((u1b.out[0], feedback_y)).left(length=2.15).label("R9 59k", loc="bottom")
     _wire(d, d.here, (u1b.in1[0], feedback_y))
     _wire(d, (u1b.in1[0], feedback_y), u1b.in1)
-    _net(d, u1b.out, "STAGE2  fc 723Hz, gain −4.02")
+    d += elm.Dot().at(u1b.out)
+    d += elm.Label().at((u1b.out[0] + 0.15, u1b.out[1] + 0.5)).label(
+        "STAGE2", color="#174a7e", fontsize=8.5, halign="left"
+    )
+    d += elm.Label().at((u1b.out[0] + 0.15, u1b.out[1] - 0.55)).label(
+        "HP 1.516kHz, gain −56.19", fontsize=8, halign="left"
+    )
 
     # U1C low-pass stage and differential ADC input filter.
     d += elm.Label().at((10.0, 8.5)).label("Low-pass and ADS1256 differential input", fontsize=12)
     d += elm.Arrow().at((10.0, 7.25)).right(length=0.7).label("STAGE2", loc="top")
-    d += elm.Resistor().right(length=1.7).label("R10 10k")
+    d += elm.Resistor().right(length=1.7).label("R10 10.2k")
     input_end = d.here
     u1c = d.add(elm.Opamp().at((14.1, 6.62)).right().label("U1C"))
     _wire(d, input_end, u1c.in1)
     d += elm.Arrow().at(u1c.in2).left(length=0.8).label("VREF_2V5", loc="bottom")
     feedback_y = 4.7
     _wire(d, u1c.out, (u1c.out[0], feedback_y))
-    d += elm.Resistor().at((u1c.out[0], feedback_y)).left(length=2.15).label("R11 10k", loc="bottom")
+    d += elm.Resistor().at((u1c.out[0], feedback_y)).left(length=2.15).label("R11 10.2k", loc="bottom")
     _wire(d, d.here, (u1c.in1[0], feedback_y))
     _wire(d, (u1c.in1[0], feedback_y), u1c.in1)
     cap_y = 3.9
-    d += elm.Capacitor().at((u1c.out[0], cap_y)).left(length=2.15).label("C8 3.3n C0G", loc="bottom")
+    d += elm.Capacitor().at((u1c.out[0], cap_y)).left(length=2.15).label("C8 6.2n C0G", loc="bottom")
     _wire(d, (u1c.out[0], feedback_y), (u1c.out[0], cap_y))
     _wire(d, (u1c.in1[0], feedback_y), (u1c.in1[0], cap_y))
     d += elm.Resistor().at(u1c.out).right(length=1.45).label("R12 1k")
     ain0 = d.here
-    _net(d, ain0, "ADS1256 AIN0")
+    d += elm.Dot().at(ain0)
+    d += elm.Label().at((ain0[0] + 0.15, ain0[1] + 0.52)).label(
+        "ADS1256 AIN0", color="#174a7e", fontsize=8.5, halign="left"
+    )
     d += elm.Capacitor().at(ain0).down(length=1.15).label("C9 22n C0G", loc="right")
     d += elm.Arrow().down(length=0.4).label("VREF_2V5 / AIN1", loc="right")
 

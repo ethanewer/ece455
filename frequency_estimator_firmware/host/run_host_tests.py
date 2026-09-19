@@ -30,7 +30,7 @@ sys.path.insert(0, str(ROOT / "frequency_estimator_firmware" / "host"))
 
 import fe_binding  # noqa: E402
 
-F_LO, F_HI = 500.0, 3500.0           # the AFE band
+F_LO, F_HI = 500.0, 3500.0           # estimator stress-test search interval
 TOL_MIRROR_HZ = 0.01                 # C float vs numpy mirror
 TOL_FIXED_HZ = 0.05                  # Q31 path vs mirror
 TOL_TRUTH_HZ = 0.0426                # 1 nT target at operating SNR

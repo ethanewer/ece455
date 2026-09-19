@@ -30,9 +30,9 @@ def current_coil():
                 radius_m=math.sqrt(0.06 * 0.06 / math.pi),
                 b_pol=POLARIZER["field_t"], t2_star_s=0.95,
                 r_coil=14.0, l_coil=22e-3,
-                # Retuned from the slide's nominal 264 nF to the active
-                # receiver's 50 uT center frequency.
-                c_tune=254.062174e-9,
+                # The active receiver is untuned so it can cover the 1.5 to
+                # 2.5 kHz field range. Keep the slide value as provenance.
+                c_tune=None,
                 c_tune_nominal=264e-9,
                 polarizer=dict(POLARIZER), sensor=dict(SENSOR),
                 sensing_connection="series-opposed; one active sample; M=0",
@@ -40,15 +40,3 @@ def current_coil():
                 # polarizer turnoff are measured on the actual hardware.
                 hardware_characterized=False,
                 model_status="nominal, uncalibrated; turns and connection inferred")
-
-
-def current_candidates():
-    return [
-        ("Week3 untuned INA828", dict(e_amp=7e-9, i_amp=170e-15,
-                                    coil=current_coil())),
-        ("Week3 untuned TL072", dict(e_amp=18e-9, i_amp=10e-15,
-                                   coil=current_coil())),
-        ("Week3 tuned JFET", dict(e_amp=1.4e-9, i_amp=0.1e-12,
-                                tuned=True, preamp_gain=4.0,
-                                coil=current_coil())),
-    ]

@@ -27,15 +27,14 @@ def test_active_coil_maps_to_receiver_fid_amplitude():
     assert v0 == pytest.approx(1.008442079e-6, rel=1e-8)
 
 
-def test_pair_noise_resonance_and_polarizer_time_constant():
+def test_pair_noise_untuned_receiver_and_polarizer_time_constant():
     coil = current_coil()
     single_noise = physics.coil_thermal_noise_density(7.0)
     assert physics.coil_thermal_noise_density(coil["r_coil"]) == pytest.approx(
         math.sqrt(2) * single_noise
     )
-    resonance = 1 / (2 * math.pi * math.sqrt(coil["l_coil"] * coil["c_tune"]))
+    assert coil["c_tune"] is None
     assert coil["c_tune_nominal"] == pytest.approx(264e-9)
-    assert resonance == pytest.approx(physics.larmor_hz(50e-6), rel=1e-9)
     assert POLARIZER["inductance_h"] / POLARIZER["resistance_ohm"] == pytest.approx(
         0.0051333333
     )

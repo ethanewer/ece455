@@ -42,9 +42,9 @@ NT_PER_HZ = 1.0 / GAMMA_HZ_PER_NT           # 23.4872 nT per Hz
 K_B = 1.380649e-23
 T_AMBIENT = 300.0                           # K
 
-# Single source of truth for the front-end band (audits: the analytic noise
-# integration and the SPICE .noise sweep must agree by construction).
-NOISE_BAND = (500.0, 3500.0)                # Hz
+# Active analog passband used for source-referred noise integration. The
+# estimator may use a wider search interval for out-of-band stress tests.
+NOISE_BAND = (1500.0, 2500.0)               # Hz
 
 # Curie-law constants for the FID-amplitude estimate.
 PROTON_DENSITY_WATER = 6.7e28               # protons / m^3
@@ -120,8 +120,8 @@ def input_noise_rms(r_coil=14.0, l_coil=22e-3, e_amp=1.4e-9, i_amp=0.1e-12,
                     f_lo=None, f_hi=None) -> float:
     """Untuned source-referred RMS noise over a rectangular band [V].
 
-    This does not model the active receiver's tuning capacitor or transfer
-    function. Use a SPICE noise spectrum for tuned-receiver calculations.
+    This does not model the active receiver's bandpass transfer function.
+    Use the SPICE noise analysis for output-referred receiver calculations.
     """
     if f_lo is None:
         f_lo = NOISE_BAND[0]

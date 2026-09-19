@@ -4,18 +4,17 @@ This directory defines the receiver from the external FID sensing pair through a
 
 ## Signal path
 
-1. `J1` connects the nominal 14 ohm, 22 mH series-opposed sensing pair.
-2. `C1` through `C4` form a 254.068 nF C0G tuning bank for 2128.8 Hz at the nominal 22 mH.
-3. `C5`, `R1`, `D1`, and `D2` AC-couple, current-limit, bias, and clamp the receiver input.
-4. `U2`, a TMUX1101, shorts the protected input to the 2.5 V reference while `BLANK_D1_GPIO27` is high. `R3` makes blanking the power-up default.
-5. `U1A`, one channel of an OPA4197, is a non-inverting preamplifier. `R6` and `R7` set gain to 4.01 V/V.
-6. `U1B`, `C7`, `R8`, and `R9` form a 723 Hz high-pass stage with gain minus 4.02 V/V.
-7. `U1C`, `R10`, `R11`, and `C8` form a unity-gain inverting stage with a 4.82 kHz low-pass pole.
-8. `R12` and `C9` form a 7.23 kHz differential input pole. The signal goes to ADS1256 `AIN0`; buffered `VREF_2V5` goes to `AIN1`.
-9. The ADS1256 input buffer is enabled and its PGA is set to 64. With the module's nominal 2.5 V ADR03 reference, differential full scale is plus or minus 78.125 mV.
-10. The ADS1256 sends 30 kSPS data to the XIAO RP2350 over SPI. Target firmware must feed samples to the estimator and report frequency and field through USB CDC.
+1. `J1` connects the nominal 14 ohm, 22 mH series-opposed sensing pair. The input has no fixed tuning capacitor, because a tank tuned for the 2.1 kHz development field would reject the roughly 1.7 kHz deployment signal.
+2. `C5` AC-couples the signal, `R1` limits clamp current, `R2` biases the input to `VREF_2V5`, and `D1` and `D2` clamp overvoltage.
+3. `U2`, a TMUX1101, shorts the protected input to the 2.5 V reference while `BLANK_D1_GPIO27` is high. `R3` makes blanking the power-up default.
+4. `U1A`, one channel of an OPA4197, is a non-inverting preamplifier. `R6` and `R7` set gain to 59.0 V/V.
+5. `U1B`, `C7`, `R8`, and `R9` form a 1.516 kHz high-pass stage with high-frequency gain minus 56.19 V/V.
+6. `U1C`, `R10`, `R11`, and `C8` form a unity-gain inverting stage with a 2.517 kHz low-pass pole.
+7. `R12` and `C9` form a 7.23 kHz differential input pole. The signal goes to ADS1256 `AIN0`; buffered `VREF_2V5` goes to `AIN1`.
+8. The ADS1256 input buffer is enabled and its PGA is set to 64. With the module's nominal 2.5 V ADR03 reference, differential full scale is plus or minus 78.125 mV.
+9. The ADS1256 sends 30 kSPS data to the XIAO RP2350 over SPI. Target firmware must feed samples to the estimator and report frequency and field through USB CDC.
 
-Board-level resistor-set midband gain is 16.12 V/V, about 64 times lower than the previous 1026.6 V/V design. Filter attenuation reduces electronics gain to about 13.3 V/V at 2128.8 Hz. The active SPICE model predicts approximately 279.5 V/V from the induced series source to ADS1256 AIN0 minus AIN1 at nominal resonance. The ADC's internal PGA makes the modeled post-PGA gain approximately 17,888 V/V. These are simulated nominal values.
+The resistor-set gain above the high-pass pole is 3315 V/V. Attenuation from the 1.516 kHz high-pass, 2.517 kHz low-pass, and 7.23 kHz ADC input pole makes the simulated coil-source-to-ADC differential gain approximately 2000 V/V in the intended band. This gain excludes the ADS1256 internal PGA. The untuned input and active bandpass cover both the roughly 1.7 kHz deployment frequency and roughly 2.1 kHz development frequency. These are simulated nominal values.
 
 ## ADC module interface
 

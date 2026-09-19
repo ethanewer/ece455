@@ -15,7 +15,8 @@ if __name__ == "__main__":
         input_node="source",
         output_positive="ads_ain0",
         output_negative="vref",
-        resonance_hz=2128.795,
+        resonance_hz=2128.819237,
+        passband_hz=(1500.0, 2500.0),
     )
     print(f"wrote {result.waveforms_png}")
     print(f"wrote {result.response_png}")

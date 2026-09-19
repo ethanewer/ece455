@@ -7,15 +7,11 @@
 .param PGA=64
 
 * Induced FID test source and external nominal series-opposed sensing pair.
+* The input is intentionally untuned so the receiver covers magnetic fields
+* that put the proton frequency anywhere in the 1.5-2.5 kHz passband.
 Vfid source 0 DC 0 AC 1 SINE(0 {V0} {fL} 0 {1/T2s})
 Rcoil source coil_l 14
 Lcoil coil_l coil_hi 22m
-
-* Physical C0G tuning bank, total 254.068 nF.
-C1 coil_hi 0 220n
-C2 coil_hi 0 33n
-C3 coil_hi 0 1n
-C4 coil_hi 0 68p
 
 * Coupling, clamp-current limit, bias, and default-on shunt blanker.
 C5 coil_hi protected 1u
@@ -38,6 +34,11 @@ C13 avdd 0 1u
 Vusb vbus5 0 5
 C14 vbus5 0 10u
 C15 vbus5 0 100n
+C16 vbus5 0 100n
+C17 vbus5 0 100n
+C18 vbus5 0 100n
+C19 xiao_3v3 0 100n
+C20 xiao_3v3 0 100n
 Rfb5 vbus5 opamp_f 0.25
 Lfb5 opamp_f opamp5 0.95u
 C21 opamp5 0 10u
@@ -50,21 +51,21 @@ R5 vref_raw 0 10k
 C6 vref_raw 0 10u
 XU1D vref_raw vref vref opamp5 0 OPA4197
 
-* U1A non-inverting preamplifier, gain 4.01.
+* U1A non-inverting preamplifier, gain 59.0.
 XU1A pre_in stage1_n stage1 opamp5 0 OPA4197
 R6 stage1_n vref 1k
-R7 stage1 stage1_n 3.01k
+R7 stage1 stage1_n 58k
 
-* U1B high-pass stage, fc=723 Hz and inverting gain 4.02.
-C7 stage1 hp_in 22n
-R8 hp_in stage2_n 10k
-R9 stage2 stage2_n 40.2k
+* U1B high-pass stage, fc=1.516 kHz and inverting gain 56.19.
+C7 stage1 hp_in 100n
+R8 hp_in stage2_n 1.05k
+R9 stage2 stage2_n 59k
 XU1B vref stage2_n stage2 opamp5 0 OPA4197
 
-* U1C unity-gain low-pass stage, feedback pole 4.82 kHz.
-R10 stage2 stage3_n 10k
-R11 stage3_n stage3 10k
-C8 stage3_n stage3 3.3n
+* U1C unity-gain low-pass stage, feedback pole 2.517 kHz.
+R10 stage2 stage3_n 10.2k
+R11 stage3_n stage3 10.2k
+C8 stage3_n stage3 6.2n
 XU1C vref stage3_n stage3 opamp5 0 OPA4197
 
 * Differential ADS1256 input. AIN1 is buffered 2.5 V. R12/C9 add a
@@ -104,7 +105,7 @@ Cout out 0 2p
 
 .options plotwinsize=0
 .ac dec 1000 100 100k
-.noise V(pga_out) Vfid dec 1000 500 5000
+.noise V(pga_out) Vfid dec 1000 1500 2500
 * ADS1256 converter noise, INL, clock error, and alias response are not in this
 * compact model. Verify them on the purchased module at PGA=64 and 30 kSPS.
 .save all

@@ -161,7 +161,8 @@ def main() -> None:
             input_node="source",
             output_positive="ads_ain0",
             output_negative="vref",
-            resonance_hz=2128.795,
+            resonance_hz=2128.819237,
+            passband_hz=(1500.0, 2500.0),
         )
         analysis_summary = output_dir / "analysis-summary.md"
         result.summary_md.replace(analysis_summary)

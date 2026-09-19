@@ -22,14 +22,14 @@ The receiver model assumes a series-opposed pair with negligible mutual inductan
 - 552 signal turns because only one coil contains the active sample
 - 14 ohm series resistance
 - 22 mH series inductance
-- 264 nF tuning capacitance from the source slides
-- 254.062174 nF in the active receiver, retuned to 50 uT
+- no tuning capacitor in the active receiver
+- 264 nF tuning capacitance only as a historical source-slide value
 - 0.0036 square meter bore area, represented by an equal-area radius
 - provisional T2 star of 0.95 seconds
 
 Both windings contribute Johnson noise. The model grants no common-mode cancellation without measurements. If both coils contain aligned polarized samples, the opposed connection may cancel signal.
 
-The ideal pair resonance with the source's 264 nF is 2088 Hz, about 49.1 uT. The active receiver uses 254.062174 nF for 2128.819 Hz, the shielded-proton frequency at 50 uT. With 10 to 12 mH per coil and the nominal capacitor, resonance spans about 2000 to 2190 Hz before mutual coupling and tolerances. The ideal unloaded bandwidth is 101 Hz and amplitude ring-down is 3.14 ms.
+The ideal pair resonance with the source's 264 nF is 2088 Hz, about 49.1 uT. That roughly 101 Hz unloaded bandwidth cannot cover both the 1.7 kHz deployment signal and 2.1 kHz development signal. The active receiver therefore leaves the sensor untuned and uses a 1.5 to 2.5 kHz active bandpass. The 264 nF value remains only for comparison with the source slides and optional characterization measurements.
 
 ## Measurements still required
 

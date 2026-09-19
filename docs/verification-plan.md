@@ -4,7 +4,7 @@ Use these measurements to replace nominal inputs with evidence. Save raw capture
 
 ## Wet FID capture
 
-Measure initial FID amplitude and T2 star with the active sensor pair, water sample, 3 A polarization pulse, 200 ms receiver blanking, and 20 kS/s capture.
+Measure initial FID amplitude and T2 star with the active sensor pair, water sample, 3 A polarization pulse, 200 ms receiver blanking, and 30 kS/s capture.
 
 Record:
 
@@ -21,17 +21,17 @@ The model predicts microvolt-scale input signals. The older Hook-Line geometry g
 
 1. Measure each winding's DC resistance, preferably with a four-wire method.
 2. Measure each winding's inductance and the mutual inductance in the installed geometry.
-3. Sweep tuning capacitance and measure resonance, 3 dB bandwidth, Q, and voltage step-up.
+3. Characterize the historical 264 nF tuning option separately, but do not fit it in the active broadband receiver. Measure resonance, 3 dB bandwidth, Q, and voltage step-up.
 4. Capture ring-down after a controlled step and compare the fitted time constant with 2Q divided by angular resonance frequency.
 5. Capture the actual 3 A polarizer turnoff at the protected receiver input.
 
-The nominal pair is 14 ohm, 22 mH, and 264 nF, with 2088 Hz ideal resonance and 3.14 ms ideal amplitude ring-down. Aim for 10 percent agreement before adding loss or coupling terms to the model.
+The nominal pair is 14 ohm and 22 mH. The source slides' optional 264 nF capacitor would give 2088 Hz ideal resonance and 3.14 ms ideal amplitude ring-down, but the active receiver omits it to cover 1.5 to 2.5 kHz. Aim for 10 percent agreement before adding loss or coupling terms to the model.
 
 ## Receiver transfer and noise
 
 Measure the assembled receiver with a calibrated source and analyzer:
 
-- complex gain from 500 to 3500 Hz and beyond the anti-alias corner
+- complex gain from 500 to 3500 Hz and beyond the anti-alias corner; verify approximately 2000 V/V coil-source-to-ADC gain at 1.7 and 2.1 kHz, excluding the ADS1256 PGA
 - input-referred noise spectrum with the coil connected and replaced by a known impedance
 - maximum unclipped input versus frequency
 - recovery after protection and blanking switch operation

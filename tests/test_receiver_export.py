@@ -12,7 +12,8 @@ def test_construction_schematic_is_rendered(tmp_path: Path) -> None:
     svg_text = svg.read_text()
     assert "OPA4197" in svg_text
     assert "ADS1256" in svg_text
-    assert "C1-C4 tuning bank" in svg_text
+    assert "COIL_HI (untuned)" in svg_text
+    assert "1.5-2.5 kHz bandpass" in svg_text
 
 
 def test_bom_markdown_preserves_rows(tmp_path: Path) -> None:

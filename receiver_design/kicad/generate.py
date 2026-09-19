@@ -93,20 +93,12 @@ ads_pdwn = Net("ADS1256_PDWN_5V")
 ads_dout = Net("ADS1256_DOUT_5V")
 ads_drdy = Net("ADS1256_DRDY_5V")
 
-# External sensing pair and 254.068 nF C0G tuning bank.
+# External sensing pair. Do not shunt it with the former fixed tuning bank:
+# the untuned input must cover proton frequencies from 1.5 to 2.5 kHz.
 j1 = part("Connector_Generic", "Conn_01x02", "J1", "FID SENSING COIL",
           "TerminalBlock_Altech:Altech_AK100_1x02_P5.00mm")
 j1[1] += coil_hi
 j1[2] += gnd
-for ref, value, fp in (
-    ("C1", "220n C0G 2%", "Capacitor_SMD:C_1206_3216Metric"),
-    ("C2", "33n C0G 2%", "Capacitor_SMD:C_0805_2012Metric"),
-    ("C3", "1n C0G 1%", "Capacitor_SMD:C_0603_1608Metric"),
-    ("C4", "68p C0G 1%", "Capacitor_SMD:C_0603_1608Metric"),
-):
-    c = capacitor(ref, value, fp)
-    c[1] += coil_hi
-    c[2] += gnd
 
 # Coupling, current limit, low-leakage clamps, bias, and default-on blanking.
 c5 = capacitor("C5", "1u X7R 25V", "Capacitor_SMD:C_1210_3225Metric")
@@ -126,7 +118,8 @@ d2 = part("Device", "D", "D2", "BAS116H low leakage",
           "Diode_SMD:D_SOD-323_HandSoldering")
 d2[1] += avdd    # cathode
 d2[2] += pre_in  # anode
-u2 = part("Analog_Switch", "TMUX1101DBV", "U2", "TMUX1101DBVR")
+u2 = part("Analog_Switch", "TMUX1101DBV", "U2", "TMUX1101DBVR",
+          "Package_TO_SOT_SMD:SOT-23-5")
 u2[1] += pre_in
 u2[2] += vref
 u2[3] += gnd
@@ -137,8 +130,8 @@ r3[1] += avdd
 r3[2] += blank
 
 # OPA4197 quad on a filtered 5 V rail (its specified minimum is 4.5 V). U1D
-# buffers 2.5 V VREF. The ADS1256 PGA supplies the final x64, so board-level
-# gain is only 4.01 * 4.02 * 1 = 16.12 V/V at midband.
+# buffers 2.5 V VREF. U1A through U1C provide about 2000 V/V source-to-ADC
+# gain in the 1.5-2.5 kHz passband, before the ADS1256 internal PGA.
 u1 = part("Amplifier_Operational", "OPA4197xPW", "U1", "OPA4197IPWR",
           "Package_SO:TSSOP-14_4.4x5mm_P0.65mm")
 u1[4] += opamp5
@@ -157,21 +150,21 @@ u1[12] += vref_raw
 u1[13] += vref
 u1[14] += vref
 
-# U1A non-inverting gain 4.01.
+# U1A non-inverting gain 59.0.
 u1[3] += pre_in
 u1[2] += stage1_n
 u1[1] += stage1
 r6 = resistor("R6", "1k 0.1%")
-r7 = resistor("R7", "3.01k 0.1%")
+r7 = resistor("R7", "58k 0.1%")
 r6[1] += stage1_n
 r6[2] += vref
 r7[1] += stage1
 r7[2] += stage1_n
 
-# U1B high-pass, 723 Hz corner and inverting gain 4.02.
-c7 = capacitor("C7", "22n C0G 2%")
-r8 = resistor("R8", "10k 0.1%")
-r9 = resistor("R9", "40.2k 0.1%")
+# U1B high-pass, 1.516 kHz corner and inverting gain 56.19.
+c7 = capacitor("C7", "100n C0G 2%")
+r8 = resistor("R8", "1.05k 0.1%")
+r9 = resistor("R9", "59k 0.1%")
 c7[1] += stage1
 c7[2] += r8[1]
 r8[2] += stage2_n
@@ -181,10 +174,10 @@ u1[5] += vref
 u1[6] += stage2_n
 u1[7] += stage2
 
-# U1C unity-gain inverting low pass, 4.82 kHz feedback pole.
-r10 = resistor("R10", "10k 0.1%")
-r11 = resistor("R11", "10k 0.1%")
-c8 = capacitor("C8", "3.3n C0G 2%")
+# U1C unity-gain inverting low pass, 2.517 kHz feedback pole.
+r10 = resistor("R10", "10.2k 0.1%")
+r11 = resistor("R11", "10.2k 0.1%")
+c8 = capacitor("C8", "6.2n C0G 2%")
 r10[1] += stage2
 r10[2] += stage3_n
 r11[1] += stage3_n

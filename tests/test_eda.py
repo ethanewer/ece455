@@ -96,3 +96,24 @@ def test_report_builder_differential_output(tmp_path):
     differential = transient["adc_differential_v"]
     assert np.min(differential) < -5e-4
     assert np.max(differential) > 5e-4
+
+
+@pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice not installed")
+def test_active_receiver_passband_and_gain(tmp_path):
+    netlist = Path(__file__).parents[1] / "receiver_design/spice/receiver.cir"
+    result = build_spice_report(
+        netlist, tmp_path / "report", input_node="source",
+        output_positive="ads_ain0", output_negative="vref",
+        resonance_hz=2128.819237, passband_hz=(1500.0, 2500.0),
+    )
+    response = np.genfromtxt(result.response_csv, delimiter=",", names=True)
+    frequency = response["frequency_hz"]
+    gain = 10 ** (response["gain_db"] / 20)
+
+    in_band = (frequency >= 1500) & (frequency <= 2500)
+    assert np.min(gain[in_band]) > 1800
+    assert np.max(gain[in_band]) < 2200
+    for target_hz in (1700, 2100):
+        index = int(np.argmin(np.abs(frequency - target_hz)))
+        assert 1900 < gain[index] < 2100
+    assert "Intended passband: 1500 to 2500 Hz" in result.summary_md.read_text()

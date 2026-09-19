@@ -17,7 +17,7 @@
  *
  * Workspace is static: no malloc. Input records longer than FE_MAX_N
  * return FE_ERR_INPUT (a real port streams; this core is sized for a 1.5 s
- * record at 20 kS/s plus margin).
+ * record of about 1.09 s at the active 30 kS/s rate plus margin).
  */
 #ifndef FREQ_EST_H
 #define FREQ_EST_H

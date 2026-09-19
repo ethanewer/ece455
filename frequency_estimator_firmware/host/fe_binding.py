@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 CORE = ROOT / "frequency_estimator_firmware" / "core"
 
 ESTIMATORS = ("zoom", "fft", "zc")           # legal candidate variants
-F_LO, F_HI = 500.0, 3500.0                   # the AFE band
+F_LO, F_HI = 500.0, 3500.0                   # estimator stress-test search interval
 
 _libs = {}
 
