@@ -67,13 +67,12 @@ def fe_mirror(v: np.ndarray, fs: float, t0: float, f_lo: float, f_hi: float
         if sp[j] > best:
             best = sp[j]
             best_k = kk[j]
-    if k[0] < best_k < k[-1]:
-        a = 2 * np.pi * np.outer(best_k - 1 + np.arange(3), np.arange(nseed)) / nseed
-        dft3 = np.sum(np.exp(-1j * a) * x[:nseed], axis=1)
-        s3 = np.abs(dft3) ** 2
-        f0 = best_k * df_bin + _log_parabolic(s3, 1) * df_bin
-    else:
-        f0 = best_k * df_bin
+    if not (k[0] < best_k < k[-1]):
+        return float("nan")
+    a = 2 * np.pi * np.outer(best_k - 1 + np.arange(3), np.arange(nseed)) / nseed
+    dft3 = np.sum(np.exp(-1j * a) * x[:nseed], axis=1)
+    s3 = np.abs(dft3) ** 2
+    f0 = best_k * df_bin + _log_parabolic(s3, 1) * df_bin
 
     # NCO mix
     t = t0 + np.arange(n) / fs

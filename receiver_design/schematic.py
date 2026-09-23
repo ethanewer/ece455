@@ -37,7 +37,7 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
         fontsize=7,
     )
     d += elm.Label().at((0, 14.05)).label(
-        "Filtered coil-to-ADC gain: 1915-2012 V/V from 1.5-2.5kHz; ADS1256 internal PGA excluded",
+        "Filtered coil-to-ADC gain stays near 2000 V/V from 1.5-2.5 kHz; ADS1256 PGA excluded",
         color="#174a7e", fontsize=7,
     )
 
@@ -51,7 +51,7 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
     d += elm.Label().at((coil_hi[0], coil_hi[1] + 0.5)).label(
         "COIL_HI (untuned)", color="#174a7e", fontsize=7
     )
-    d += elm.Capacitor().at(coil_hi).right(length=1.65).label("C5 1µF", loc="bottom")
+    d += elm.Capacitor().at(coil_hi).right(length=1.65).label("C5 3.3n", loc="bottom")
     d += elm.Resistor().right(length=1.65).label("R1 1k", loc="top")
     pre_in = d.here
     _net(d, pre_in, "PRE_IN")
@@ -66,37 +66,37 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
         "D1 BAS116", loc="left"
     )
     d += elm.Ground()
-    d += elm.Resistor().at((branch_x[1], 12.0)).down(length=1.25).label("R2 1M", loc="left")
+    d += elm.Resistor().at((branch_x[1], 12.0)).down(length=1.25).label("R2 100k", loc="left")
     d += elm.Arrow().down(length=0.4)
     d += elm.Label().at((branch_x[1] + 0.45, 10.35)).label(
-        "VREF_2V5", fontsize=7, halign="left"
+        "VBIAS_1V5", fontsize=7, halign="left"
     )
     d += elm.Diode().at((branch_x[2], 12.0)).up(length=1.25).label("D2 BAS116", loc="right")
     d += elm.Arrow().up(length=0.4).label("AVDD_3V3", loc="right")
     d += elm.Switch(nc=True).at((branch_x[3], 12.0)).down(length=1.25).label(
         "U2 TMUX1101\nblanking shunt", loc="right"
     )
-    d += elm.Arrow().down(length=0.4).label("VREF_2V5", loc="right")
+    d += elm.Arrow().down(length=0.4).label("VBIAS_1V5", loc="right")
 
     # U1A feedback: R7 from output to minus input, R6 from minus input to VREF.
     d += elm.Resistor().at(u1a.in1).up(length=1.05).label("R6 1k", loc="right")
-    d += elm.Arrow().up(length=0.4).label("VREF_2V5", loc="right")
+    d += elm.Arrow().up(length=0.4).label("VBIAS_1V5", loc="right")
     feedback_y = 10.05
     _wire(d, u1a.out, (u1a.out[0], feedback_y))
-    d += elm.Resistor().at((u1a.out[0], feedback_y)).left(length=2.15).label("R7 58k", loc="bottom")
+    d += elm.Resistor().at((u1a.out[0], feedback_y)).left(length=2.15).label("R7 54.9k", loc="bottom")
     _wire(d, d.here, (u1a.in1[0], feedback_y))
     _wire(d, (u1a.in1[0], feedback_y), u1a.in1)
-    _net(d, u1a.out, "STAGE1  gain 59.0")
+    _net(d, u1a.out, "STAGE1  gain 55.9")
 
     # U1B AC-coupled high-pass stage.
     d += elm.Label().at((0, 8.5)).label("High-pass and gain stage", fontsize=10)
     d += elm.Arrow().at((0, 7.25)).right(length=0.7).label("STAGE1", loc="top")
-    d += elm.Capacitor().right(length=1.7).label("C7 100n C0G")
+    d += elm.Capacitor().right(length=1.7).label("C7 100n C0G 1206")
     d += elm.Resistor().right(length=1.7).label("R8 1.05k")
     input_end = d.here
     u1b = d.add(elm.Opamp().at((7.0, 6.62)).right().label("U1B"))
     _wire(d, input_end, u1b.in1)  # Inverting '-' input.
-    d += elm.Arrow().at(u1b.in2).left(length=0.8).label("VREF_2V5", loc="bottom")
+    d += elm.Arrow().at(u1b.in2).left(length=0.8).label("VBIAS_1V5", loc="bottom")
     feedback_y = 4.75
     _wire(d, u1b.out, (u1b.out[0], feedback_y))
     d += elm.Resistor().at((u1b.out[0], feedback_y)).left(length=2.15).label("R9 59k", loc="bottom")
@@ -110,40 +110,47 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
         "HP 1.516kHz, gain −56.19", fontsize=7, halign="left"
     )
 
-    # U1C low-pass stage and differential ADC input filter.
-    d += elm.Label().at((11.0, 8.5)).label("Low-pass and ADS1256 differential input", fontsize=10)
+    # U1C Sallen-Key low-pass and differential ADC input filter.
+    d += elm.Label().at((11.0, 8.5)).label("Sallen-Key low-pass and ADS1256 input", fontsize=10)
     d += elm.Arrow().at((11.0, 7.25)).right(length=0.7).label("STAGE2", loc="top")
-    d += elm.Resistor().right(length=1.7).label("R10 10.2k")
+    d += elm.Resistor().right(length=1.5).label("R10 10.2k")
+    mid = d.here
+    d += elm.Resistor().right(length=1.5).label("R11 10.2k")
     input_end = d.here
-    u1c = d.add(elm.Opamp().at((15.8, 6.62)).right().label("U1C"))
-    _wire(d, input_end, u1c.in1)
-    d += elm.Arrow().at(u1c.in2).left(length=0.8).label("VREF_2V5", loc="bottom")
-    feedback_y = 4.7
-    _wire(d, u1c.out, (u1c.out[0], feedback_y))
-    d += elm.Resistor().at((u1c.out[0], feedback_y)).left(length=2.15).label("R11 10.2k", loc="bottom")
-    _wire(d, d.here, (u1c.in1[0], feedback_y))
-    _wire(d, (u1c.in1[0], feedback_y), u1c.in1)
-    cap_y = 3.9
-    d += elm.Capacitor().at((u1c.out[0], cap_y)).left(length=2.15).label("C8 6.2n C0G", loc="bottom")
-    _wire(d, (u1c.out[0], feedback_y), (u1c.out[0], cap_y))
-    _wire(d, (u1c.in1[0], feedback_y), (u1c.in1[0], cap_y))
-    d += elm.Resistor().at(u1c.out).right(length=1.45).label("R12 1k")
+    u1c = d.add(elm.Opamp().at((16.4, 6.62)).right().label("U1C"))
+    _wire(d, input_end, u1c.in2)
+    _wire(d, u1c.out, (u1c.out[0], u1c.in1[1]))
+    _wire(d, (u1c.out[0], u1c.in1[1]), u1c.in1)
+    d += elm.Capacitor().at(mid).down(length=1.2).label("C8 6.8n", loc="left")
+    _wire(d, d.here, (u1c.out[0], d.here[1]))
+    _wire(d, (u1c.out[0], d.here[1]), u1c.out)
+    d += elm.Capacitor().at(u1c.in2).down(length=1.15).label("C23 3.9n", loc="right")
+    d += elm.Arrow().down(length=0.35).label("VBIAS_1V5", loc="right")
+    d += elm.Resistor().at(u1c.out).right(length=1.35).label("R12 10k")
     ain0 = d.here
     d += elm.Dot().at(ain0)
     d += elm.Label().at((ain0[0] + 0.15, ain0[1] + 0.52)).label(
         "ADS1256 AIN0", color="#174a7e", fontsize=7, halign="left"
     )
-    d += elm.Capacitor().at(ain0).down(length=1.15)
-    d += elm.Label().at((ain0[0] + 0.42, ain0[1] - 0.55)).label(
-        "C9 22n C0G", fontsize=7, halign="left"
+    d += elm.Capacitor().at(ain0).down(length=1.05)
+    d += elm.Label().at((ain0[0] + 0.42, ain0[1] - 0.5)).label(
+        "C9 2.2n", fontsize=7, halign="left"
     )
-    d += elm.Arrow().down(length=0.4).label("VREF_2V5 / AIN1", loc="right")
+    d += elm.Arrow().down(length=0.35).label("VBIAS_1V5 / AIN1", loc="right")
+    d += elm.Diode().at(ain0).up(length=0.9).label("D3", loc="right")
+    clamp = d.here
+    d += elm.Dot().at(clamp)
+    d += elm.Resistor().at(clamp).up(length=0.85).label("R14 1.21k", loc="right")
+    d += elm.Arrow().up(length=0.3).label("OPA_AVDD_5V", loc="right")
+    d += elm.Resistor().at(clamp).right(length=1.15).label("R15 681", loc="top")
+    d += elm.Ground()
+    d += elm.Capacitor().at(clamp).left(length=0.9).label("C24 100n", loc="bottom")
 
-    # Buffered 2.5 V reference used by every marked node.
-    d += elm.Label().at((0, 3.3)).label("Buffered 2.5V reference", fontsize=10)
+    # Buffered 1.50 V bias used by every marked node.
+    d += elm.Label().at((0, 3.3)).label("Buffered 1.50 V bias", fontsize=10)
     d += elm.Arrow().at((1.2, 2.7)).down(length=0.01).label("OPA_AVDD_5V", loc="left")
     d += elm.Resistor().down(length=1.1)
-    d += elm.Label().at((0.65, 2.15)).label("R4 10k 0.1%", fontsize=7, halign="right")
+    d += elm.Label().at((0.65, 2.15)).label("R4 23.2k 0.1%", fontsize=7, halign="right")
     vref_raw = d.here
     d += elm.Dot().at(vref_raw)
     d += elm.Label().at((vref_raw[0] + 0.3, vref_raw[1] + 0.35)).label(
@@ -164,10 +171,10 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
     _wire(d, (u1d.in1[0], loop_y), u1d.in1)
     d += elm.Dot().at(u1d.out)
     d += elm.Label().at((u1d.out[0] + 0.15, u1d.out[1] + 0.48)).label(
-        "VREF_2V5", color="#174a7e", fontsize=7, halign="left"
+        "VBIAS_1V5", color="#174a7e", fontsize=7, halign="left"
     )
     d += elm.Label().at((5.5, -0.35)).label(
-        "VREF_2V5 drives all marked nodes and ADS1256 AIN1", fontsize=7
+        "VBIAS_1V5 drives all marked nodes and ADS1256 AIN1", fontsize=7
     )
 
     d += elm.Label().at((11.0, 2.85)).label(
@@ -175,7 +182,10 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
         "FB2: USB 5V → OPA_AVDD_5V; C21 10µF + C22 100nF at U1\n"
         "FB1: XIAO 3V3 → AVDD_3V3; C10 10µF + C11/C12 100nF + C13 1µF\n"
         "U2 BLANK_D1_GPIO27: R3 100k pull-up to AVDD_3V3; drive low to receive\n"
-        "ADS1256: AIN0−AIN1, input buffer on, PGA 64, 30kSPS",
+        "R13/R16 pull CS and SYNC/PDWN high; R19/R20 pull SCLK and MOSI low\n"
+        "R17/R18 pull DOUT and DRDY high\n"
+        "ADS1256: AIN0−AIN1, buffer on after offset cal, PGA 64, 30kSPS\n"
+        "AIN2-AIN7 tied to VBIAS_1V5",
         fontsize=7,
         halign="left",
     )

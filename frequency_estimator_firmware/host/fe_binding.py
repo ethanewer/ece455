@@ -5,7 +5,7 @@ Python verification code calls the same C implementation intended for the MCU.
 Estimator variants (all float32 ADC-domain samples in, Hz out):
 
     "zoom"       freq_est_f32    exp-weighted zoom/matched filter (baseline)
-    "fft"        fft_est_f32     zero-padded FFT peak + log-parabolic refine
+    "fft"        fft_est_f32     Goertzel magnitude peak + log-parabolic refine
     "zc"         zc_est_f32      interpolated crossings + WLS mean period
                                  (ruled out at FID SNRs; kept so the
                                  ruling-out is an E2E result)

@@ -65,7 +65,7 @@ raw_3v3 = Net("XIAO_3V3_OUT")
 avdd = Net("AVDD_3V3")
 opamp5 = Net("OPA_AVDD_5V")
 vref_raw = Net("VREF_RAW")
-vref = Net("VREF_2V5")
+vref = Net("VBIAS_1V5")
 coil_hi = Net("COIL_HI")
 protected = Net("PROTECTED")
 pre_in = Net("PRE_IN")
@@ -75,6 +75,8 @@ stage2_n = Net("STAGE2_N")
 stage2 = Net("STAGE2")
 stage3_n = Net("STAGE3_N")
 stage3 = Net("STAGE3")
+sk_mid = Net("SK_MID")
+clamp3 = Net("CLAMP_1V8")
 ads_ain0 = Net("ADS1256_AIN0_SIGNAL")
 ads_ain1 = vref
 blank = Net("BLANK_D1_GPIO27")
@@ -101,13 +103,13 @@ j1[1] += coil_hi
 j1[2] += gnd
 
 # Coupling, current limit, low-leakage clamps, bias, and default-on blanking.
-c5 = capacitor("C5", "1u X7R 25V", "Capacitor_SMD:C_1210_3225Metric")
+c5 = capacitor("C5", "3.3n C0G 2%")
 c5[1] += coil_hi
 c5[2] += protected
 r1 = resistor("R1", "1k 1%")
 r1[1] += protected
 r1[2] += pre_in
-r2 = resistor("R2", "1Meg 1%")
+r2 = resistor("R2", "100k 1%")
 r2[1] += pre_in
 r2[2] += vref
 d1 = part("Device", "D", "D1", "BAS116H low leakage",
@@ -130,14 +132,15 @@ r3[1] += avdd
 r3[2] += blank
 
 # OPA4197 quad on a filtered 5 V rail (its specified minimum is 4.5 V). U1D
-# buffers 2.5 V VREF. U1A through U1C provide about 2000 V/V source-to-ADC
-# gain in the 1.5-2.5 kHz passband, before the ADS1256 internal PGA.
+# buffers a 1.50 V bias, below (V+)-3 V, where the 5.5 nV/sqrt(Hz) density
+# is specified. U1A through U1C provide about 2000 V/V source-to-ADC gain in
+# the 1.5-2.5 kHz passband, before the ADS1256 internal PGA.
 u1 = part("Amplifier_Operational", "OPA4197xPW", "U1", "OPA4197IPWR",
           "Package_SO:TSSOP-14_4.4x5mm_P0.65mm")
 u1[4] += opamp5
 u1[11] += gnd
 
-r4 = resistor("R4", "10k 0.1%")
+r4 = resistor("R4", "23.2k 0.1%")
 r5 = resistor("R5", "10k 0.1%")
 r4[1] += opamp5
 r4[2] += vref_raw
@@ -150,19 +153,20 @@ u1[12] += vref_raw
 u1[13] += vref
 u1[14] += vref
 
-# U1A non-inverting gain 59.0.
+# U1A non-inverting gain 55.9. The input high-pass is C5 with R1+R2.
 u1[3] += pre_in
 u1[2] += stage1_n
 u1[1] += stage1
 r6 = resistor("R6", "1k 0.1%")
-r7 = resistor("R7", "58k 0.1%")
+r7 = resistor("R7", "54.9k 0.1%")
 r6[1] += stage1_n
 r6[2] += vref
 r7[1] += stage1
 r7[2] += stage1_n
 
 # U1B high-pass, 1.516 kHz corner and inverting gain 56.19.
-c7 = capacitor("C7", "100n C0G 2%")
+# 100 nF C0G does not fit in 0603; this part is 1206.
+c7 = capacitor("C7", "100n C0G 5%", "Capacitor_SMD:C_1206_3216Metric")
 r8 = resistor("R8", "1.05k 0.1%")
 r9 = resistor("R9", "59k 0.1%")
 c7[1] += stage1
@@ -174,29 +178,46 @@ u1[5] += vref
 u1[6] += stage2_n
 u1[7] += stage2
 
-# U1C unity-gain inverting low pass, 2.517 kHz feedback pole.
+# U1C unity-gain Sallen-Key low-pass. Pin 10 is IN+, pin 9 is IN- tied to OUT.
 r10 = resistor("R10", "10.2k 0.1%")
 r11 = resistor("R11", "10.2k 0.1%")
-c8 = capacitor("C8", "6.2n C0G 2%")
+c8 = capacitor("C8", "6.8n C0G 2%")
+c23 = capacitor("C23", "3.9n C0G 2%")
 r10[1] += stage2
-r10[2] += stage3_n
-r11[1] += stage3_n
-r11[2] += stage3
-c8[1] += stage3_n
+r10[2] += sk_mid
+r11[1] += sk_mid
+r11[2] += stage3_n
+c8[1] += sk_mid
 c8[2] += stage3
-u1[10] += vref
-u1[9] += stage3_n
+c23[1] += stage3_n
+c23[2] += vref
+u1[10] += stage3_n
+u1[9] += stage3
 u1[8] += stage3
 
-# Differential ADS1256 input. AIN1 is the same buffered 2.5 V reference used
-# by the amplifier chain. PGA=64 gives a nominal differential full scale of
-# +/-2*2.5V/64 = +/-78.125 mV with the module's ADR03 reference.
-r12 = resistor("R12", "1k 0.1%")
-c9 = capacitor("C9", "22n C0G 2%")
+# Differential ADS1256 input. AIN1 is the buffered 1.50 V bias. PGA=64 gives
+# a nominal differential full scale of +/-2*2.5V/64 = +/-78.125 mV with the
+# module's ADR03 reference. D3's cathode is 1.80 V, so a rail-saturated U1C
+# leaves AIN0 below the buffer's AVDD-2 V limit after one BAS116 drop.
+r12 = resistor("R12", "10k 0.1%")
+c9 = capacitor("C9", "2.2n C0G 2%")
 r12[1] += stage3
 r12[2] += ads_ain0
 c9[1] += ads_ain0
 c9[2] += ads_ain1
+r14 = resistor("R14", "1.21k 1%")
+r15 = resistor("R15", "681 1%")
+c24 = capacitor("C24", "100n X7R")
+d3 = part("Device", "D", "D3", "BAS116H low leakage",
+          "Diode_SMD:D_SOD-323_HandSoldering")
+r14[1] += opamp5
+r14[2] += clamp3
+r15[1] += clamp3
+r15[2] += gnd
+c24[1] += clamp3
+c24[2] += gnd
+d3[1] += clamp3   # cathode
+d3[2] += ads_ain0  # anode
 
 # Filtered 3.3 V switch/clamp rail and filtered 5 V OPA4197 rail.
 fb1 = part("Device", "FerriteBead", "FB1", "600R@100MHz 500mA",
@@ -256,6 +277,31 @@ level_buffer("U7", "74AHCT1G125", mcu_pdwn, ads_pdwn, vbus5)
 level_buffer("U8", "74LVC1G125", ads_dout, mcu_miso, raw_3v3)
 level_buffer("U9", "74LVC1G125", ads_drdy, mcu_drdy, raw_3v3)
 
+# Idle defaults while the XIAO pins are high-Z. SYNC/PDWN and CS are
+# active-low on the ADS1256, so the pull-ups hold the converter running
+# and deselected. DOUT and DRDY are high-Z in power-down; their pull-ups
+# keep the LVC inputs from floating.
+r13 = resistor("R13", "100k 1%")
+r16 = resistor("R16", "100k 1%")
+r17 = resistor("R17", "100k 1%")
+r18 = resistor("R18", "100k 1%")
+r13[1] += raw_3v3
+r13[2] += mcu_cs
+r16[1] += raw_3v3
+r16[2] += mcu_pdwn
+r17[1] += vbus5
+r17[2] += ads_dout
+r18[1] += vbus5
+r18[2] += ads_drdy
+# ADS1256 SPI mode keeps SCLK low between bytes. Pull SCLK and MOSI down so
+# the always-enabled AHCT inputs are not floating while the XIAO pins are high-Z.
+r19 = resistor("R19", "100k 1%")
+r20 = resistor("R20", "100k 1%")
+r19[1] += mcu_sclk
+r19[2] += gnd
+r20[1] += mcu_mosi
+r20[2] += gnd
+
 # HiLetgo ADS1256 module headers. Verify physical header order against the
 # purchased board before layout; these are logical interface connectors.
 j2 = part("Connector_Generic", "Conn_01x08", "J2",
@@ -269,8 +315,10 @@ j3 = part("Connector_Generic", "Conn_01x08", "J3",
           "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical")
 j3[1] += ads_ain0
 j3[2] += ads_ain1
+# Unused analog inputs sit at the buffered 1.50 V bias, inside the
+# ADS1256 buffer's allowed range, instead of floating.
 for pin in range(3, 9):
-    NC += j3[pin]
+    j3[pin] += vref
 
 for ref, net in (
     ("TP1", gnd), ("TP2", coil_hi), ("TP3", pre_in), ("TP4", vref),

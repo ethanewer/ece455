@@ -14,9 +14,11 @@ Rcoil source coil_l 14
 Lcoil coil_l coil_hi 22m
 
 * Coupling, clamp-current limit, bias, and default-on shunt blanker.
-C5 coil_hi protected 1u
+* C5 with R1+R2 is a ~480 Hz high-pass in front of the gain, so 50/60 Hz
+* is attenuated before U1A. The 1.5-2.5 kHz measurement band is left intact.
+C5 coil_hi protected 3.3n
 R1 protected pre_in 1k
-R2 pre_in vref 1Meg
+R2 pre_in vref 100k
 D1 0 pre_in BAS116
 D2 pre_in avdd BAS116
 Sblank pre_in vref blank 0 TMUXSW
@@ -44,17 +46,19 @@ Lfb5 opamp_f opamp5 0.95u
 C21 opamp5 0 10u
 C22 opamp5 0 100n
 
-* Half-supply reference buffered by U1D. OPA4197 uses the filtered 5 V rail;
-* its specified minimum supply is 4.5 V, so it is not powered from 3V3_OUT.
-R4 opamp5 vref_raw 10k
+* 1.50 V bias buffered by U1D. On a 5 V rail the OPA4197 specifies
+* 5.5 nV/sqrt(Hz) only for common-mode voltage below (V+)-3 V, which is
+* 2.0 V. 5*10k/(23.2k+10k) = 1.506 V, still below that boundary if USB
+* sags to 4.75 V. The ADS1256 conversion reference stays the module ADR03.
+R4 opamp5 vref_raw 23.2k
 R5 vref_raw 0 10k
 C6 vref_raw 0 10u
 XU1D vref_raw vref vref opamp5 0 OPA4197
 
-* U1A non-inverting preamplifier, gain 59.0.
+* U1A non-inverting preamplifier, gain 55.9.
 XU1A pre_in stage1_n stage1 opamp5 0 OPA4197
 R6 stage1_n vref 1k
-R7 stage1 stage1_n 58k
+R7 stage1 stage1_n 54.9k
 
 * U1B high-pass stage, fc=1.516 kHz and inverting gain 56.19.
 C7 stage1 hp_in 100n
@@ -62,16 +66,27 @@ R8 hp_in stage2_n 1.05k
 R9 stage2 stage2_n 59k
 XU1B vref stage2_n stage2 opamp5 0 OPA4197
 
-* U1C unity-gain low-pass stage, feedback pole 2.517 kHz.
-R10 stage2 stage3_n 10.2k
-R11 stage3_n stage3 10.2k
-C8 stage3_n stage3 6.2n
-XU1C vref stage3_n stage3 opamp5 0 OPA4197
+* U1C unity-gain Sallen-Key low-pass, natural frequency 3.03 kHz.
+* The second pole is what rejects energy near the 30 kHz sample rate.
+R10 stage2 sk_mid 10.2k
+R11 sk_mid stage3_n 10.2k
+C8 sk_mid stage3 6.8n
+C23 stage3_n vref 3.9n
+XU1C stage3_n stage3 stage3 opamp5 0 OPA4197
 
-* Differential ADS1256 input. AIN1 is buffered 2.5 V. R12/C9 add a
+* Differential ADS1256 input. AIN1 is the buffered 1.50 V bias. R12/C9 add a
 * 7.23 kHz differential input pole. The module's input buffer must be enabled.
-R12 stage3 ads_ain0 1k
-C9 ads_ain0 vref 22n
+* D3's cathode is 1.80 V, so the diode is reverse biased at the 1.50 V signal
+* bias. A U1C output at the 5 V rail can raise AIN0 only to that cathode
+* voltage plus one diode drop. The BAS116 maximum is 0.9 V at 1 mA, and the
+* fault current through 10 kohm is well below 1 mA, so AIN0 stays under the
+* buffer limit AVDD-2 V = 3.0 V. The BAS116 Is=2 pA model understates that drop.
+R12 stage3 ads_ain0 10k
+C9 ads_ain0 vref 2.2n
+R14 opamp5 clamp3 1.21k
+R15 clamp3 0 681
+C24 clamp3 0 100n
+D3 ads_ain0 clamp3 BAS116
 Rads ads_ain0 vref 1G
 Cads ads_ain0 vref 5p
 
@@ -105,8 +120,9 @@ Cout out 0 2p
 
 .options plotwinsize=0
 .ac dec 1000 100 100k
-.noise V(pga_out) Vfid dec 1000 1500 2500
-* ADS1256 converter noise, INL, clock error, and alias response are not in this
-* compact model. Verify them on the purchased module at PGA=64 and 30 kSPS.
+* Integrate through the ADS1256's 6.106 kHz digital-filter bandwidth at
+* 30 kSPS (fCLK = 7.68 MHz). Energy above that bandwidth, and the converter's
+* own noise, INL, clock error, and alias response, are not in this model.
+.noise V(pga_out) Vfid dec 200 100 6106
 .save all
 .end

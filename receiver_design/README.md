@@ -5,16 +5,16 @@ This directory defines the receiver from the external FID sensing pair through a
 ## Signal path
 
 1. `J1` connects the nominal 14 ohm, 22 mH series-opposed sensing pair. The input has no fixed tuning capacitor, because a tank tuned for the 2.1 kHz development field would reject the roughly 1.7 kHz deployment signal.
-2. `C5` AC-couples the signal, `R1` limits clamp current, `R2` biases the input to `VREF_2V5`, and `D1` and `D2` clamp overvoltage.
-3. `U2`, a TMUX1101, shorts the protected input to the 2.5 V reference while `BLANK_D1_GPIO27` is high. `R3` makes blanking the power-up default.
-4. `U1A`, one channel of an OPA4197, is a non-inverting preamplifier. `R6` and `R7` set gain to 59.0 V/V.
-5. `U1B`, `C7`, `R8`, and `R9` form a 1.516 kHz high-pass stage with high-frequency gain minus 56.19 V/V.
-6. `U1C`, `R10`, `R11`, and `C8` form a unity-gain inverting stage with a 2.517 kHz low-pass pole.
-7. `R12` and `C9` form a 7.23 kHz differential input pole. The signal goes to ADS1256 `AIN0`; buffered `VREF_2V5` goes to `AIN1`.
+2. `C5` and `R2` form a high-pass near 480 Hz in front of the amplifier, `R1` limits clamp current, and `D1` and `D2` clamp overvoltage. The early pole attenuates 50/60 Hz before the gain stages. A notch at 1.8 kHz is not fitted: that frequency is a valid proton signal near 42 µT, inside the measurement band. Uniform magnetic pickup at that frequency is what the series-opposed pair rejects.
+3. `U2`, a TMUX1101, shorts the protected input to the 1.50 V bias while `BLANK_D1_GPIO27` is high. `R3` makes blanking the power-up default.
+4. `U1A`, one channel of an OPA4197, is a non-inverting preamplifier. `R6` and `R7` set gain to 55.9 V/V.
+5. `U1B`, `C7`, `R8`, and `R9` form a 1.516 kHz high-pass stage with high-frequency gain minus 56.19 V/V. `C7` is 100 nF C0G in 1206; that value does not exist in 0603.
+6. `U1C`, `R10`, `R11`, `C8`, and `C23` form a unity-gain Sallen-Key low-pass with a 3.03 kHz natural frequency. Simulated gain at 30 kHz is about 7.3 V/V, 49 dB below the passband. The ADS1256 digital filter's −3 dB bandwidth at 30 kSPS is 6.1 kHz; this analog pole adds rejection above that bandwidth.
+7. `R12` and `C9` form a 7.23 kHz differential input pole. The signal goes to ADS1256 `AIN0`; the buffered 1.50 V bias goes to `AIN1`. `R14` and `R15` hold D3's cathode at 1.80 V. The signal bias reverse-biases D3. A `U1C` output stuck at 5 V can raise `AIN0` only by one BAS116 drop above 1.80 V, which remains below the buffer limit of AVDD−2 V (3.0 V). The BAS116 forward voltage is 0.9 V maximum at 1 mA, and the fault current through 10 kΩ is below that. `AIN2` through `AIN7` are tied to the same 1.50 V bias.
 8. The ADS1256 input buffer is enabled and its PGA is set to 64. With the module's nominal 2.5 V ADR03 reference, differential full scale is plus or minus 78.125 mV.
 9. The ADS1256 sends 30 kSPS data to the XIAO RP2350 over SPI. Target firmware must feed samples to the estimator and report frequency and field through USB CDC.
 
-The resistor-set gain above the high-pass pole is 3315 V/V. Attenuation from the 1.516 kHz high-pass, 2.517 kHz low-pass, and 7.23 kHz ADC input pole makes the simulated coil-source-to-ADC differential gain approximately 2000 V/V in the intended band. This gain excludes the ADS1256 internal PGA. The untuned input and active bandpass cover both the roughly 1.7 kHz deployment frequency and roughly 2.1 kHz development frequency. These are simulated nominal values.
+The resistor-set gain above the high-pass poles is 55.9 × 56.19 = 3141 V/V. Attenuation from the input high-pass, the 1.516 kHz high-pass, the Sallen-Key low-pass, and the 7.23 kHz ADC input pole leaves the simulated coil-source-to-ADC differential gain near 2000 V/V in the intended band. This gain excludes the ADS1256 internal PGA. The untuned input and active bandpass cover both the roughly 1.7 kHz deployment frequency and roughly 2.1 kHz development frequency. These are simulated nominal values.
 
 ## ADC module interface
 
@@ -32,7 +32,7 @@ The XIAO uses:
 | SPI0 MISO | D9 | GPIO4 |
 | SPI0 MOSI | D10 | GPIO3 |
 
-The ADC module uses 5 V digital I/O. Four SN74AHCT1G125 buffers translate XIAO SCLK, MOSI, CS, and PDWN from 3.3 V to 5 V. Two SN74LVC1G125 buffers translate DOUT and DRDY from 5 V to 3.3 V. Their active-low output-enable pins are tied to ground.
+The ADC module uses 5 V digital I/O. Four SN74AHCT1G125 buffers translate XIAO SCLK, MOSI, CS, and PDWN from 3.3 V to 5 V. Two SN74LVC1G125 buffers translate DOUT and DRDY from 5 V to 3.3 V. Their active-low output-enable pins are tied to ground. `R13` and `R16` pull CS and SYNC/PDWN high while the XIAO pins are high-Z, so the converter idles running and deselected. Both of those ADS1256 pins are active-low. `R19` and `R20` pull SCLK and MOSI low so those AHCT inputs are not floating; the ADS1256 clocks data with SCLK idle-low. `R17` and `R18` pull DOUT and DRDY high so the LVC inputs are not floating while the ADC output drivers are high-Z.
 
 `J2` and `J3` describe the module's logical digital and analog headers. Verify the physical pin order against the exact purchased board before laying out an adapter. Do not assume that the logical connector numbering matches the module silkscreen. `C15` through `C20` provide one local 100 nF bypass capacitor for each level-shifter IC.
 
@@ -42,7 +42,7 @@ This revision is USB-powered. The XIAO RP2350 receives 5 V through its onboard U
 
 The XIAO's onboard regulator produces `3V3_OUT`. `FB1` and `C10` through `C13` filter that rail into `AVDD_3V3` for the TMUX1101 and input clamps. The two LVC level shifters use unfiltered XIAO 3.3 V so their switching currents do not flow through the analog ferrite.
 
-The OPA4197 is not a 3.3 V part: its specified minimum supply is 4.5 V. `FB2`, `C21`, and `C22` therefore filter USB VBUS into `OPA_AVDD_5V` for U1. `U1D` buffers the 2.5 V half-supply reference made by `R4`, `R5`, and `C6`. This also puts ADS1256 AIN1 at the module reference midpoint.
+The OPA4197 is not a 3.3 V part: its specified minimum supply is 4.5 V. `FB2`, `C21`, and `C22` therefore filter USB VBUS into `OPA_AVDD_5V` for U1. `U1D` buffers the 1.50 V bias made by `R4` (23.2 kΩ), `R5` (10 kΩ), and `C6`. On a 5 V rail that bias is below (V+)−3 V, the common-mode region where TI specifies the 5.5 nV/√Hz density. The module's ADR03 remains the 2.5 V conversion reference; it is not this bias.
 
 The former battery connector was removed because this ADS1256 module requires 5 V and the XIAO battery input does not provide a 5 V module rail. Do not inject an external 5 V source into VBUS while USB is connected.
 
@@ -67,7 +67,8 @@ Run `make figures` to regenerate plots, `make kicad` to regenerate and check KiC
 - Data rate: 30 kSPS
 - Data format: signed 24-bit two's complement
 - DRDY: use falling edges to pace SPI reads
-- Calibration: issue self-calibration after setting buffer, PGA, and data rate
+- Calibration: run SELFCAL with the input buffer off, then enable the buffer and run SELFOCAL only. Self-gain calibration with the buffer on is not valid here, because VREFN is 0 V and that is the bottom of the buffer's input range
+- SYNC/PDWN: hold D4 high while converting. The pin is active-low; `R16` already idles it high
 - Receiver state: drive D1 low only after the 200 ms blanking interval
 
 The ADS1256 does not offer a 20 kSPS data-rate setting. Estimator code must use the actual 30 kSPS rate or resample with a tested digital filter. Clock error changes the measured field scale, so calibrate or measure the ADS1256 module clock and keep that error separate from cycle-to-cycle noise.

@@ -116,12 +116,38 @@ def input_noise_density(f: np.ndarray, r_coil: float, l_coil: float,
     return np.sqrt(e_coil**2 + e_amp**2 + (i_amp * np.abs(z_src))**2)
 
 
+def front_end_noise_density(f, r_coil=14.0, l_coil=22e-3,
+                            r_series=1.0e3, r_bias=100.0e3, c_couple=3.3e-9,
+                            e_amp=5.5e-9, i_amp=1.5e-15) -> np.ndarray:
+    """Coil-EMF-referred density of the active input network, V/sqrt(Hz).
+
+    r_series and r_bias are the receiver's R1 and R2. c_couple is C5.
+    e_amp defaults to the OPA4197 density specified below (V+)-3 V.
+    The op-amp voltage noise is referred through the passive divider; the
+    current noise flows through the series impedance. This is the input
+    network only, not the later bandpass gain.
+    """
+    f = np.asarray(f, dtype=float)
+    w = 2.0 * np.pi * f
+    z_series = (r_coil + 1j * w * l_coil + 1.0 / (1j * w * c_couple)
+                + r_series)
+    gain = r_bias / (z_series + r_bias)
+    e_coil = np.sqrt(4.0 * K_B * T_AMBIENT * r_coil)
+    e_series = np.sqrt(4.0 * K_B * T_AMBIENT * r_series)
+    e_bias = np.sqrt(4.0 * K_B * T_AMBIENT * r_bias)
+    total = (e_coil**2 + e_series**2
+             + (e_bias * np.abs(z_series / r_bias))**2
+             + (e_amp / np.abs(gain))**2
+             + (i_amp * np.abs(z_series))**2)
+    return np.sqrt(total)
+
+
 def input_noise_rms(r_coil=14.0, l_coil=22e-3, e_amp=1.4e-9, i_amp=0.1e-12,
                     f_lo=None, f_hi=None) -> float:
-    """Untuned source-referred RMS noise over a rectangular band [V].
+    """Coil-plus-amplifier RMS noise over a rectangular band [V].
 
-    This does not model the active receiver's bandpass transfer function.
-    Use the SPICE noise analysis for output-referred receiver calculations.
+    This omits R1, R2, and C5. Use front_end_noise_density for that input
+    network, and the SPICE .noise analysis for the full receiver.
     """
     if f_lo is None:
         f_lo = NOISE_BAND[0]

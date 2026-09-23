@@ -2,8 +2,7 @@
  * freq_est.c -- portable FID frequency estimator core (C1).
  *
  * This is the production estimator implementation. A NumPy mirror in
- * The NumPy mirror under frequency_estimator_firmware/host exists only for
- * debugging. Host tests
+ * frequency_estimator_firmware/host exists only for debugging. Host tests
  * cross-check both implementations on the same golden vectors.
  *
  * Pipeline:
@@ -17,16 +16,18 @@
  *   4. windowed-sinc FIR lowpass (cutoff fs/(2*FE_DEC), Hamming window,
  *      DC gain exactly 1) + decimate by FE_DEC -> complex envelope z_b;
  *   5. tau from block maxima of |z_b| (m/256 blocks), amplitude-gated log
- *      fit down to 0.5 of peak, clipped to [0.1, 20] s -- the analog of
- *      estimators._estimate_tau on the true complex envelope;
+ *      fit down to 0.5 of peak, clipped to [0.1, 20] s;
  *   6. weighted zoom: S(df) = |sum_k w_k z_b[k] e^{-j2 pi df t_b[k]}|^2
  *      with w = exp(-t_b/tau) over +/-FE_SPAN_HZ at FE_STEP_HZ;
- *      log-parabolic refine.
+ *      log-parabolic refine. An endpoint peak is FE_ERR_SEED.
+ *
+ * The full-rate record is consumed on the fly. Only the decimated envelope
+ * is retained, which is what keeps a 1.5 s / 30 kSPS record inside the
+ * RP2350 SRAM budget.
  *
  * Numeric modes (one compile switch; CI tests both on the same vectors):
- *   default          : float32 signal path (M4F/M7 class)
+ *   default          : float32 signal path (M33 / M4F / M7 class)
  *   -DFE_FIXED_POINT : Q31 signal path, int64 accumulators, table NCO
- *                      (M0+ class, no FPU)
  */
 #include "freq_est.h"
 
@@ -38,8 +39,16 @@
 
 #define FE_NGRID   2001                       /* 2*20/0.02 + 1 */
 #define FE_OUT_MAX (FE_MAX_N / FE_DEC)
+/*
+ * n_blk = m / floor(m/256) is at most 511 for every m >= 256. A smaller
+ * buffer used to skip the decay fit on many legal lengths and silently
+ * substitute tau = 1 s.
+ */
+#define FE_ENV_MAX 512
 
 static double fir[FE_FIR_TAPS];
+
+typedef double (*fe_sample_fn)(int index, void *ctx);
 
 static void fe_fir_init(double fs)
 {
@@ -79,51 +88,70 @@ static double fe_log_parabolic(const double *s, int k)
     return d;
 }
 
-/* ================================================================== */
-/* float32 mode                                                        */
-/* ================================================================== */
-#ifndef FE_FIXED_POINT
-
-void fe_zoom_point_f32(const float *zre, const float *zim, const float *w,
-                       int m, double tb0, double dtb, double df,
-                       double *s_out)
+/* Coarse seed shared by the float and Q31 builds, including the
+ * log-parabolic correction. sample(i) is the centered waveform. */
+static int fe_coarse_seed(fe_sample_fn sample, void *ctx, int nseed,
+                          double fs, double f_lo, double f_hi, double *f0_out)
 {
-    double e_re = cos(-2.0 * M_PI * df * tb0);
-    double e_im = sin(-2.0 * M_PI * df * tb0);
-    double d_re = cos(-2.0 * M_PI * df * dtb);
-    double d_im = sin(-2.0 * M_PI * df * dtb);
-    double sr = 0.0, si = 0.0;
-    for (int k = 0; k < m; k++) {
-        double zr = (double)zre[k], zi = (double)zim[k], wk = (double)w[k];
-        sr += wk * (zr * e_re - zi * e_im);
-        si += wk * (zr * e_im + zi * e_re);
-        double n_re = e_re * d_re - e_im * d_im;
-        e_im = e_re * d_im + e_im * d_re;
-        e_re = n_re;
+    double df_bin = fs / (double)nseed;
+    int k_lo = (int)ceil(f_lo / df_bin);
+    int k_hi = (int)floor(f_hi / df_bin);
+    if (k_lo < 1 || k_hi <= k_lo + 1) {
+        return FE_ERR_SEED;
     }
-    *s_out = sr * sr + si * si;
+    double best = -1.0;
+    int best_k = k_lo;
+    for (int k = k_lo; k <= k_hi; k++) {
+        double c1 = 2.0 * cos(2.0 * M_PI * (double)k / (double)nseed);
+        double s1 = 0.0, s2 = 0.0;
+        for (int i = 0; i < nseed; i++) {
+            double s0 = sample(i, ctx) + c1 * s1 - s2;
+            s2 = s1;
+            s1 = s0;
+        }
+        double p = s1 * s1 + s2 * s2 - c1 * s1 * s2;
+        if (p > best) {
+            best = p;
+            best_k = k;
+        }
+    }
+    if (best_k == k_lo || best_k == k_hi) {
+        *f0_out = (double)best_k * df_bin;
+        return FE_ERR_SEED;
+    }
+    double s3[3];
+    for (int q = 0; q < 3; q++) {
+        double f = (double)(best_k + q - 1) * df_bin;
+        double sr = 0.0, si = 0.0;
+        for (int i = 0; i < nseed; i++) {
+            double ang = -2.0 * M_PI * f * (double)i / fs;
+            double x = sample(i, ctx);
+            sr += x * cos(ang);
+            si += x * sin(ang);
+        }
+        s3[q] = sr * sr + si * si;
+    }
+    *f0_out = (double)best_k * df_bin + fe_log_parabolic(s3, 1) * df_bin;
+    return FE_OK;
 }
 
-/* tau from block maxima of the complex envelope (dtb = decimated dt).
- * blk = m/256 -> n_blk ~ 256 blocks for any m (bugbot: the env buffer must
- * hold the block count, which is bounded by ~257, not by FE_OUT_MAX/16). */
-static double fe_tau_from_envelope_f32(const float *zre, const float *zim,
-                                       int m, double dtb)
+typedef double (*fe_mag_fn)(int index, void *ctx);
+
+static double fe_tau(fe_mag_fn mag, void *ctx, int m, double dtb)
 {
-    static double env[FE_OUT_MAX / 12 + 4];   /* >= n_blk for all m */
+    static double env[FE_ENV_MAX];
     int blk = m / 256;
     int n_blk = blk > 0 ? m / blk : 0;
-    if (n_blk < 8 || n_blk > (int)(sizeof(env) / sizeof(env[0]))) {
+    if (n_blk < 8 || n_blk > FE_ENV_MAX) {
         return 1.0;
     }
     for (int b = 0; b < n_blk; b++) {
         double e = 0.0;
+        int begin = b * blk;
         for (int j = 0; j < blk; j++) {
-            int k = b * blk + j;
-            double mag = sqrt((double)zre[k] * zre[k]
-                              + (double)zim[k] * zim[k]);
-            if (mag > e) {
-                e = mag;
+            double sample = mag(begin + j, ctx);
+            if (sample > e) {
+                e = sample;
             }
         }
         env[b] = e;
@@ -174,90 +202,116 @@ static double fe_tau_from_envelope_f32(const float *zre, const float *zim,
     return tau;
 }
 
+/* ================================================================== */
+/* float32 mode                                                        */
+/* ================================================================== */
+#ifndef FE_FIXED_POINT
+
+struct fe_f32_ctx {
+    const float *v;
+    double mean;
+};
+
+static double fe_f32_at(int index, void *ctx)
+{
+    struct fe_f32_ctx *c = ctx;
+    return (double)(float)((double)c->v[index] - c->mean);
+}
+
+struct fe_f32_env {
+    const float *zre;
+    const float *zim;
+};
+
+static double fe_f32_mag(int index, void *ctx)
+{
+    struct fe_f32_env *c = ctx;
+    double zr = (double)c->zre[index];
+    double zi = (double)c->zim[index];
+    return sqrt(zr * zr + zi * zi);
+}
+
+void fe_zoom_point_f32(const float *zre, const float *zim, const float *w,
+                       int m, double tb0, double dtb, double df,
+                       double *s_out)
+{
+    /* Single-precision rotator and accumulator. The RP2350 FPU is
+     * single precision; a double sum here is software-emulated. */
+    float e_re = (float)cos(-2.0 * M_PI * df * tb0);
+    float e_im = (float)sin(-2.0 * M_PI * df * tb0);
+    float d_re = (float)cos(-2.0 * M_PI * df * dtb);
+    float d_im = (float)sin(-2.0 * M_PI * df * dtb);
+    float sr = 0.0f, si = 0.0f;
+    for (int k = 0; k < m; k++) {
+        float zr = zre[k], zi = zim[k], wk = w[k];
+        sr += wk * (zr * e_re - zi * e_im);
+        si += wk * (zr * e_im + zi * e_re);
+        float n_re = e_re * d_re - e_im * d_im;
+        e_im = e_re * d_im + e_im * d_re;
+        e_re = n_re;
+    }
+    *s_out = (double)sr * (double)sr + (double)si * (double)si;
+}
+
 int freq_est_f32(const float *v, int n, double fs, double t0,
                  double f_lo, double f_hi, double *out_hz)
 {
     if (n < 512 || n > FE_MAX_N) {
         return FE_ERR_INPUT;
     }
-    static float x[FE_MAX_N];
-    static float zfre[FE_MAX_N], zfim[FE_MAX_N];
     static float zbre[FE_OUT_MAX], zbim[FE_OUT_MAX], w[FE_OUT_MAX];
     static double sgrid[FE_NGRID];
+    float zr_line[FE_FIR_TAPS], zi_line[FE_FIR_TAPS];
 
-    /* 1. mean removal. */
     double mean = 0.0;
     for (int i = 0; i < n; i++) {
         mean += (double)v[i];
     }
     mean /= (double)n;
-    for (int i = 0; i < n; i++) {
-        x[i] = (float)((double)v[i] - mean);
-    }
 
-    /* 2. coarse seed: Goertzel scan + log-parabolic refine. */
     fe_fir_init(fs);
+    struct fe_f32_ctx samples = {v, mean};
     int nseed = n < FE_SEED_WINDOW ? n : FE_SEED_WINDOW;
-    double df_bin = fs / (double)nseed;
-    int k_lo = (int)ceil(f_lo / df_bin);
-    int k_hi = (int)floor(f_hi / df_bin);
-    if (k_lo < 1 || k_hi <= k_lo + 1) {
-        return FE_ERR_SEED;
-    }
-    double best = -1.0;
-    int best_k = k_lo;
-    for (int k = k_lo; k <= k_hi; k++) {
-        double c1 = 2.0 * cos(2.0 * M_PI * (double)k / (double)nseed);
-        double s1 = 0.0, s2 = 0.0;
-        for (int i = 0; i < nseed; i++) {
-            double s0 = (double)x[i] + c1 * s1 - s2;
-            s2 = s1;
-            s1 = s0;
-        }
-        double p = s1 * s1 + s2 * s2 - c1 * s1 * s2;
-        if (p > best) {
-            best = p;
-            best_k = k;
-        }
-    }
-    double f0;
-    if (best_k == k_lo || best_k == k_hi) {
-        f0 = (double)best_k * df_bin;          /* can't refine at the edge */
-    } else {
-        double s3[3];
-        for (int q = 0; q < 3; q++) {
-            double f = (double)(best_k + q - 1) * df_bin;
-            double sr = 0.0, si = 0.0;
-            for (int i = 0; i < nseed; i++) {
-                double ang = -2.0 * M_PI * f * (double)i / fs;
-                sr += (double)x[i] * cos(ang);
-                si += (double)x[i] * sin(ang);
-            }
-            s3[q] = sr * sr + si * si;
-        }
-        f0 = (double)best_k * df_bin + fe_log_parabolic(s3, 1) * df_bin;
+    double f0 = 0.0;
+    int seed_rc = fe_coarse_seed(fe_f32_at, &samples, nseed, fs, f_lo, f_hi,
+                                 &f0);
+    if (seed_rc != FE_OK) {
+        return seed_rc;
     }
 
-    /* 3. NCO mix to baseband. */
     double e_re = cos(-2.0 * M_PI * f0 * t0);
     double e_im = sin(-2.0 * M_PI * f0 * t0);
     double d_re = cos(-2.0 * M_PI * f0 / fs);
     double d_im = sin(-2.0 * M_PI * f0 / fs);
+    int filled = 0, base = 0, m = 0;
     for (int i = 0; i < n; i++) {
-        zfre[i] = (float)((double)x[i] * e_re);
-        zfim[i] = (float)((double)x[i] * e_im);
+        float x = (float)((double)v[i] - mean);
+        float zr = (float)((double)x * e_re);
+        float zi = (float)((double)x * e_im);
+        if (filled < FE_FIR_TAPS) {
+            zr_line[filled] = zr;
+            zi_line[filled] = zi;
+            filled++;
+        } else {
+            zr_line[base] = zr;
+            zi_line[base] = zi;
+            base = (base + 1) % FE_FIR_TAPS;
+        }
         double n_re = e_re * d_re - e_im * d_im;
         e_im = e_re * d_im + e_im * d_re;
         e_re = n_re;
-    }
-
-    /* 4. FIR lowpass + decimate. */
-    int m = 0;
-    for (int k = 0; k + FE_FIR_TAPS <= n; k += FE_DEC) {
+        if (i < FE_FIR_TAPS - 1 ||
+            ((i - (FE_FIR_TAPS - 1)) % FE_DEC) != 0) {
+            continue;
+        }
+        if (m >= FE_OUT_MAX) {
+            return FE_ERR_INPUT;
+        }
         double sr = 0.0, si = 0.0;
         for (int j = 0; j < FE_FIR_TAPS; j++) {
-            sr += fir[j] * (double)zfre[k + j];
-            si += fir[j] * (double)zfim[k + j];
+            int idx = (base + j) % FE_FIR_TAPS;
+            sr += fir[j] * (double)zr_line[idx];
+            si += fir[j] * (double)zi_line[idx];
         }
         zbre[m] = (float)sr;
         zbim[m] = (float)si;
@@ -265,10 +319,9 @@ int freq_est_f32(const float *v, int n, double fs, double t0,
     }
     double dtb = (double)FE_DEC / fs;
 
-    /* 5. tau from the complex envelope. */
-    double tau = fe_tau_from_envelope_f32(zbre, zbim, m, dtb);
+    struct fe_f32_env envelope = {zbre, zbim};
+    double tau = fe_tau(fe_f32_mag, &envelope, m, dtb);
 
-    /* 6. weighted zoom grid + parabolic refine. */
     for (int k = 0; k < m; k++) {
         w[k] = (float)exp(-(t0 + (double)k * dtb) / tau);
     }
@@ -283,7 +336,7 @@ int freq_est_f32(const float *v, int n, double fs, double t0,
     }
     if (best_g == 0 || best_g == ng - 1) {
         *out_hz = f0 - FE_SPAN_HZ + (double)best_g * FE_STEP_HZ;
-        return FE_OK;
+        return FE_ERR_SEED;
     }
     double d = fe_log_parabolic(sgrid, best_g);
     *out_hz = f0 + (-FE_SPAN_HZ + (double)best_g * FE_STEP_HZ)
@@ -331,149 +384,101 @@ static void fe_nco_cossin(uint32_t ph, int32_t *c_out, int32_t *s_out)
     *c_out = (int32_t)(a2 + (((int64_t)(b2 - a2) * (int64_t)frac) >> 8));
 }
 
+struct fe_q_ctx {
+    const int32_t *v;
+    int32_t mean;
+};
+
+static double fe_q_at(int index, void *ctx)
+{
+    struct fe_q_ctx *c = ctx;
+    return (double)(c->v[index] - c->mean);
+}
+
+struct fe_q_env {
+    const int32_t *zre;
+    const int32_t *zim;
+};
+
+static double fe_q_mag(int index, void *ctx)
+{
+    struct fe_q_env *c = ctx;
+    double zr = (double)c->zre[index];
+    double zi = (double)c->zim[index];
+    return sqrt(zr * zr + zi * zi);
+}
+
 int freq_est_fixed(const int32_t *v, int n, double fs, double t0,
                    double f_lo, double f_hi, double *out_hz)
 {
     if (n < 512 || n > FE_MAX_N) {
         return FE_ERR_INPUT;
     }
-    static int32_t x[FE_MAX_N];
-    static int32_t zfre[FE_MAX_N], zfim[FE_MAX_N];
     static int32_t zbre[FE_OUT_MAX], zbim[FE_OUT_MAX], w[FE_OUT_MAX];
     static int32_t fir_q[FE_FIR_TAPS];
-    /* blk = m/256, so n_blk can exceed FE_OUT_MAX/16. Match the float
-     * path's bound and reject any future configuration that exceeds it. */
-    static double env[FE_OUT_MAX / 12 + 4];
     static double sgrid[FE_NGRID];
+    int32_t zr_line[FE_FIR_TAPS], zi_line[FE_FIR_TAPS];
 
-    /* 1. mean removal (int64 running sum). */
     int64_t mean_acc = 0;
     for (int i = 0; i < n; i++) {
         mean_acc += v[i];
     }
     int32_t mean32 = (int32_t)(mean_acc / n);
-    for (int i = 0; i < n; i++) {
-        x[i] = v[i] - mean32;
-    }
 
-    /* 2. coarse seed: Goertzel on the leading window, computed in double
-     * (once per record; the fixed-point requirement targets the streamed
-     * signal path, per the MCU research doc's Q15 pattern). */
     fe_fir_init(fs);
+    struct fe_q_ctx samples = {v, mean32};
     int nseed = n < FE_SEED_WINDOW ? n : FE_SEED_WINDOW;
-    double df_bin = fs / (double)nseed;
-    int k_lo = (int)ceil(f_lo / df_bin);
-    int k_hi = (int)floor(f_hi / df_bin);
-    if (k_lo < 1 || k_hi <= k_lo + 1) {
-        return FE_ERR_SEED;
+    double f0 = 0.0;
+    int seed_rc = fe_coarse_seed(fe_q_at, &samples, nseed, fs, f_lo, f_hi,
+                                 &f0);
+    if (seed_rc != FE_OK) {
+        return seed_rc;
     }
-    double best = -1.0;
-    int best_k = k_lo;
-    for (int k = k_lo; k <= k_hi; k++) {
-        double c1 = 2.0 * cos(2.0 * M_PI * (double)k / (double)nseed);
-        double s1 = 0.0, s2 = 0.0;
-        for (int i = 0; i < nseed; i++) {
-            double s0 = (double)x[i] + c1 * s1 - s2;
-            s2 = s1;
-            s1 = s0;
-        }
-        double p = s1 * s1 + s2 * s2 - c1 * s1 * s2;
-        if (p > best) {
-            best = p;
-            best_k = k;
-        }
-    }
-    double f0 = (double)best_k * df_bin;
 
-    /* 3. NCO mix (table NCO, uint32 phase accumulator). */
     fe_nco_init();
-    uint32_t ph = (uint32_t)((t0 * f0 - floor(t0 * f0)) * 4294967296.0);
-    uint32_t dph = (uint32_t)(f0 / fs * FE_FRAC); /* (uint64)(f0 / fs * 2^32) */
-    for (int i = 0; i < n; i++) {
-        int32_t s, c;
-        fe_nco_cossin(ph, &c, &s);
-        zfre[i] = (int32_t)(((int64_t)x[i] * c) >> 31);
-        zfim[i] = (int32_t)(-(((int64_t)x[i] * s) >> 31));
-        ph += dph;
-    }
-
-    /* 4. FIR (Q31 coefficients) + decimate. */
     for (int j = 0; j < FE_FIR_TAPS; j++) {
         fir_q[j] = (int32_t)(fir[j] * 2147483647.0);
     }
-    int m = 0;
-    for (int k = 0; k + FE_FIR_TAPS <= n; k += FE_DEC) {
+    uint32_t ph = (uint32_t)((t0 * f0 - floor(t0 * f0)) * 4294967296.0);
+    uint32_t dph = (uint32_t)(f0 / fs * FE_FRAC);
+    int filled = 0, base = 0, m = 0;
+    for (int i = 0; i < n; i++) {
+        int32_t s, c;
+        fe_nco_cossin(ph, &c, &s);
+        int32_t x = v[i] - mean32;
+        int32_t zr = (int32_t)(((int64_t)x * c) >> 31);
+        int32_t zi = (int32_t)(-(((int64_t)x * s) >> 31));
+        if (filled < FE_FIR_TAPS) {
+            zr_line[filled] = zr;
+            zi_line[filled] = zi;
+            filled++;
+        } else {
+            zr_line[base] = zr;
+            zi_line[base] = zi;
+            base = (base + 1) % FE_FIR_TAPS;
+        }
+        ph += dph;
+        if (i < FE_FIR_TAPS - 1 ||
+            ((i - (FE_FIR_TAPS - 1)) % FE_DEC) != 0) {
+            continue;
+        }
+        if (m >= FE_OUT_MAX) {
+            return FE_ERR_INPUT;
+        }
         int64_t sr = 0, si = 0;
         for (int j = 0; j < FE_FIR_TAPS; j++) {
-            sr += (int64_t)fir_q[j] * zfre[k + j];
-            si += (int64_t)fir_q[j] * zfim[k + j];
+            int idx = (base + j) % FE_FIR_TAPS;
+            sr += (int64_t)fir_q[j] * zr_line[idx];
+            si += (int64_t)fir_q[j] * zi_line[idx];
         }
         zbre[m] = (int32_t)(sr >> 31);
         zbim[m] = (int32_t)(si >> 31);
         m++;
     }
 
-    /* 5. tau from block maxima of |z_b| (magnitudes in double of Q31). */
-    int blk = m / 256;
-    int n_blk = blk > 0 ? m / blk : 0;
-    double tau = 1.0;
-    if (n_blk >= 8 &&
-        n_blk <= (int)(sizeof(env) / sizeof(env[0]))) {
-        for (int b = 0; b < n_blk; b++) {
-            double e = 0.0;
-            for (int j = 0; j < blk; j++) {
-                int k = b * blk + j;
-                double mag = sqrt((double)zbre[k] * zbre[k]
-                                  + (double)zbim[k] * zbim[k]);
-                if (mag > e) {
-                    e = mag;
-                }
-            }
-            env[b] = e;
-        }
-        double mx = env[0];
-        for (int b = 1; b < n_blk; b++) {
-            if (env[b] > mx) {
-                mx = env[b];
-            }
-        }
-        if (mx > 0.0) {
-            int end = n_blk;
-            for (int b = 0; b < n_blk; b++) {
-                if (env[b] < 0.5 * mx) {
-                    end = b;
-                    break;
-                }
-            }
-            if (end >= 8) {
-                double sx = 0.0, sy = 0.0, sxx = 0.0, sxy = 0.0;
-                for (int b = 0; b < end; b++) {
-                    double t = (b + 0.5) * (double)blk * ((double)FE_DEC / fs);
-                    double y = log(env[b] > 0.0 ? env[b] : 1e-300);
-                    sx += t;
-                    sy += y;
-                    sxx += t * t;
-                    sxy += t * y;
-                }
-                double den = (double)end * sxx - sx * sx;
-                if (den != 0.0) {
-                    double slope = ((double)end * sxy - sx * sy) / den;
-                    if (slope < 0.0) {
-                        tau = -1.0 / slope;
-                        if (tau < 0.1) {
-                            tau = 0.1;
-                        }
-                        if (tau > 20.0) {
-                            tau = 20.0;
-                        }
-                    }
-                }
-            }
-        }
-    }
+    struct fe_q_env envelope = {zbre, zbim};
+    double tau = fe_tau(fe_q_mag, &envelope, m, (double)FE_DEC / fs);
 
-    /* 6. weighted zoom grid: Q31 weights, int64 accumulators. Per-term
-     * scaling >>8 keeps products <= 2^46, safe to accumulate over m. */
     for (int k = 0; k < m; k++) {
         double wk = exp(-(t0 + (double)k * (double)FE_DEC / fs) / tau);
         w[k] = (int32_t)(wk * 2147483647.0);
@@ -481,8 +486,6 @@ int freq_est_fixed(const int32_t *v, int n, double fs, double t0,
     int ng = 0, best_g = 0;
     for (int g = 0; g < FE_NGRID; g++) {
         double dfc = -FE_SPAN_HZ + (double)g * FE_STEP_HZ;
-        /* Negative double -> uint32_t is UB; go through int64 (the
-         * int64 -> uint32 conversion is well-defined modulo 2^32). */
         uint32_t phg = (uint32_t)(int64_t)(t0 * dfc * FE_FRAC);
         uint32_t dphg = (uint32_t)(int64_t)
                         (dfc * (double)FE_DEC / fs * FE_FRAC);
@@ -492,7 +495,6 @@ int freq_est_fixed(const int32_t *v, int n, double fs, double t0,
             fe_nco_cossin(phg, &c, &s);
             int64_t pr = ((int64_t)zbre[k] * w[k]) >> 31;
             int64_t pi = ((int64_t)zbim[k] * w[k]) >> 31;
-            /* S = sum w * z * e^{-j phi}: (pr + j pi)(c - j s) */
             sr += ((pr >> 8) * (c >> 8)) + ((pi >> 8) * (s >> 8));
             si += ((pi >> 8) * (c >> 8)) - ((pr >> 8) * (s >> 8));
             phg += dphg;
@@ -506,7 +508,7 @@ int freq_est_fixed(const int32_t *v, int n, double fs, double t0,
     }
     if (best_g == 0 || best_g == ng - 1) {
         *out_hz = f0 - FE_SPAN_HZ + (double)best_g * FE_STEP_HZ;
-        return FE_OK;
+        return FE_ERR_SEED;
     }
     double d = fe_log_parabolic(sgrid, best_g);
     *out_hz = f0 + (-FE_SPAN_HZ + (double)best_g * FE_STEP_HZ)

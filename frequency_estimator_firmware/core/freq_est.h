@@ -15,9 +15,10 @@
  * other analog effects belong in signal generation or hardware tests, not in
  * this estimator.
  *
- * Workspace is static: no malloc. Input records longer than FE_MAX_N
- * return FE_ERR_INPUT (a real port streams; this core is sized for a 1.5 s
- * record of about 1.09 s at the active 30 kS/s rate plus margin).
+ * Workspace is static: no malloc. The full-rate record is not stored. The
+ * retained buffers are the decimated complex envelope, so a 1.5 s record at
+ * 30 kS/s fits in the RP2350's SRAM alongside USB and the SPI driver.
+ * Input records longer than FE_MAX_N return FE_ERR_INPUT.
  */
 #ifndef FREQ_EST_H
 #define FREQ_EST_H
@@ -30,7 +31,7 @@ extern "C" {
 
 #define FE_OK          0
 #define FE_ERR_INPUT   (-1)   /* n out of range */
-#define FE_ERR_SEED    (-2)   /* no usable coarse seed in band */
+#define FE_ERR_SEED    (-2)   /* no interior coarse seed or zoom peak */
 
 /* Tunables mirroring the Python zoom_fit defaults. */
 #define FE_DEC         10     /* FIR decimation factor                    */
@@ -40,7 +41,8 @@ extern "C" {
 #ifndef FE_SEED_WINDOW
 #define FE_SEED_WINDOW 8192
 #endif   /* coarse-seed window [samples]             */
-#define FE_MAX_N       (FE_SEED_WINDOW * 4)   /* 32768 samples max  */
+/* 1.5 s at the receiver's 30 kSPS rate. */
+#define FE_MAX_N       45000
 
 /*
  * freq_est_f32 -- estimate the FID frequency from ADC-domain samples.
@@ -71,7 +73,7 @@ void fe_zoom_point_f32(const float *zre, const float *zim, const float *w,
 /* Alternative estimator implementations used for comparison tests.
  * They are float-only and are not the baseline, so no Q31 port is provided.
  *
- * fft_est_f32 -- zero-padded FFT magnitude peak + log-parabolic refine.
+ * fft_est_f32 -- length-n Goertzel magnitude peak + log-parabolic refine.
  * zc_est_f32  -- interpolated rising-edge crossings + slope-weighted mean
  *                period, cycle-slip-filtered against the FFT peak (RULED
  *                OUT at FID SNRs; kept so the ruling-out is scored E2E).

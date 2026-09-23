@@ -33,6 +33,16 @@ def test_bandlimited_noise_has_requested_rms_and_band():
     assert np.max(spectrum[out_of_band]) < 1e-20 * np.mean(spectrum[in_band])
 
 
+def test_front_end_noise_includes_bias_resistor():
+    density = physics.front_end_noise_density(2128.819237)
+    # Coil, 1 kohm, 100 kohm through C5, and 5.5 nV/sqrt(Hz), at 300 K.
+    assert density == pytest.approx(11.5e-9, rel=0.05)
+    coil_only = physics.input_noise_density(
+        np.array([2128.819237]), 14.0, 22e-3, 5.5e-9, 1.5e-15
+    )[0]
+    assert density > coil_only
+
+
 def test_adc_quantization_and_clipping():
     nominal = physics.generate_record(rng=3)
     assert nominal["n_clipped"] == 0

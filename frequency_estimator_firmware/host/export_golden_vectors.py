@@ -26,8 +26,11 @@ FREQS = [1064.409619, 2128.819237, 2767.465008]      # 25 / 50 / 65 uT
 TAUS = [0.3, 1.5, 3.0]
 SNRS_DB = [0.0, 10.0, 20.0, 30.0]
 
-BASE = dict(v0=2e-6, fs=20_000.0, blanking_s=0.2, record_s=1.5,
+# Noise spans the estimator search band, which contains every carrier below.
+# SNR remains 20*log10(V0/sigma) of that noise, per the verification plan.
+BASE = dict(v0=2e-6, fs=30_000.0, blanking_s=0.2, record_s=1.5,
             r_coil=14.0, l_coil=22e-3, e_amp=1.4e-9, i_amp=0.1e-12,
+            f_lo=500.0, f_hi=3500.0,
             gain=5000.0, adc_bits=16, adc_fs=2.048)
 
 
