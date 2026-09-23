@@ -4,6 +4,8 @@
 
 - [`coil-design.md`](coil-design.md) records the current nominal coil geometry, electrical values, assumptions, and required measurements.
 - [`verification-plan.md`](verification-plan.md) defines simulation, bench, firmware, clock, interference, and layout checks.
+- [`design-slides.md`](design-slides.md) is a short slide outline of the active receiver and frequency estimator.
+- [`receiver-estimator-slides.md`](receiver-estimator-slides.md) is the shorter deck: receiver signal chain, response figures, and the estimator algorithm.
 - [`current_work/`](current_work/) contains source material for the active design.
 
 ## Technical references

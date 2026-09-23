@@ -1,197 +1,289 @@
 """Generate a readable construction schematic for the analog receiver path."""
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import schemdraw
 import schemdraw.elements as elm
+
+# schemdraw Opamp, direction right, anchor at the input-side midpoint.
+_IN_OFFSET = 0.625
+_TOP_OFFSET = 1.25
+_NET = "#174a7e"
 
 
 def _wire(drawing: schemdraw.Drawing, start, end) -> None:
     drawing += elm.Line().at(start).to(end)
 
 
-def _net(drawing: schemdraw.Drawing, at, name: str) -> None:
-    drawing += elm.Dot().at(at)
-    drawing += elm.Label().at((at[0], at[1] + 0.52)).label(
-        name, color="#174a7e", fontsize=7
-    )
+def _dot(drawing: schemdraw.Drawing, at) -> None:
+    drawing += elm.Dot(radius=0.055).at(at)
+
+
+def _text(drawing: schemdraw.Drawing, at, text: str, **kwargs) -> None:
+    kwargs.setdefault("fontsize", 8)
+    drawing += elm.Label().at(at).label(text, **kwargs)
+
+
+def _bias_arrow(drawing: schemdraw.Drawing, at, direction: str, name: str) -> None:
+    """Short rail arrow with the net name beside the head, off the shaft."""
+    arrow = elm.Arrow().at(at)
+    if direction == "up":
+        drawing += arrow.up(length=0.28)
+        _text(drawing, (at[0] + 0.16, at[1] + 0.42), name, halign="left", valign="center", color=_NET)
+    elif direction == "down":
+        drawing += arrow.down(length=0.28)
+        _text(drawing, (at[0] + 0.16, at[1] - 0.42), name, halign="left", valign="center", color=_NET)
+    else:
+        drawing += arrow.left(length=0.55)
+        _text(drawing, (at[0] - 0.7, at[1] - 0.28), name, halign="right", valign="top", color=_NET)
 
 
 def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
-    """Write SVG and PNG schematics of the buildable analog signal path."""
+    """Write SVG and PNG schematics of the buildable analog signal path.
+
+    Each stage is a horizontal band. Feedback stays above the op-amp, and
+    shunt parts hang in the open side of that band so labels are not drawn
+    on top of wires.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
-    d = schemdraw.Drawing(show=False)
-    d.config(unit=2.0, fontsize=7, lw=1.2, bgcolor="white", margin=0.35)
+    drawing = schemdraw.Drawing(show=False)
+    drawing.config(unit=2.0, inches_per_unit=0.62, fontsize=8, lw=1.15, bgcolor="white", margin=0.45)
 
-    d += elm.Label().at((0, 15.4)).label(
+    _text(
+        drawing, (0.15, 16.55),
         "Proton magnetometer receiver: broadband coil input, blanking, and 1.5-2.5 kHz bandpass",
-        fontsize=14,
+        fontsize=13, halign="left", valign="bottom",
     )
-    d += elm.Label().at((0, 14.85)).label(
+    _text(
+        drawing, (0.15, 16.05),
         "U1 is OPA4197. Power pins: 4 = OPA_AVDD_5V, 11 = GND. Place C22 100nF at U1.",
-        fontsize=8,
+        fontsize=8, halign="left", valign="bottom",
     )
-    d += elm.Label().at((0, 14.45)).label(
-        "U1A: OUT 1, −IN 2, +IN 3   |   U1B: +IN 5, −IN 6, OUT 7   |   U1C: OUT 8, −IN 9, +IN 10   |   U1D: +IN 12, −IN 13, OUT 14",
-        fontsize=7,
+    _text(
+        drawing, (0.15, 15.62),
+        "U1A: OUT 1, −IN 2, +IN 3    |    U1B: +IN 5, −IN 6, OUT 7    |    U1C: OUT 8, −IN 9, +IN 10    |    U1D: +IN 12, −IN 13, OUT 14",
+        fontsize=7.5, halign="left", valign="bottom",
     )
-    d += elm.Label().at((0, 14.05)).label(
+    _text(
+        drawing, (0.15, 15.22),
         "Filtered coil-to-ADC gain stays near 2000 V/V from 1.5-2.5 kHz; ADS1256 PGA excluded",
-        color="#174a7e", fontsize=7,
+        fontsize=8, halign="left", valign="bottom", color=_NET,
     )
 
-    # Untuned broadband sensor and protected input.
-    d += elm.SourceSin().at((0, 12.0)).down(length=1.6).label("Vfid\nexternal", loc="left")
-    d += elm.Ground()
-    d += elm.Resistor().at((0, 12.0)).right(length=1.6).label("Rcoil 14Ω")
-    d += elm.Inductor().right(length=1.6).label("Lcoil 22mH")
-    coil_hi = d.here
-    d += elm.Dot().at(coil_hi)
-    d += elm.Label().at((coil_hi[0], coil_hi[1] + 0.5)).label(
-        "COIL_HI (untuned)", color="#174a7e", fontsize=7
-    )
-    d += elm.Capacitor().at(coil_hi).right(length=1.65).label("C5 3.3n", loc="bottom")
-    d += elm.Resistor().right(length=1.65).label("R1 1k", loc="top")
-    pre_in = d.here
-    _net(d, pre_in, "PRE_IN")
+    # Row 1. Signal enters the lower (+) pin. Feedback and R6 sit above U1A.
+    signal_y = 11.35
+    drawing += elm.SourceSin().at((0.2, signal_y)).down(length=1.35)
+    _text(drawing, (-1.25, signal_y - 0.62), "Vfid\nexternal", halign="right", valign="center")
+    drawing += elm.Ground()
+    drawing += elm.Resistor().at((0.2, signal_y)).right(length=1.9).label("Rcoil 14Ω", loc="top")
+    drawing += elm.Inductor().right(length=1.9).label("Lcoil 22mH", loc="top")
+    coil_hi = (0.2 + 3.8, signal_y)
+    _dot(drawing, coil_hi)
+    _text(drawing, (coil_hi[0] + 0.12, coil_hi[1] + 0.55), "COIL_HI (untuned)", halign="left", valign="bottom", color=_NET)
+    drawing += elm.Capacitor().at(coil_hi).right(length=1.9).label("C5 3.3n", loc="bottom")
+    drawing += elm.Resistor().right(length=1.9).label("R1 1k", loc="top")
+    pre_in = (0.2 + 7.6, signal_y)
+    _dot(drawing, pre_in)
+    _text(drawing, (pre_in[0] + 0.12, pre_in[1] + 0.38), "PRE_IN", halign="left", valign="bottom", color=_NET)
 
-    # Spread the four protection and blanking branches along the PRE_IN wire.
-    u1a = d.add(elm.Opamp().at((16.0, 12.0)).right().label("U1A"))
-    _wire(d, pre_in, (15.2, 12.0))
-    _wire(d, (15.2, 12.0), (15.2, u1a.in2[1]))
-    _wire(d, (15.2, u1a.in2[1]), u1a.in2)  # Lower '+' input.
-    branch_x = [pre_in[0] + offset for offset in (0.6, 2.1, 3.7, 5.3)]
-    d += elm.Diode().at((branch_x[0], 12.0)).down(length=1.25).reverse().label(
-        "D1 BAS116", loc="left"
-    )
-    d += elm.Ground()
-    d += elm.Resistor().at((branch_x[1], 12.0)).down(length=1.25).label("R2 100k", loc="left")
-    d += elm.Arrow().down(length=0.4)
-    d += elm.Label().at((branch_x[1] + 0.45, 10.35)).label(
-        "VBIAS_1V5", fontsize=7, halign="left"
-    )
-    d += elm.Diode().at((branch_x[2], 12.0)).up(length=1.25).label("D2 BAS116", loc="right")
-    d += elm.Arrow().up(length=0.4).label("AVDD_3V3", loc="right")
-    d += elm.Switch(nc=True).at((branch_x[3], 12.0)).down(length=1.25).label(
-        "U2 TMUX1101\nblanking shunt", loc="right"
-    )
-    d += elm.Arrow().down(length=0.4).label("VBIAS_1V5", loc="right")
+    u1a = drawing.add(elm.Opamp().at((18.15, signal_y + _IN_OFFSET)).right())
+    _wire(drawing, pre_in, u1a.in2)
+    _text(drawing, u1a.center, "U1A", fontsize=8)
 
-    # U1A feedback: R7 from output to minus input, R6 from minus input to VREF.
-    d += elm.Resistor().at(u1a.in1).up(length=1.05).label("R6 1k", loc="right")
-    d += elm.Arrow().up(length=0.4).label("VBIAS_1V5", loc="right")
-    feedback_y = 10.05
-    _wire(d, u1a.out, (u1a.out[0], feedback_y))
-    d += elm.Resistor().at((u1a.out[0], feedback_y)).left(length=2.15).label("R7 54.9k", loc="bottom")
-    _wire(d, d.here, (u1a.in1[0], feedback_y))
-    _wire(d, (u1a.in1[0], feedback_y), u1a.in1)
-    _net(d, u1a.out, "STAGE1  gain 55.9")
+    branch_x = (9.35, 11.45, 13.55, 15.65)
+    _dot(drawing, (branch_x[0], signal_y))
+    drawing += elm.Diode().at((branch_x[0], signal_y)).down(length=1.35).reverse()
+    drawing += elm.Ground()
+    _text(drawing, (branch_x[0] - 0.62, signal_y - 0.72), "D1\nBAS116", halign="right", valign="center")
 
-    # U1B AC-coupled high-pass stage.
-    d += elm.Label().at((0, 8.5)).label("High-pass and gain stage", fontsize=10)
-    d += elm.Arrow().at((0, 7.25)).right(length=0.7).label("STAGE1", loc="top")
-    d += elm.Capacitor().right(length=1.7).label("C7 100n C0G 1206")
-    d += elm.Resistor().right(length=1.7).label("R8 1.05k")
-    input_end = d.here
-    u1b = d.add(elm.Opamp().at((7.0, 6.62)).right().label("U1B"))
-    _wire(d, input_end, u1b.in1)  # Inverting '-' input.
-    d += elm.Arrow().at(u1b.in2).left(length=0.8).label("VBIAS_1V5", loc="bottom")
-    feedback_y = 4.75
-    _wire(d, u1b.out, (u1b.out[0], feedback_y))
-    d += elm.Resistor().at((u1b.out[0], feedback_y)).left(length=2.15).label("R9 59k", loc="bottom")
-    _wire(d, d.here, (u1b.in1[0], feedback_y))
-    _wire(d, (u1b.in1[0], feedback_y), u1b.in1)
-    d += elm.Dot().at(u1b.out)
-    d += elm.Label().at((u1b.out[0] + 0.15, u1b.out[1] + 0.5)).label(
-        "STAGE2", color="#174a7e", fontsize=7, halign="left"
+    _dot(drawing, (branch_x[1], signal_y))
+    drawing += elm.Resistor().at((branch_x[1], signal_y)).down(length=1.35)
+    _text(drawing, (branch_x[1] - 0.18, signal_y - 0.7), "R2 100k", halign="right", valign="center")
+    _bias_arrow(drawing, (branch_x[1], signal_y - 1.35), "down", "VBIAS_1V5")
+
+    _dot(drawing, (branch_x[2], signal_y))
+    drawing += elm.Diode().at((branch_x[2], signal_y)).up(length=1.25)
+    _text(drawing, (branch_x[2] + 0.58, signal_y + 0.62), "D2\nBAS116", halign="left", valign="center")
+    _bias_arrow(drawing, (branch_x[2], signal_y + 1.25), "up", "AVDD_3V3")
+
+    _dot(drawing, (branch_x[3], signal_y))
+    drawing += elm.Switch(nc=True).at((branch_x[3], signal_y)).down(length=1.35)
+    _text(
+        drawing, (branch_x[3] + 0.55, signal_y - 0.85),
+        "U2 TMUX1101\nblanking shunt", halign="left", valign="center",
     )
-    d += elm.Label().at((u1b.out[0] + 0.15, u1b.out[1] - 0.55)).label(
-        "HP 1.516kHz, gain −56.19", fontsize=7, halign="left"
+    _bias_arrow(drawing, (branch_x[3], signal_y - 1.35), "down", "VBIAS_1V5")
+
+    feedback_y = u1a.center[1] + _TOP_OFFSET + 0.85
+    join_x = u1a.in1[0] - 1.15
+    _wire(drawing, u1a.in1, (join_x, u1a.in1[1]))
+    _wire(drawing, (join_x, u1a.in1[1]), (join_x, feedback_y))
+    drawing += elm.Resistor().at((join_x, feedback_y)).up(length=0.85)
+    _text(drawing, (join_x - 0.16, feedback_y + 0.42), "R6 1k", halign="right", valign="center")
+    _bias_arrow(drawing, (join_x, feedback_y + 0.85), "up", "VBIAS_1V5")
+    _dot(drawing, u1a.out)
+    _wire(drawing, u1a.out, (u1a.out[0], feedback_y))
+    drawing += (
+        elm.Resistor()
+        .at((u1a.out[0], feedback_y))
+        .left(length=u1a.out[0] - join_x)
+        .label("R7 54.9k", loc="bottom")
+    )
+    _text(
+        drawing, (u1a.out[0] + 0.28, u1a.out[1] - 0.08),
+        "STAGE1\ngain 55.9", halign="left", valign="top", color=_NET,
     )
 
-    # U1C Sallen-Key low-pass and differential ADC input filter.
-    d += elm.Label().at((11.0, 8.5)).label("Sallen-Key low-pass and ADS1256 input", fontsize=10)
-    d += elm.Arrow().at((11.0, 7.25)).right(length=0.7).label("STAGE2", loc="top")
-    d += elm.Resistor().right(length=1.5).label("R10 10.2k")
-    mid = d.here
-    d += elm.Resistor().right(length=1.5).label("R11 10.2k")
-    input_end = d.here
-    u1c = d.add(elm.Opamp().at((16.4, 6.62)).right().label("U1C"))
-    _wire(d, input_end, u1c.in2)
-    _wire(d, u1c.out, (u1c.out[0], u1c.in1[1]))
-    _wire(d, (u1c.out[0], u1c.in1[1]), u1c.in1)
-    d += elm.Capacitor().at(mid).down(length=1.2).label("C8 6.8n", loc="left")
-    _wire(d, d.here, (u1c.out[0], d.here[1]))
-    _wire(d, (u1c.out[0], d.here[1]), u1c.out)
-    d += elm.Capacitor().at(u1c.in2).down(length=1.15).label("C23 3.9n", loc="right")
-    d += elm.Arrow().down(length=0.35).label("VBIAS_1V5", loc="right")
-    d += elm.Resistor().at(u1c.out).right(length=1.35).label("R12 10k")
-    ain0 = d.here
-    d += elm.Dot().at(ain0)
-    d += elm.Label().at((ain0[0] + 0.15, ain0[1] + 0.52)).label(
-        "ADS1256 AIN0", color="#174a7e", fontsize=7, halign="left"
-    )
-    d += elm.Capacitor().at(ain0).down(length=1.05)
-    d += elm.Label().at((ain0[0] + 0.42, ain0[1] - 0.5)).label(
-        "C9 2.2n", fontsize=7, halign="left"
-    )
-    d += elm.Arrow().down(length=0.35).label("VBIAS_1V5 / AIN1", loc="right")
-    d += elm.Diode().at(ain0).up(length=0.9).label("D3", loc="right")
-    clamp = d.here
-    d += elm.Dot().at(clamp)
-    d += elm.Resistor().at(clamp).up(length=0.85).label("R14 1.21k", loc="right")
-    d += elm.Arrow().up(length=0.3).label("OPA_AVDD_5V", loc="right")
-    d += elm.Resistor().at(clamp).right(length=1.15).label("R15 681", loc="top")
-    d += elm.Ground()
-    d += elm.Capacitor().at(clamp).left(length=0.9).label("C24 100n", loc="bottom")
+    # Row 2 left: inverting high-pass. Feedback is above U1B, clear of the input wire.
+    _text(drawing, (0.15, 8.5), "High-pass and gain stage", fontsize=11, halign="left", valign="bottom")
+    stage_y = 7.15
+    drawing += elm.Arrow().at((0.15, stage_y)).right(length=0.9).label("STAGE1", loc="top")
+    drawing += elm.Capacitor().right(length=1.9).label("C7 100n C0G 1206", loc="top")
+    drawing += elm.Resistor().right(length=1.85).label("R8 1.05k", loc="top")
+    r8_end = (0.15 + 0.9 + 1.9 + 1.85, stage_y)
+    join_b = (r8_end[0] + 0.55, stage_y)
+    u1b = drawing.add(elm.Opamp().at((join_b[0] + 1.15, stage_y - _IN_OFFSET)).right())
+    _wire(drawing, r8_end, join_b)
+    _dot(drawing, join_b)
+    _wire(drawing, join_b, u1b.in1)
+    _text(drawing, u1b.center, "U1B", fontsize=8)
+    _bias_arrow(drawing, u1b.in2, "left", "VBIAS_1V5")
 
-    # Buffered 1.50 V bias used by every marked node.
-    d += elm.Label().at((0, 3.3)).label("Buffered 1.50 V bias", fontsize=10)
-    d += elm.Arrow().at((1.2, 2.7)).down(length=0.01).label("OPA_AVDD_5V", loc="left")
-    d += elm.Resistor().down(length=1.1)
-    d += elm.Label().at((0.65, 2.15)).label("R4 23.2k 0.1%", fontsize=7, halign="right")
-    vref_raw = d.here
-    d += elm.Dot().at(vref_raw)
-    d += elm.Label().at((vref_raw[0] + 0.3, vref_raw[1] + 0.35)).label(
-        "VREF_RAW", color="#174a7e", fontsize=7, halign="left"
+    feedback_b = u1b.center[1] + _TOP_OFFSET + 0.7
+    _wire(drawing, join_b, (join_b[0], feedback_b))
+    _wire(drawing, u1b.out, (u1b.out[0], feedback_b))
+    drawing += (
+        elm.Resistor()
+        .at((u1b.out[0], feedback_b))
+        .left(length=u1b.out[0] - join_b[0])
+        .label("R9 59k", loc="bottom")
     )
-    d += elm.Resistor().at(vref_raw).down(length=1.1)
-    d += elm.Label().at((0.65, 1.05)).label("R5 10k 0.1%", fontsize=7, halign="right")
-    d += elm.Ground()
-    _wire(d, vref_raw, (3.5, vref_raw[1]))
-    d += elm.Capacitor().at((3.5, vref_raw[1])).down(length=1.1)
-    d += elm.Label().at((3.9, 1.4)).label("C6 10µF", fontsize=7, halign="left")
-    d += elm.Ground()
-    u1d = d.add(elm.Opamp().at((6.5, vref_raw[1] + 0.625)).right().label("U1D buffer"))
-    _wire(d, vref_raw, u1d.in2)
-    loop_y = vref_raw[1] + 1.65
-    _wire(d, u1d.out, (u1d.out[0], loop_y))
-    _wire(d, (u1d.out[0], loop_y), (u1d.in1[0], loop_y))
-    _wire(d, (u1d.in1[0], loop_y), u1d.in1)
-    d += elm.Dot().at(u1d.out)
-    d += elm.Label().at((u1d.out[0] + 0.15, u1d.out[1] + 0.48)).label(
-        "VBIAS_1V5", color="#174a7e", fontsize=7, halign="left"
-    )
-    d += elm.Label().at((5.5, -0.35)).label(
-        "VBIAS_1V5 drives all marked nodes and ADS1256 AIN1", fontsize=7
+    _dot(drawing, u1b.out)
+    _text(drawing, (u1b.out[0] + 0.25, u1b.out[1] + 0.42), "STAGE2", halign="left", valign="bottom", color=_NET)
+    _text(
+        drawing, (u1b.out[0] + 0.25, u1b.out[1] - 0.12),
+        "1.516 kHz\ngain −56.19", halign="left", valign="top",
     )
 
-    d += elm.Label().at((11.0, 2.85)).label(
+    # Row 2 right: unity-gain Sallen-Key. C8 returns below the op-amp.
+    _text(
+        drawing, (12.15, 8.5),
+        "Sallen-Key low-pass and ADS1256 input",
+        fontsize=11, halign="left", valign="bottom",
+    )
+    drawing += elm.Arrow().at((12.35, stage_y)).right(length=0.85).label("STAGE2", loc="top")
+    drawing += elm.Resistor().right(length=1.7).label("R10 10.2k", loc="top")
+    mid = (12.35 + 0.85 + 1.7, stage_y)
+    _dot(drawing, mid)
+    drawing += elm.Resistor().at(mid).right(length=1.7).label("R11 10.2k", loc="top")
+    plus = (mid[0] + 1.7, stage_y)
+    _dot(drawing, plus)
+    u1c = drawing.add(elm.Opamp().at((plus[0] + 1.45, stage_y + _IN_OFFSET)).right())
+    _wire(drawing, plus, u1c.in2)
+    _text(drawing, u1c.center, "U1C", fontsize=8)
+
+    drawing += elm.Capacitor().at(plus).down(length=1.25)
+    _text(drawing, (plus[0] + 0.16, plus[1] - 0.62), "C23 3.9n", halign="left", valign="center")
+    _bias_arrow(drawing, (plus[0], plus[1] - 1.25), "down", "VBIAS_1V5")
+
+    loop_y = u1c.center[1] + _TOP_OFFSET + 0.58
+    tap_x = u1c.in1[0] - 0.85
+    _wire(drawing, u1c.in1, (tap_x, u1c.in1[1]))
+    _wire(drawing, (tap_x, u1c.in1[1]), (tap_x, loop_y))
+    _wire(drawing, (tap_x, loop_y), (u1c.out[0], loop_y))
+    _wire(drawing, (u1c.out[0], loop_y), u1c.out)
+
+    return_y = stage_y - 2.55
+    drawing += elm.Capacitor().at(mid).down(length=stage_y - return_y)
+    _text(drawing, (mid[0] - 0.16, (stage_y + return_y) / 2), "C8 6.8n", halign="right", valign="center")
+    _wire(drawing, (mid[0], return_y), (u1c.out[0], return_y))
+    _wire(drawing, (u1c.out[0], return_y), u1c.out)
+    _dot(drawing, u1c.out)
+
+    drawing += elm.Resistor().at(u1c.out).right(length=1.65).label("R12 10k", loc="top")
+    r12_end = (u1c.out[0] + 1.65, u1c.out[1])
+    clamp_x = r12_end[0] + 0.85
+    ain_x = clamp_x + 1.7
+    _wire(drawing, r12_end, (ain_x, r12_end[1]))
+    _dot(drawing, (clamp_x, r12_end[1]))
+    _dot(drawing, (ain_x, r12_end[1]))
+    _text(
+        drawing, (ain_x + 0.18, r12_end[1] + 0.16),
+        "ADS1256 AIN0", halign="left", valign="bottom", color=_NET,
+    )
+
+    drawing += elm.Diode().at((clamp_x, r12_end[1])).up(length=1.4)
+    _text(drawing, (clamp_x + 0.5, r12_end[1] + 0.48), "D3\nBAS116", halign="left", valign="center")
+    clamp = (clamp_x, r12_end[1] + 1.4)
+    _dot(drawing, clamp)
+    _text(drawing, (clamp[0] + 1.85, clamp[1] + 0.02), "CLAMP_1V8", halign="left", valign="center", color=_NET)
+    drawing += elm.Resistor().at(clamp).up(length=0.85)
+    _text(drawing, (clamp[0] - 0.42, clamp[1] + 0.48), "R14 1.21k", halign="right", valign="center")
+    _bias_arrow(drawing, (clamp[0], clamp[1] + 0.85), "up", "OPA_AVDD_5V")
+    drawing += elm.Resistor().at(clamp).right(length=1.35).label("R15 681", loc="top")
+    drawing += elm.Ground()
+    drawing += elm.Capacitor().at(clamp).left(length=1.15).label("C24 100n", loc="bottom")
+
+    drawing += elm.Capacitor().at((ain_x, r12_end[1])).down(length=1.15)
+    _text(drawing, (ain_x + 0.16, r12_end[1] - 0.58), "C9 2.2n", halign="left", valign="center")
+    _bias_arrow(drawing, (ain_x, r12_end[1] - 1.15), "down", "VBIAS_1V5 / AIN1")
+
+    # Row 3: buffered bias, with the power notes to the right of U1D.
+    _text(drawing, (0.15, 4.35), "Buffered 1.50 V bias", fontsize=11, halign="left", valign="bottom")
+    raw_y = 2.15
+    drawing += elm.Arrow().at((1.15, 3.35)).down(length=0.01)
+    _text(drawing, (0.95, 3.35), "OPA_AVDD_5V", halign="right", valign="center", color=_NET)
+    drawing += elm.Resistor().at((1.15, 3.35)).down(length=1.2)
+    _text(drawing, (0.95, 2.75), "R4 23.2k 0.1%", halign="right", valign="center")
+    raw = (1.15, raw_y)
+    _dot(drawing, raw)
+    _text(drawing, (1.85, raw_y + 0.42), "VREF_RAW", halign="left", valign="bottom", color=_NET)
+    drawing += elm.Resistor().at(raw).down(length=1.15)
+    _text(drawing, (0.95, raw_y - 0.58), "R5 10k 0.1%", halign="right", valign="center")
+    drawing += elm.Ground()
+    _wire(drawing, raw, (3.55, raw_y))
+    drawing += elm.Capacitor().at((3.55, raw_y)).down(length=1.15)
+    _text(drawing, (3.75, raw_y - 0.58), "C6 10µF", halign="left", valign="center")
+    drawing += elm.Ground()
+
+    u1d = drawing.add(elm.Opamp().at((6.15, raw_y + _IN_OFFSET)).right())
+    _wire(drawing, (3.55, raw_y), u1d.in2)
+    _text(drawing, u1d.center, "U1D", fontsize=8)
+    loop_d = u1d.center[1] + _TOP_OFFSET + 0.55
+    tap_d = u1d.in1[0] - 0.7
+    _wire(drawing, u1d.in1, (tap_d, u1d.in1[1]))
+    _wire(drawing, (tap_d, u1d.in1[1]), (tap_d, loop_d))
+    _wire(drawing, (tap_d, loop_d), (u1d.out[0], loop_d))
+    _wire(drawing, (u1d.out[0], loop_d), u1d.out)
+    _dot(drawing, u1d.out)
+    _text(drawing, (u1d.out[0] + 0.22, u1d.out[1] + 0.1), "VBIAS_1V5", halign="left", valign="bottom", color=_NET)
+    _text(
+        drawing, (0.15, 0.15),
+        "VBIAS_1V5 drives all marked nodes and ADS1256 AIN1",
+        fontsize=8, halign="left", valign="bottom",
+    )
+
+    _text(
+        drawing, (12.2, 4.15),
         "Power and control notes\n"
-        "FB2: USB 5V → OPA_AVDD_5V; C21 10µF + C22 100nF at U1\n"
-        "FB1: XIAO 3V3 → AVDD_3V3; C10 10µF + C11/C12 100nF + C13 1µF\n"
-        "U2 BLANK_D1_GPIO27: R3 100k pull-up to AVDD_3V3; drive low to receive\n"
-        "R13/R16 pull CS and SYNC/PDWN high; R19/R20 pull SCLK and MOSI low\n"
-        "R17/R18 pull DOUT and DRDY high\n"
-        "ADS1256: AIN0−AIN1, buffer on after offset cal, PGA 64, 30kSPS\n"
-        "AIN2-AIN7 tied to VBIAS_1V5",
-        fontsize=7,
-        halign="left",
+        "FB2: USB 5 V → OPA_AVDD_5V. C21 10µF and C22 100nF at U1.\n"
+        "FB1: XIAO 3V3 → AVDD_3V3. C10 10µF, C11/C12 100nF, C13 1µF.\n"
+        "U2 BLANK on D1/GPIO27. R3 100k to AVDD_3V3. Drive low to receive.\n"
+        "R13 and R16 pull CS and SYNC/PDWN high.\n"
+        "R19 and R20 pull SCLK and MOSI low.\n"
+        "R17 and R18 pull DOUT and DRDY high.\n"
+        "ADS1256: AIN0−AIN1, buffer on after offset cal, PGA 64, 30 kSPS.\n"
+        "AIN2–AIN7 tied to VBIAS_1V5.",
+        fontsize=7.5, halign="left", valign="top",
     )
 
     svg_path = output_dir / "receiver-construction-schematic.svg"
     png_path = output_dir / "receiver-construction-schematic.png"
-    d.save(svg_path, transparent=False)
-    d.save(png_path, transparent=False, dpi=200)
+    drawing.save(svg_path, transparent=False)
+    drawing.save(png_path, transparent=False, dpi=200)
+    svg_text = svg_path.read_text()
+    svg_text = re.sub(r"\n\s*<dc:date>.*?</dc:date>", "", svg_text)
+    svg_path.write_text(svg_text)
     return svg_path, png_path
