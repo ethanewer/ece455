@@ -1,139 +1,59 @@
-* Receiver from the external sensor port to the HiLetgo ADS1256 module.
-* The coil, tuning capacitor, and damping resistor are outside this circuit.
-* Input source is a 10 uV FID test signal with a representative 30 kohm
-* external source impedance. ADS1256 is differential, PGA=64, 30 kSPS.
+* Lab-parts receiver input for the purchased HiLetgo ADS1256 module.
+* Coil, tuning capacitor, and damping resistor are external to J1.
+* The ADS1256's own input buffer and PGA are the first active stage.
 .param fL=1765
 .param V0=10u
 .param T2s=0.95
-.param VDD=3.3
 .param PGA=64
 
-* External-port test fixture. Rsource represents the tuned sensor's
-* approximate Thevenin impedance at one frequency, not receiver hardware.
-* Frequency-dependent coil tuning and damping must be measured separately.
+* External source fixture, not fitted receiver components. The 30 kohm
+* Thevenin impedance is provisional until the tuned sensor is measured.
 Vfid source 0 DC 0 AC 1 SINE(0 {V0} {fL} 0 {1/T2s})
 Rsource source receiver_in 30k
 
-* AC coupling, clamp-current limit, 5.1 megohm bias, and default-on blanker.
-* The input impedance at 1.7-2.1 kHz is approximately 5.1 megohm. U1B's
-* 1.516 kHz high-pass is the first gain stage and attenuates 50/60 Hz.
-C5 receiver_in protected 3.3n
-R1 protected pre_in 1k
-R2 pre_in bias1 510k
-R6 bias1 bias2 510k
-R24 bias2 bias3 510k
-R25 bias3 bias4 510k
-R26 bias4 bias5 510k
-R27 bias5 bias6 510k
-R28 bias6 bias7 510k
-R29 bias7 bias8 510k
-R30 bias8 bias9 510k
-R31 bias9 vref 510k
-D1 0 pre_in BAS116
-D2 pre_in avdd BAS116
-Sblank pre_in vref blank 0 TMUXSW
-R3 avdd blank 100k
-Vblank blank 0 0
+* Kit-only analog path. C5 isolates the sensor's DC level. R1 limits
+* current into the kit 1N4148 clamps. R2+R3 return AIN0 to the bias.
+* C9 is small enough to preserve high input impedance at FID frequencies.
+* High-pass and narrow-band processing must be performed digitally.
+C5 receiver_in coupled 22n
+R1 coupled ads_ain0 10k
+R2 ads_ain0 bias_mid 1Meg
+R3 bias_mid vref 1Meg
+C9 ads_ain0 vref 100p
+D1 vref ads_ain0 KIT4148
+D2 ads_ain0 vref KIT4148
 
-* Filtered XIAO 3V3_OUT analog rail. USB VBUS separately powers ADS1256.
-V3V3 xiao_3v3 0 {VDD}
-Rfb xiao_3v3 avdd_f 0.25
-Lfb avdd_f avdd 0.95u
-C10 avdd 0 1u
-C11 avdd 0 100n
-C12 avdd 0 100n
-C13 avdd 0 1u
+* Low-impedance 1.60 V common-mode bias from USB 5 V. The 47 uF kit
+* electrolytic and 100 nF ceramic suppress supply noise and clamp pulses.
 Vusb vbus5 0 5
+R4 vbus5 vref 1k
+R5 vref 0 470
+C6 vref 0 47u
+C7 vref 0 100n
 C14 vbus5 0 1u
-C15 vbus5 0 100n
-C16 vbus5 0 100n
-C17 vbus5 0 100n
-C18 vbus5 0 100n
-C19 xiao_3v3 0 100n
-C20 xiao_3v3 0 100n
-Rfb5 vbus5 opamp_f 0.25
-Lfb5 opamp_f opamp5 0.95u
-C21 opamp5 0 1u
-C22 opamp5 0 100n
 
-* 1.36 V bias buffered by U1D. On a 5 V rail the OPA4197 specifies
-* 5.5 nV/sqrt(Hz) only for common-mode voltage below (V+)-3 V, which is
-* 2.0 V. 5*7.5k/(20k+7.5k) = 1.364 V, still below that boundary if USB
-* sags to 4.75 V. The ADS1256 conversion reference stays the module ADR03.
-R4 opamp5 vref_raw 20k
-R5 vref_raw 0 7.5k
-C6 vref_raw 0 1u
-XU1D vref_raw vref vref opamp5 0 OPA4197
-
-* U1A unity-gain low-noise input buffer. Gain follows in U1B after
-* high-pass attenuation of 50/60 Hz.
-XU1A pre_in stage1 stage1 opamp5 0 OPA4197
-
-* U1B high-pass stage, fc=1.516 kHz and inverting gain 53.33.
-C7 stage1 hp_in 100n
-R8 hp_in stage2_n 1.05k
-R9 stage2 stage2_n 56k
-XU1B vref stage2_n stage2 opamp5 0 OPA4197
-
-* U1C unity-gain Sallen-Key low-pass, natural frequency 3.10 kHz.
-* The second pole is what rejects energy near the 30 kHz sample rate.
-R10 stage2 sk10_mid 10k
-R22 sk10_mid sk_mid 1k
-R11 sk_mid sk11_mid 10k
-R23 sk11_mid stage3_n 1k
-C8 sk_mid stage3 3.3n
-C32 sk_mid stage3 3.3n
-C23 stage3_n vref 3.3n
-XU1C stage3_n stage3 stage3 opamp5 0 OPA4197
-
-* Differential ADS1256 input. AIN1 is the buffered 1.36 V bias. R12/C9 add a
-* 7.09 kHz differential input pole. The module's input buffer must be enabled.
-* D3's cathode is 1.58 V, reverse biased at the 1.36 V signal bias. With
-* R14||R15 = 465 ohm, a 5.25 V rail fault through R12 raises the cathode to
-* about 1.84 V. Adding the BAS116 maximum 0.9 V drop at 1 mA keeps AIN0
-* below the ADS1256 buffered-input 3.0 V limit. The diode model understates
-* that worst-case forward drop; resistor tolerances still need bench checks.
-R12 stage3 ads_ain0 6.8k
-C9 ads_ain0 vref 3.3n
-R14 opamp5 clamp3 1.47k
-R15 clamp3 0 680
-C24 clamp3 0 100n
-D3 ads_ain0 clamp3 BAS116
-Rads ads_ain0 vref 1G
+* At 30 kSPS with BUFEN=1, TI lists 10 Megohm effective differential
+* input impedance. A noiseless conductance models loading without
+* pretending that a switched input has resistor thermal noise.
+Gads ads_ain0 vref ads_ain0 vref 100n
 Cads ads_ain0 vref 5p
 
-* ADS1256 internal PGA representation. With module VREF=2.5 V and PGA=64,
-* differential input full scale is nominally +/-2*VREF/PGA = +/-78.125 mV.
-* This source models the selected ADC's specified PGA, not board-level gain.
+* The ADS1256 internal PGA is represented for transfer plots only.
+* The specified 1.742 uV rms converter noise at PGA=64 and 30 kSPS,
+* digital filtering, and recovery after SYNC are not in this SPICE deck.
 Epga pga_out 0 ads_ain0 vref {PGA}
 Rload pga_out 0 1Meg
 
-* U3 XIAO RP2350 uses SPI0 through explicit 3.3V/5V logic buffers:
-* D8/GPIO2 SCLK, D10/GPIO3 MOSI, D9/GPIO4 MISO, D3/GPIO5 CS,
-* D2/GPIO28 DRDY, D4/GPIO6 PDWN, and D1/GPIO27 BLANK.
-* ADS1256 configuration: AIN0-AIN1 differential, input buffer on, PGA=64,
-* 30 kSPS. Firmware must use DRDY and report fitted frequency/field over USB.
+* Purchased XIAO RP2350: D8/GPIO2 SCLK, D10/GPIO3 MOSI,
+* D9/GPIO4 MISO, D3/GPIO5 CS, D2/GPIO28 DRDY, D4/GPIO6 PDWN.
+* Ignore ADC samples during the 200 ms acquisition blank. Then give
+* SYNC/PDWN a short pulse (under 20 DRDY periods) and wait for DRDY.
+* Holding it low for the whole interval would power down the oscillator.
+* No analog blanking switch is fitted.
 
-* Compact finite-gain OPA4197 model for cross-tool AC and noise checks.
-.subckt OPA4197 inp inn out vdd vss
-Rdiff inp inn 1T
-Renoise en 0 1826
-Bplus nplus 0 V=V(inp)+V(en)
-Eol raw 0 nplus inn 100k
-Rdom raw nint 1k
-Cdom nint 0 1.5915u
-Ebuf nbuf 0 nint 0 1
-Rout nbuf out 20
-Cout out 0 2p
-.ends OPA4197
-
-.model BAS116 D(Is=2p Rs=1 Cjo=2p Bv=85 Ibv=100n)
-.model TMUXSW SW(Ron=1.8 Roff=1T Vt=1.0 Vh=0.1)
+.model KIT4148 D(Is=4n Rs=0.6 Cjo=4p Bv=75 Ibv=5u)
 .options plotwinsize=0
 .ac dec 1000 100 100k
-* Integrate through the ADS1256's 6.106 kHz digital-filter bandwidth at
-* 30 kSPS (fCLK = 7.68 MHz). Energy above that bandwidth, and the converter's
-* own noise, INL, clock error, and alias response, are not in this model.
 .noise V(pga_out) Vfid dec 200 100 6106
 .save all
 .end

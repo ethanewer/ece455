@@ -100,12 +100,12 @@ def test_report_builder_differential_output(tmp_path):
 
 
 @pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice not installed")
-def test_active_receiver_passband_and_gain(tmp_path):
+def test_active_receiver_passes_both_fid_frequencies(tmp_path):
     netlist = Path(__file__).parents[1] / "receiver_design/spice/receiver.cir"
     result = build_spice_report(
         netlist, tmp_path / "report", input_node="source",
         output_positive="ads_ain0", output_negative="vref",
-        marker_hz=current_coil()["f_test_low_hz"], passband_hz=(1500.0, 2500.0),
+        marker_hz=current_coil()["f_test_low_hz"],
     )
     response = np.genfromtxt(result.response_csv, delimiter=",", names=True)
     frequency = response["frequency_hz"]
@@ -113,9 +113,9 @@ def test_active_receiver_passband_and_gain(tmp_path):
 
     low = int(np.argmin(np.abs(frequency - current_coil()["f_test_low_hz"])))
     high = int(np.argmin(np.abs(frequency - current_coil()["f_test_high_hz"])))
-    assert 20 < gain[low] < 70
-    assert 20 < gain[high] < 70
-    assert max(gain[low], gain[high]) / min(gain[low], gain[high]) < 1.5
+    assert 0.90 < gain[low] < 1.0
+    assert 0.90 < gain[high] < 1.0
+    assert max(gain[low], gain[high]) / min(gain[low], gain[high]) < 1.02
     assert "1765.000 Hz" in result.summary_md.read_text()
 
 
@@ -127,12 +127,12 @@ def test_receiver_has_no_onboard_tuning_bank(tmp_path):
     result = build_spice_report(
         netlist, tmp_path / "report", input_node="source",
         output_positive="ads_ain0", output_negative="vref",
-        marker_hz=current_coil()["f_test_high_hz"], passband_hz=(1500.0, 2500.0),
+        marker_hz=current_coil()["f_test_high_hz"],
     )
     response = np.genfromtxt(result.response_csv, delimiter=",", names=True)
     frequency = response["frequency_hz"]
     gain = 10 ** (response["gain_db"] / 20)
     low = int(np.argmin(np.abs(frequency - current_coil()["f_test_low_hz"])))
     high = int(np.argmin(np.abs(frequency - current_coil()["f_test_high_hz"])))
-    assert gain[high] > 20
-    assert gain[low] > 20
+    assert 0.90 < gain[high] < 1.0
+    assert 0.90 < gain[low] < 1.0

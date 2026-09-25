@@ -31,14 +31,18 @@ The nominal pair is 99.94 ohm and 152.6 mH, series-aiding. The coil assembly's t
 
 Measure the assembled receiver with a calibrated source and analyzer:
 
-- complex gain from 500 to 3500 Hz and beyond the anti-alias corner, with a calibrated signal at J1; verify the receiver bandpass near 1765 and 2129 Hz without attributing an external LC peak to the receiver
+- complex transfer from 500 to 3500 Hz and up to the ADC alias region, with a calibrated signal at J1; verify the lab-parts input passes 1765 and 2129 Hz without attributing an external LC peak to the receiver
+- measure loaded receiver input impedance near both FID frequencies and the actual 30 kSPS ADS1256 input noise with its buffer on and PGA 64
 - input-referred noise spectrum with the coil connected and replaced by a known impedance
 - maximum unclipped input versus frequency
-- recovery after protection and blanking switch operation
+- capture D1/D2 clamp current, AIN0/AIN1 voltages, C5 stress, and settling through the real polarizer turnoff; keep the sensor disconnected until its pulse magnitude and C5 rating are known
+- recovery after discarding 200 ms of conversions and issuing a short SYNC/PDWN pulse; confirm the first subsequent DRDY marks settled data
+- loaded 5 V, 3.3 V, and VBIAS_1V60 voltages at the lowest expected USB input
+- verify the purchased module's SPI high level, select only the matching JP1 bridge, and scope all six translated edges at the actual SPI clock
 - PSRR versus frequency, including the 2 kHz converter-ripple case
 - CMRR with the installed sensor pair
 
-Export measured transfer and noise data in a text format that tests can load. Compare ngspice and measured curves using explicit tolerances. Do not tune ideal gain blocks to conceal missing amplifier bandwidth or saturation behavior.
+Export measured transfer and noise data in a text format that tests can load. Compare ngspice and measured curves using explicit tolerances. Include the ADS1256's converter noise separately because the SPICE deck models its input loading and ideal PGA but not its specified converter noise or digital filter.
 
 ## Frequency estimator
 

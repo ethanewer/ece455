@@ -36,6 +36,6 @@ make verify     # all applicable tests and EDA checks
 
 ## Current status
 
-The active receiver has explicit OPA4197 stages, protection, default-safe blanking, an external HiLetgo ADS1256 module interface, logic-level translation, XIAO RP2350 connectivity, and defined USB power rails. Nominal ngspice transient, AC, and noise analyses run automatically.
+The active receiver uses lab passives, 1N4148 diodes, and 2N3904 transistors around the already purchased HiLetgo ADS1256 and XIAO RP2350 modules. The ADS1256 internal buffer and PGA are the first active analog stage. The passive input protection, 200 ms sample-discard interval, selectable SPI logic voltage, and USB power path are defined. Its reduced sensitivity remains to be measured; the ngspice analog model omits converter noise and digital filtering.
 
 There is not yet a reviewed graphical KiCad schematic or physical PCB. `make pcb` therefore fails intentionally. A connectivity netlist and simulated figures do not establish fabrication readiness or measured hardware performance. See `receiver_design/README.md` and `docs/verification-plan.md`.

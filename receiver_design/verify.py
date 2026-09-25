@@ -19,8 +19,14 @@ BOM = ROOT / "receiver_design/bom.csv"
 ALLOWED = ROOT / "new_allowed_components.json"
 
 
-def allowed_passives_check() -> None:
+def allowed_components_check() -> None:
     inventory = json.loads(ALLOWED.read_text())
+    kit = inventory["thomson"]
+    allowed_values = {
+        "resistors": kit["resistors"],
+        "ceramic": kit["ceramic_capacitors"],
+        "electrolytic": kit["electrolytic_capacitors"]["values_f"],
+    }
     unit_scale = {
         "ohm": 1.0, "kohm": 1e3, "megohm": 1e6,
         "pF": 1e-12, "nF": 1e-9, "uF": 1e-6,
@@ -28,7 +34,7 @@ def allowed_passives_check() -> None:
     with BOM.open(newline="") as stream:
         rows = list(csv.DictReader(stream))
     forbidden_receiver_refs = {"J4", "SENSOR", "C25", "C26", "C27",
-                               "C28", "C29", "C30", "C31"}
+                               "C28", "C29", "C30", "C31", "FB1", "FB2"}
     for row in rows:
         refs = row["Reference"].split()
         if forbidden_receiver_refs.intersection(refs):
@@ -36,8 +42,21 @@ def allowed_passives_check() -> None:
         if all(re.fullmatch(r"[A-Z]+\d+", ref) for ref in refs):
             if int(row["Qty"]) != len(refs):
                 raise SystemExit(f"BOM quantity does not match references: {row['Reference']}")
-        if not refs or not all(re.fullmatch(r"[RC]\d+", ref) for ref in refs):
+        if refs == ["U3"] or refs == ["MOD1"]:
             continue
+        if refs and all(re.fullmatch(r"D\d+", ref) for ref in refs):
+            diode = next((part for part in kit["diodes"]
+                          if part["part"] == row["Value or part"]), None)
+            if diode is None or int(row["Qty"]) > diode["quantity"]:
+                raise SystemExit(f"diode exceeds lab inventory: {row['Reference']}")
+            continue
+        if refs and all(re.fullmatch(r"Q\d+", ref) for ref in refs):
+            if (row["Value or part"] not in kit["transistors"]
+                    or int(row["Qty"]) > kit["transistor_quantity_each"]):
+                raise SystemExit(f"transistor exceeds lab inventory: {row['Reference']}")
+            continue
+        if not refs or not all(re.fullmatch(r"[RC]\d+", ref) for ref in refs):
+            raise SystemExit(f"non-lab BOM item: {row['Reference']}")
         match = re.fullmatch(
             r"([\d.]+)\s+(ohm|kohm|megohm|pF|nF|uF)",
             row["Value or part"],
@@ -45,11 +64,21 @@ def allowed_passives_check() -> None:
         if match is None:
             raise SystemExit(f"BOM has an unparseable passive value: {row['Reference']}")
         value = float(match.group(1)) * unit_scale[match.group(2)]
-        category = "resistors" if refs[0].startswith("R") else "capacitors"
+        if refs[0].startswith("R"):
+            category = "resistors"
+            count = kit["resistor_quantity_each"]
+        elif "electrolytic" in row["Package"]:
+            category = "electrolytic"
+            count = kit["electrolytic_capacitors"]["quantity_each"]
+        else:
+            category = "ceramic"
+            count = kit["ceramic_capacitor_quantity_each"]
         if not any(abs(value - candidate) <= 1e-9 * candidate
-                   for candidate in inventory[category]):
-            raise SystemExit(f"BOM passive is not allowed: {row['Reference']} = {value:g}")
-    print("PASS BOM resistor and capacitor values are in new_allowed_components.json")
+                   for candidate in allowed_values[category]):
+            raise SystemExit(f"BOM passive is not in Thomson kit: {row['Reference']} = {value:g}")
+        if int(row["Qty"]) > count:
+            raise SystemExit(f"BOM count exceeds Thomson kit: {row['Reference']}")
+    print("PASS BOM fitted parts are in Thomson kit or are the purchased modules")
 
 
 def run(command: list[str], cwd: Path | None = None) -> None:
@@ -58,44 +87,28 @@ def run(command: list[str], cwd: Path | None = None) -> None:
 
 
 def artifact_check() -> None:
-    allowed_passives_check()
+    allowed_components_check()
     spice = SPICE_NETLIST.read_text(errors="replace")
     connectivity = KICAD_NETLIST.read_text(errors="replace")
 
-    # Forbid the former top-level Epre/Ebp/Eadc ideal gain blocks. E-elements
-    # are allowed inside a named real-component compact macromodel.
-    for forbidden in ("Epre", "Ebp", "Eadc"):
+    for forbidden in ("Lcoil", "Ctune", "Rdamp", "OPA4197", "TMUXSW"):
         if re.search(rf"(?im)^\s*{forbidden}\b", spice):
-            raise SystemExit(f"forbidden ideal gain block remains: {forbidden}")
-    for forbidden in ("Lcoil", "C25", "C26", "C27", "C28",
-                      "C29", "C30", "C31", "R17 n17", "R21 n21"):
-        if re.search(rf"(?im)^\s*{forbidden}\b", spice):
-            raise SystemExit(f"external tuning part remains in receiver SPICE: {forbidden}")
+            raise SystemExit(f"obsolete part remains in receiver SPICE: {forbidden}")
 
     required_spice = (
-        "XU1A", "XU1B", "XU1C", "XU1D", "OPA4197", "TMUXSW",
         "ads_ain0", "Epga", ".param PGA=64", "30 kSPS", "D8/GPIO2",
-        "XU1A pre_in stage1 stage1 opamp5 0 OPA4197",
-        "C7 stage1 hp_in 100n",
         "Rsource source receiver_in 30k",
-        "C5 receiver_in protected 3.3n",
-        "R2 pre_in bias1 510k", "R6 bias1 bias2 510k",
-        "R24 bias2 bias3 510k", "R25 bias3 bias4 510k",
-        "R26 bias4 bias5 510k", "R27 bias5 bias6 510k",
-        "R28 bias6 bias7 510k", "R29 bias7 bias8 510k",
-        "R30 bias8 bias9 510k", "R31 bias9 vref 510k",
-        "R8 hp_in stage2_n 1.05k", "R9 stage2 stage2_n 56k",
-        "R10 stage2 sk10_mid 10k", "R22 sk10_mid sk_mid 1k",
-        "R11 sk_mid sk11_mid 10k", "R23 sk11_mid stage3_n 1k",
-        "C8 sk_mid stage3 3.3n",
-        "C32 sk_mid stage3 3.3n",
-        "D3 ads_ain0 clamp3 BAS116",
+        "C5 receiver_in coupled 22n", "R1 coupled ads_ain0 10k",
+        "R2 ads_ain0 bias_mid 1Meg", "R3 bias_mid vref 1Meg",
+        "C9 ads_ain0 vref 100p", "D1 vref ads_ain0 KIT4148",
+        "D2 ads_ain0 vref KIT4148", "R4 vbus5 vref 1k",
+        "R5 vref 0 470", "Gads ads_ain0 vref ads_ain0 vref 100n",
     )
     required_connectivity = (
-        "OPA4197IPWR", "TMUX1101DBVR", "XIAO-RP2350-SMD",
-        "HILETGO ADS1256 DIGITAL HEADER", "ADS1256_AIN0_SIGNAL",
-        "BLANK_D1_GPIO27", "74AHCT1G125", "74LVC1G125",
-        "EXTERNAL SENSOR SIGNAL", "RECEIVER_IN", "USB_VBUS_5V",
+        "XIAO-RP2350-SMD", "HILETGO ADS1256 LOGICAL DIGITAL WIRES",
+        "ADS1256_AIN0_SIGNAL", "MODULE_SPI_VDD_SELECT",
+        "EXTERNAL SENSOR WIRE INTERFACE", "RECEIVER_IN", "USB_VBUS_5V",
+        "2N3904", "1N4148",
     )
     for token in required_spice:
         if token not in spice:
@@ -103,11 +116,12 @@ def artifact_check() -> None:
     for token in required_connectivity:
         if token not in connectivity:
             raise SystemExit(f"KiCad connectivity netlist is missing {token}")
-    for removed_ref in ("J4", "C1", "C2", "C3", "C4",
-                        "C25", "C26", "C27", "C28", "C29", "C30", "C31"):
+    for removed_ref in ("J4", "C1", "C2", "C3", "C4", "FB1", "FB2",
+                        "C25", "C26", "C27", "C28", "C29", "C30", "C31",
+                        "U1", "U2", "U4", "U5", "U6", "U7", "U8", "U9"):
         if f'(ref "{removed_ref}")' in connectivity:
             raise SystemExit(
-                f"obsolete fixed tuning capacitor remains: {removed_ref}"
+                f"obsolete receiver component remains: {removed_ref}"
             )
 
     # Catch truncated output and verify safety-critical pin assignments rather
@@ -116,46 +130,41 @@ def artifact_check() -> None:
         raise SystemExit("KiCad connectivity netlist has unbalanced parentheses")
 
     expected_nodes = {
-        "GND": {("U1", "11"), ("U2", "3"), ("U3", "13"),
-                ("U3", "26"), ("U3", "30"), ("J2", "2"),
-                ("R19", "2"), ("R20", "2"), ("J1", "2")},
+        "GND": {("U3", "13"), ("U3", "26"), ("U3", "30"),
+                ("J1", "2"), ("J2", "2"), ("R5", "2"),
+                ("Q1", "1"), ("Q6", "1")},
         "RECEIVER_IN": {("J1", "1"), ("C5", "1"), ("TP2", "1")},
-        "SK_R10_MID": {("R10", "2"), ("R22", "1")},
-        "SK_R11_MID": {("R11", "2"), ("R23", "1")},
-        "STAGE1": {("U1", "1"), ("U1", "2"), ("C7", "1")},
+        "COUPLED_INPUT": {("C5", "2"), ("R1", "1")},
+        "BIAS_RETURN_MID": {("R2", "2"), ("R3", "1")},
+        "VBIAS_1V60": {("C6", "1"), ("C7", "1"), ("C9", "2"),
+                       ("D1", "2"), ("D2", "1"), ("R3", "2"),
+                       ("R4", "2"), ("R5", "1"), ("J3", "2")},
+        "ADS1256_AIN0_SIGNAL": {("R1", "2"), ("R2", "1"),
+                                 ("C9", "1"), ("D1", "1"),
+                                 ("D2", "2"), ("J3", "1")},
         "USB_VBUS_5V": {("U3", "14"), ("J2", "1"),
-                        ("U4", "5"), ("U7", "5"),
-                        ("R17", "1"), ("R18", "1")},
-        "XIAO_3V3_OUT": {("U3", "12"), ("R13", "1"), ("R16", "1")},
-        "AVDD_3V3": {("FB1", "2"), ("U2", "5"), ("D2", "1")},
-        "OPA_AVDD_5V": {("FB2", "2"), ("U1", "4"), ("R4", "1"),
-                        ("R14", "1")},
-        "PRE_IN": {("D1", "1"), ("D2", "2"), ("R1", "2"),
-                   ("R2", "1"), ("U1", "3"), ("U2", "1")},
-        "VBIAS_1V36": {("U1", "5"), ("U1", "13"),
-                      ("U1", "14"), ("U2", "2"), ("R31", "2"), ("C9", "2"),
-                      ("C23", "2"), ("J3", "2"), ("J3", "3")},
-        "ADS1256_AIN0_SIGNAL": {("C9", "1"), ("R12", "2"),
-                                ("J3", "1"), ("D3", "2")},
-        "CLAMP_1V6": {("R14", "2"), ("R15", "1"), ("C24", "1"),
-                      ("D3", "1")},
-        "MCU_ADS_CS_D3_GPIO5": {("U3", "4"), ("U6", "2"), ("R13", "2")},
-        "MCU_ADS_PDWN_D4_GPIO6": {("U3", "5"), ("U7", "2"), ("R16", "2")},
-        "ADS1256_DOUT_5V": {("U8", "2"), ("J2", "5"), ("R17", "2")},
-        "ADS1256_DRDY_5V": {("U9", "2"), ("J2", "7"), ("R18", "2")},
-        "BLANK_D1_GPIO27": {("R3", "2"), ("U2", "4"), ("U3", "2")},
-        "MCU_SPI0_SCLK_D8_GPIO2": {("U3", "9"), ("U4", "2"),
-                                  ("R19", "1")},
-        "MCU_SPI0_MOSI_D10_GPIO3": {("U3", "11"), ("U5", "2"),
+                        ("R4", "1"), ("JP1", "3")},
+        "XIAO_3V3_OUT": {("U3", "12"), ("JP1", "1"),
+                         ("R18", "1"), ("R19", "1")},
+        "MODULE_SPI_VDD_SELECT": {("JP1", "2"), ("R12", "1"),
+                                   ("R15", "1"), ("R22", "1"),
+                                   ("R23", "1")},
+        "MCU_SPI0_SCLK_D8_GPIO2": {("U3", "9"), ("R6", "1"),
+                                    ("R18", "2")},
+        "MCU_SPI0_MOSI_D10_GPIO3": {("U3", "11"), ("R7", "1"),
+                                    ("R19", "2")},
+        "MCU_ADS_CS_D3_GPIO5": {("U3", "4"), ("R8", "1"),
+                                 ("R21", "1")},
+        "MCU_ADS_PDWN_D4_GPIO6": {("U3", "5"), ("R9", "1"),
                                    ("R20", "1")},
-        "ADS1256_SCLK_5V": {("U4", "4"), ("J2", "3")},
-        "MCU_SPI0_MISO_D9_GPIO4": {("U3", "10"), ("U8", "4")},
-        "MCU_ADS_DRDY_D2_GPIO28": {("U3", "3"), ("U9", "4")},
+        "ADS1256_SCLK": {("Q1", "3"), ("R12", "2"),
+                          ("D3", "1"), ("J2", "3")},
+        "ADS1256_DIN": {("Q2", "3"), ("J2", "4")},
+        "ADS1256_DOUT": {("R10", "1"), ("R22", "2"), ("J2", "5")},
+        "ADS1256_DRDY": {("R11", "1"), ("R23", "2"), ("J2", "7")},
+        "MCU_SPI0_MISO_D9_GPIO4": {("U3", "10"), ("Q5", "3")},
+        "MCU_ADS_DRDY_D2_GPIO28": {("U3", "3"), ("Q6", "3")},
     }
-    bias_refs = ("R2", "R6", "R24", "R25", "R26",
-                 "R27", "R28", "R29", "R30", "R31")
-    for index, (left, right) in enumerate(zip(bias_refs, bias_refs[1:]), 1):
-        expected_nodes[f"BIAS_RETURN_{index}"] = {(left, "2"), (right, "1")}
     nets_start = connectivity.find("(nets")
     for name, expected in expected_nodes.items():
         name_at = connectivity.find(f'(name "{name}")', nets_start)
@@ -170,7 +179,7 @@ def artifact_check() -> None:
         missing = expected - actual
         if missing:
             raise SystemExit(f"net {name} is missing nodes {sorted(missing)}")
-    print("PASS complete receiver connectivity and no former ideal gain blocks")
+    print("PASS lab-parts receiver connectivity")
 
 
 def ngspice_check(required: bool) -> None:
@@ -180,7 +189,9 @@ def ngspice_check(required: bool) -> None:
             raise SystemExit("ngspice is required but was not found")
         print("SKIP ngspice, executable not found")
         return
-    with tempfile.TemporaryDirectory(prefix="ece455-spice-") as directory:
+    scratch = ROOT / "local" / "receiver-verify"
+    scratch.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix="spice-", dir=scratch) as directory:
         output = Path(directory)
         run([
             executable,

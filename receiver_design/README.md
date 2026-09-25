@@ -1,79 +1,48 @@
 # Active receiver design
 
-This directory defines the receiver from the external FID sensing pair through a HiLetgo ADS1256 module and Seeed Studio XIAO RP2350. The selected ADC module is the Amazon item at https://www.amazon.com/dp/B09KGXC44Q.
+The receiver uses the already purchased Seeed XIAO RP2350 and HiLetgo ADS1256 module. Every other fitted electrical part in `bom.csv` is listed in the Thomson section of `new_allowed_components.json`. J1–J3 are logical wire interfaces; JP1 and TP1–TP8 are PCB copper features, not purchased parts. There is no accepted physical board yet.
 
-## Receiver boundary and signal path
+## Boundary and signal path
 
-`J1` accepts signal and return from an external sensor assembly. The coil, any tuning capacitor, and any switched damping resistor are outside this receiver and its BOM. No receiver part is placed across the input to make an LC tank. The 99.94 ohm, 152.6 mH coil pair in `verification_modeling/coil.py` is an external sensor estimate, not circuitry fitted here.
+J1 accepts signal and return from the external sensor. The coil, tuning capacitor, and switched damping resistor are outside the receiver and its BOM. Nothing in this circuit is placed across J1 to create an LC tank.
 
-1. `C5` AC couples the external signal into `U1A`, the unity-gain low-noise input buffer. `R1` limits clamp current, `D1` and `D2` protect the input, and ten available 510 kohm resistors (`R2`, `R6`, `R24`–`R31`) form a 5.1 megohm bias return. `U2` shorts the protected input to the buffered 1.36 V bias during blanking.
-2. `U1B` uses `C7` 100 nF, `R8` 1.05 kohm, and `R9` 56 kohm for a 1.516 kHz high pass and 53.33 V/V high frequency gain. `U1C` uses `R10`+`R22` and `R11`+`R23` at 11 kohm per leg, `C8` and `C32` at 3.3 nF each in parallel, and `C23` at 3.3 nF for a 3.10 kHz natural low pass frequency.
-3. `R12` 6.8 kohm and `C9` 3.3 nF provide a 7.09 kHz differential ADC input pole. `R14` 1.47 kohm and `R15` 680 ohm hold the `D3` clamp cathode near 1.58 V. Allowing for divider rise under a 5.25 V rail fault and a 0.9 V BAS116 drop, the estimated AIN0 fault level is about 2.74 V, below the 3.0 V buffer limit. `AIN1` and unused analog inputs receive the buffered bias.
-4. The ADS1256 input buffer is enabled and its PGA is set to 64. With the module's nominal 2.5 V reference, differential full scale is plus or minus 78.125 mV. The ADS1256 sends 30 kSPS data to the XIAO RP2350 over SPI.
+1. C5 (22 nF) AC couples the sensor into R1 (10 kΩ). R1 limits current into the antiparallel kit 1N4148 clamps D1/D2. R2 and R3 (1 MΩ each) return the input to VBIAS. C9 (100 pF) limits very high frequency pickup without heavily loading the 1.7–2.1 kHz FID. The ADS1256's **internal input buffer** is the first active, high-impedance stage. There is no external op-amp.
+2. R4 (1 kΩ), R5 (470 Ω), C6 (47 µF), and C7 (100 nF) make a nominal 1.60 V common-mode bias for ADS1256 AIN1 and the unused analog inputs. The ADC measures AIN0 − AIN1 with its buffer enabled, PGA 64, and 30 kSPS output rate. The module's own 2.5 V reference remains the conversion reference.
+3. There is no analog gain or narrow bandpass before the ADC. The ADS1256 PGA and digital filter provide signal processing, followed by firmware filtering and frequency estimation. The XIAO ignores conversions during the 200 ms acquisition blank, then gives SYNC/PDWN a short pulse and waits for DRDY before recording. D1/D2 remain connected throughout and limit the differential input excursion. Holding SYNC/PDWN low for 200 ms would put the ADC into power-down and add an oscillator restart delay.
 
-The SPICE deck applies a 10 µV FID test source through 30 kohm of representative external source impedance. Its plots show receiver input-to-ADC gain. They do not predict the signal gain, resonance, or damping of the external coil assembly. The supplied inventory lists passive values, but omits quantities, dielectrics, voltage ratings, and packages. The KiCad footprints are nominal until the supplied parts are identified.
+The 30 kΩ external source impedance in `spice/receiver.cir` is a provisional test fixture, not a fitted resistor. Its voltage source is 10 µV peak. The analog input impedance depends on frequency: the 2 MΩ bias return in parallel with the ADS1256's specified 10 MΩ buffered input is about 1.67 MΩ at low frequency, while C9 makes it about 0.8 MΩ magnitude near 1.8 kHz. These values are estimates for the chip and nominal kit parts; measure the purchased module and assembled receiver.
 
-## ADC module interface
+## Sensitivity tradeoff
 
-The purchased HiLetgo module contains an ADS1256IDB, a nominal 2.5 V ADR03 reference, and a 7.68 MHz ADC clock source. It requires 5 V power and exposes `SCLK`, `DIN`, `DOUT`, `CS`, `DRDY`, `PDWN`, and `AIN0` through `AIN7`.
+This lab-parts revision has much less sensitivity than the previous external op-amp receiver. TI specifies 1.742 µV RMS input-referred ADC noise with the buffer on, PGA 64, and 30 kSPS. The project model's nominal 3.59 µV peak coil FID gives about 6 dB peak-amplitude per-sample SNR before filtering and other noise. The weaker 0.41 µV estimate is below the ADC's per-sample noise. Digital filtering and fitting can recover a periodic FID, but the 1 nT cycle-to-cycle target is **not established** for this circuit. Keep the external sensor resonance, if used, outside the receiver and measure its actual gain and source impedance.
 
-The XIAO uses:
+The kit 1N4148 and 2N3904 parts are not precision low-leakage substitutes for the former BAS116H and TMUX1101. This circuit avoids a transistor across the high-impedance analog input. The 1.60 V bias and antiparallel clamps nominally keep AIN0 in the ADS1256 buffered input's 0–3 V operating range. The actual polarizer turnoff voltage, C5 voltage rating, diode current, module input protection, and recovery time must be measured before connecting the sensor. The SPICE diode and ADC models do not prove transient survival.
 
-| Function | XIAO pin | RP2350 GPIO |
-|---|---|---:|
-| Receiver blank | D1 | GPIO27 |
-| ADS1256 DRDY | D2 | GPIO28 |
-| ADS1256 CS | D3 | GPIO5 |
-| ADS1256 PDWN/SYNC | D4 | GPIO6 |
-| SPI0 SCLK | D8 | GPIO2 |
-| SPI0 MISO | D9 | GPIO4 |
-| SPI0 MOSI | D10 | GPIO3 |
+## SPI interface from kit transistors
 
-The ADC module uses 5 V digital I/O. Four SN74AHCT1G125 buffers translate XIAO SCLK, MOSI, CS, and PDWN from 3.3 V to 5 V. Two SN74LVC1G125 buffers translate DOUT and DRDY from 5 V to 3.3 V. Their active-low output-enable pins are tied to ground. `R13` and `R16` pull CS and SYNC/PDWN high while the XIAO pins are high-Z, so the converter idles running and deselected. Both of those ADS1256 pins are active-low. `R19` and `R20` pull SCLK and MOSI low so those AHCT inputs are not floating; the ADS1256 clocks data with SCLK idle-low. `R17` and `R18` pull DOUT and DRDY high so the LVC inputs are not floating while the ADC output drivers are high-Z.
+Q1–Q6 are 2N3904 open-collector inverters. R6–R11 are 10 kΩ base resistors, R12–R17 are 2.2 kΩ collector pull-ups, and D3–D8 are 1N4148 Baker clamps from each base to its collector. Q1–Q4 drive SCLK, DIN, CS, and SYNC/PDWN to the module's logic rail; Q5/Q6 receive DOUT and DRDY with 3.3 V pull-ups. JP1 selects the module-side pull-up rail. Bridge pad 1–2 only for a measured 3.3 V SPI header, or pad 2–3 only for a verified 5 V SPI header. **Do not bridge both.** The board's 5 V power input alone does not identify its SPI voltage. Measure the powered module's DOUT/DRDY high level or obtain its actual schematic before setting JP1.
 
-`J2` and `J3` describe the module's logical digital and analog headers. Verify the physical pin order against the exact purchased board before laying out an adapter. Do not assume that the logical connector numbering matches the module silkscreen. `C15` through `C20` provide one local 100 nF bypass capacitor for each level-shifter IC.
+Each wire is inverted once. Configure RP2350 `gpio_set_outover(pin, GPIO_OVERRIDE_INVERT)` on GPIO2, GPIO3, GPIO5, and GPIO6; configure `gpio_set_inover(pin, GPIO_OVERRIDE_INVERT)` on GPIO4 and GPIO28. If DRDY uses a GPIO interrupt, also configure `gpio_set_irqover(28, GPIO_OVERRIDE_INVERT)` because the IRQ path has a separate override. R18/R19 hold module SCLK/DIN low during reset; R20/R21 keep SYNC/PDWN and CS high. R22/R23 hold DOUT/DRDY high when those module pins float. Initialize the GPIO overrides before enabling SPI. After discarding the first 200 ms, pulse SYNC/PDWN low for the datasheet's required minimum timing but less than 20 DRDY periods, then wait for a valid DRDY. The transistor delay and pull-up rise time must be checked at the chosen SPI clock with the actual module. 30 kSPS needs at least 720 kbit/s for 24-bit data alone, plus command and timing overhead.
 
-## Power
+| Function | XIAO pin | RP2350 GPIO | Translator |
+|---|---|---:|---|
+| ADS1256 DRDY | D2 | GPIO28 | Q6, input inverted |
+| ADS1256 CS | D3 | GPIO5 | Q3, output inverted |
+| ADS1256 SYNC/PDWN | D4 | GPIO6 | Q4, output inverted |
+| SPI0 SCLK | D8 | GPIO2 | Q1, output inverted |
+| SPI0 MISO | D9 | GPIO4 | Q5, input inverted |
+| SPI0 MOSI | D10 | GPIO3 | Q2, output inverted |
 
-This revision is USB-powered. The XIAO RP2350 receives 5 V through its onboard USB-C connector. Its exposed VBUS pad powers the ADS1256 module and the four AHCT level shifters. `C14` provides 1 uF bypass on the 5 V module rail; the purchased module retains its onboard local bypassing.
+J2/J3 give **logical signal names**, not the purchased board's physical header order. Verify that order and dimensions before wiring or laying out an adapter. The nominal KiCad through-hole footprints must also be checked against the actual kit parts.
 
-The XIAO's onboard regulator produces `3V3_OUT`. `FB1` and `C10` through `C13` filter that rail into `AVDD_3V3` for the TMUX1101 and input clamps. The two LVC level shifters use unfiltered XIAO 3.3 V so their switching currents do not flow through the analog ferrite.
+## Files and status
 
-The OPA4197 is not a 3.3 V part: its specified minimum supply is 4.5 V. `FB2`, `C21`, and `C22` therefore filter USB VBUS into `OPA_AVDD_5V` for U1. `U1D` buffers the 1.36 V bias made by `R4` (20 kΩ), `R5` (7.5 kΩ), and `C6`. On a 5 V rail that bias is below (V+)−3 V, the common-mode region where TI specifies the 5.5 nV/√Hz density. The module's ADR03 remains the 2.5 V conversion reference; it is not this bias.
+- `spice/receiver.cir` is the active ngspice analog model. It does not include ADC converter noise, the true digital filter, transistor SPI timing, firmware blanking, or the external sensor LC response.
+- `kicad/generate.py` defines fixed connectivity and generates `kicad/receiver.net`; the latter is not hand edited.
+- `analyze.py` generates the committed `analysis/` CSV, PNG, and Markdown artifacts.
+- `bom.csv` groups fitted parts by value and count. `digikey_missing_components.csv` records that the only non-lab items, the ADC and XIAO, are already purchased; no new order is required by this logical design.
+- `assembly.md` gives the logical perfboard wiring and staged power-up sequence; its module connections still require the purchased board's physical labels and SPI voltage.
 
-The former battery connector was removed because this ADS1256 module requires 5 V and the XIAO battery input does not provide a 5 V module rail. Do not inject an external 5 V source into VBUS while USB is connected.
+There is no graphical KiCad schematic, verified module footprint, routed PCB, or ADC acquisition firmware yet. Do not fabricate from the connectivity netlist. Bench acceptance steps are in `docs/verification-plan.md`. `make pcb` intentionally fails while the physical board is absent.
 
-## Design files
-
-- `kicad/generate.py` is the fixed-topology KiCad circuit source.
-- `kicad/receiver.net` is its committed connectivity netlist.
-- `kicad/lib/` contains Seeed Studio's official XIAO RP2350 symbol and SMD footprint.
-- `spice/receiver.cir` is the active ngspice-compatible circuit model.
-- `analyze.py` generates transient and frequency-response data and figures.
-- `analysis/` contains generated CSV, PNG, and Markdown results.
-- `kicad/validate.py` regenerates connectivity and runs available KiCad CLI checks.
-- `bom.csv` groups receiver parts by value and package, with quantities and reference designators. The external sensor assembly is excluded.
-
-Run `make figures` to regenerate plots, `make kicad` to regenerate and check KiCad artifacts, and `make eda` after any receiver change. Run `make export` to test the current receiver and create a timestamped review package under `local/`. The package shares the construction schematic, BOM, and connectivity, and writes separate `1.7kHz/` and `2.1kHz/` receiver-input simulations. PCB renders appear only after a strict-DRC-clean board exists. See `docs/circuit-tooling.md`.
-
-## Required ADS1256 configuration
-
-- Channel: differential `AIN0 - AIN1`
-- Input buffer: enabled
-- PGA: 64
-- Data rate: 30 kSPS
-- Data format: signed 24-bit two's complement
-- DRDY: use falling edges to pace SPI reads
-- Calibration: run SELFCAL with the input buffer off, then enable the buffer and run SELFOCAL only. Self-gain calibration with the buffer on is not valid here, because VREFN is 0 V and that is the bottom of the buffer's input range
-- SYNC/PDWN: hold D4 high while converting. The pin is active-low; `R16` already idles it high
-- Receiver state: drive D1 low only after the 200 ms blanking interval
-
-The ADS1256 does not offer a 20 kSPS data-rate setting. Estimator code must use the actual 30 kSPS rate or resample with a tested digital filter. Clock error changes the measured field scale, so calibrate or measure the ADS1256 module clock and keep that error separate from cycle-to-cycle noise.
-
-## Limits and required work
-
-This is a complete circuit definition, not hardware proof. The compact OPA4197 model does not include TI's full production behavior or the external sensor LC response. The SPICE model represents the selected PGA as an ideal internal block and does not include ADS1256 converter noise, digital-filter alias response, INL, reference noise, clock tolerance, or settling. Verify those properties on the purchased module at PGA 64 and 30 kSPS.
-
-XIAO ADC acquisition is no longer used. ADS1256 SPI acquisition, DRDY handling, blanking control, estimator integration, and USB reporting firmware are not implemented yet. `frequency_estimator_firmware/` currently contains only the portable estimator core and host tests.
-
-There is no graphical KiCad schematic or routed PCB yet. Do not fabricate from `receiver.net`. First verify the module header pinout, produce and audit a graphical schematic, pass ERC, place and route a board or module adapter, and obtain a DRC report with zero violations and zero unconnected pads. Follow `docs/verification-plan.md` for transfer, noise, clock, blanking, and wet-FID tests.
+Data sources: [TI ADS1256 datasheet](https://www.ti.com/lit/ds/symlink/ads1256.pdf) for buffered input impedance, noise, range, and SYNC/PDWN timing; [Raspberry Pi Pico SDK GPIO interface](https://github.com/raspberrypi/pico-sdk/blob/master/src/rp2_common/hardware_gpio/include/hardware/gpio.h) for `GPIO_OVERRIDE_INVERT`; [onsemi 2N3904 datasheet](https://www.onsemi.com/pdf/datasheet/2n3904-d.pdf) for transistor pinout and limits. The exact HiLetgo module PCB remains to be identified physically.

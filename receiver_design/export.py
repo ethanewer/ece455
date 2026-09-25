@@ -185,7 +185,7 @@ def export_frequency_case(
         output_positive="ads_ain0",
         output_negative="vref",
         marker_hz=frequency_hz,
-        passband_hz=(1500.0, 2500.0),
+        passband_hz=None,
         transient_start_s=0.200,
         transient_stop_s=0.220,
         transient_title=f"Receiver transient, {label}",
@@ -198,8 +198,9 @@ def export_frequency_case(
     result.summary_md.write_text(
         heading + "\n"
         + f"This directory uses a 10 µV, {label} with 30 kohm source "
-        + "impedance. The shaded span is the receiver's fixed 1.5–2.5 kHz "
-        + "filter. Coil tuning and damping are external.\n"
+        + "impedance. The analog path has no narrow bandpass or gain. "
+        + "Coil tuning and damping are external; converter noise and digital "
+        + "filtering are absent from these plots.\n"
         + text[len(heading):]
     )
 
@@ -227,6 +228,7 @@ def main() -> None:
         bom_csv = output_dir / "bill-of-materials.csv"
         shutil.copy2(RECEIVER / "bom.csv", bom_csv)
         write_bom_markdown(bom_csv, output_dir / "bill-of-materials.md")
+        shutil.copy2(RECEIVER / "assembly.md", output_dir / "assembly.md")
         shutil.copy2(RECEIVER / "spice" / "receiver.cir", output_dir / "receiver.cir")
         shutil.copy2(KICAD_DIR / "receiver.net", output_dir / "receiver.net")
 
@@ -246,6 +248,7 @@ def main() -> None:
             "## Shared contents\n\n"
             "- `receiver-construction-schematic.svg` and `.png`: receiver input and signal path\n"
             "- `bill-of-materials.csv` and `.md`: receiver parts only\n"
+            "- `assembly.md`: provisional perfboard wiring and power-up checks\n"
             "- `receiver.cir`: canonical receiver deck\n"
             "- `receiver.net`: receiver connectivity\n"
             "- `verification.log`: commands and validation output\n"
