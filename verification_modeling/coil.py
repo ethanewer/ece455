@@ -1,7 +1,7 @@
 """Coil nominals from CoilDesign.xlsx. These are winding estimates, not measurements.
 
-See docs/coil-design.md. After the coils are wound, measure L and R and
-retune with J4. The formula is C = 1/(4*pi^2*f^2*L).
+See docs/coil-design.md. After the coils are wound, measure L and R.
+Any coil tuning is external to the receiver.
 """
 from __future__ import annotations
 
@@ -44,11 +44,11 @@ SENSOR = dict(
     inductance_h=76.2841e-3,
 )
 
-# J4 selects one of these banks. Both use the estimated pair inductance.
-# 47 nF + 4.7 nF is the workbook ~1.7 kHz test. 33 nF + 4.7 nF is the ~2.1 kHz test.
-C_TUNE_F = 51.7e-9
-C_TUNE_ALT_F = 37.7e-9
-R_IN_OHM = 8.2e6
+# Representative low and high FID input frequencies for receiver evaluation.
+# They do not imply an on-board LC network or an accepted external tuning part.
+FID_LOW_HZ = 1765.0
+FID_HIGH_HZ = 2129.0
+R_IN_OHM = 5.1e6
 
 
 def pair_inductance_h() -> float:
@@ -66,28 +66,13 @@ def tune_frequency_hz(capacitance_f: float, inductance_h: float | None = None) -
     return 1.0 / (2.0 * math.pi * math.sqrt(inductance * capacitance_f))
 
 
-def tuning_selection_note() -> str:
-    """How J4 moves the tank between the two test bands."""
-    low = tune_frequency_hz(C_TUNE_F)
-    high = tune_frequency_hz(C_TUNE_ALT_F)
-    return (
-        "J4 fits one shunt. Pins 1-2 connect C25 (47 nF) and C26 (4.7 nF), "
-        f"resonant at {low:.0f} Hz. Pins 2-3 connect C27 (33 nF) and C28 "
-        f"(4.7 nF), resonant at {high:.0f} Hz. The amplifier, blanking, and "
-        "1.5-2.5 kHz filter stay fitted for both. With the shunt removed, an "
-        "external capacitor from J4 pin 4 to pin 2 uses "
-        "C = 1/(4*pi^2*f^2*L) when the measured inductance differs. Each "
-        "tank's half-power width is R/(2*pi*L), about 104 Hz.\n"
-    )
-
-
 def current_coil():
-    """Series-aiding sensing pair and the receiver tank connected across it.
+    """Series-aiding sensing pair outside the receiver.
 
     The workbook counts both windings in the open-circuit EMF and treats
     mutual inductance as negligible, so L and R are twice one coil. The
-    equal-area radius is the 56 mm square aperture. The 8.2 megohm figure
-    is the amplifier load on that tank, not the tuning capacitor.
+    equal-area radius is the 56 mm square aperture. The receiver's 5.1
+    megohm input return is supplied for interface calculations.
     """
     inductance_h = pair_inductance_h()
     return dict(
@@ -98,14 +83,12 @@ def current_coil():
         t2_star_s=0.95,
         r_coil=2.0 * SENSOR["resistance_ohm"],
         l_coil=inductance_h,
-        c_tune=C_TUNE_F,
-        c_tune_alt=C_TUNE_ALT_F,
-        f_tune_hz=tune_frequency_hz(C_TUNE_F, inductance_h),
-        f_tune_alt_hz=tune_frequency_hz(C_TUNE_ALT_F, inductance_h),
+        f_test_low_hz=FID_LOW_HZ,
+        f_test_high_hz=FID_HIGH_HZ,
         r_in_ohm=R_IN_OHM,
         polarizer=dict(POLARIZER),
         sensor=dict(SENSOR),
         sensing_connection="series-aiding pair; both windings counted; M=0",
         hardware_characterized=False,
-        model_status="workbook estimate, uncalibrated; retune after measuring L and R",
+        model_status="workbook estimate, uncalibrated; external sensor tuning is separate",
     )

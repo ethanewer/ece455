@@ -148,14 +148,15 @@ def _preamp_gain(freq_hz, r_coil, l_coil, r_series, r_bias, c_couple, c_tune,
 
 
 def front_end_noise_density(f, r_coil=99.9358, l_coil=152.5682e-3,
-                            r_series=1.0e3, r_bias=8.2e6, c_couple=3.3e-9,
-                            c_tune=51.7e-9, e_amp=5.5e-9, i_amp=1.5e-15):
-    """Coil-EMF-referred density of the tuned input network, V/sqrt(Hz).
+                            r_series=1.0e3, r_bias=5.1e6, c_couple=3.3e-9,
+                            c_tune=0.0, e_amp=5.5e-9, i_amp=1.5e-15):
+    """Coil-EMF-referred density with an optional external tuning capacitor.
 
-    The coil, r_coil and l_coil, is shunted by c_tune. C5 is c_couple, R1
-    is r_series, and R2 is r_bias. e_amp defaults to the OPA4197 density
-    specified below (V+)-3 V. This is the input network only, not the later
-    bandpass gain.
+    Set c_tune explicitly to model an external coil capacitor. Its default
+    is zero because the receiver has no tuning capacitor. C5 is c_couple,
+    R1 is r_series, and the ten 510 kohm bias resistors form r_bias.
+    e_amp defaults to the OPA4197 density specified below (V+)-3 V.
+    This is the input network only, not the later bandpass gain.
     """
     requested = np.asarray(f, dtype=float)
     flat = np.atleast_1d(requested)
@@ -184,7 +185,7 @@ def input_noise_rms(r_coil=99.9358, l_coil=152.5682e-3, e_amp=1.4e-9, i_amp=0.1e
                     f_lo=None, f_hi=None) -> float:
     """Coil-plus-amplifier RMS noise over a rectangular band [V].
 
-    This omits R1, R2, and C5. Use front_end_noise_density for that input
+    This omits R1, the bias-return chain, and C5. Use front_end_noise_density for that input
     network, and the SPICE .noise analysis for the full receiver.
     """
     if f_lo is None:

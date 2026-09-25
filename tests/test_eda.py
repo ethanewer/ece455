@@ -6,6 +6,7 @@ import pytest
 
 from verification_modeling.eda import circuit, ngspice
 from verification_modeling.eda.report import build_spice_report
+from verification_modeling.coil import current_coil
 
 FIXTURE = Path(__file__).parent / "fixtures" / "ngspice_stdout_ac_noise_tran.txt"
 
@@ -60,7 +61,7 @@ def test_report_builder_writes_numeric_and_figure_outputs(tmp_path):
     )
     result = build_spice_report(
         netlist, tmp_path / "report", input_node="source",
-        output_positive="out", output_negative="0", resonance_hz=1000,
+        output_positive="out", output_negative="0", marker_hz=1000,
         transient_stop_s=0.002, max_step_s=10e-6,
     )
     for path in (result.transient_csv, result.response_csv,
@@ -89,7 +90,7 @@ def test_report_builder_differential_output(tmp_path):
     )
     result = build_spice_report(
         netlist, tmp_path / "report", input_node="source",
-        output_positive="out", output_negative="bias", resonance_hz=1000,
+        output_positive="out", output_negative="bias", marker_hz=1000,
         transient_stop_s=0.002, max_step_s=10e-6,
     )
     transient = np.genfromtxt(result.transient_csv, delimiter=",", names=True)
@@ -104,36 +105,34 @@ def test_active_receiver_passband_and_gain(tmp_path):
     result = build_spice_report(
         netlist, tmp_path / "report", input_node="source",
         output_positive="ads_ain0", output_negative="vref",
-        resonance_hz=1792.019986, passband_hz=(1740.0, 1844.0),
+        marker_hz=current_coil()["f_test_low_hz"], passband_hz=(1500.0, 2500.0),
     )
     response = np.genfromtxt(result.response_csv, delimiter=",", names=True)
     frequency = response["frequency_hz"]
     gain = 10 ** (response["gain_db"] / 20)
 
-    peak = int(np.argmin(np.abs(frequency - 1792.02)))
-    assert 600 < gain[peak] < 900
-    for target_hz in (1500, 2500):
-        index = int(np.argmin(np.abs(frequency - target_hz)))
-        assert gain[index] < 0.25 * gain[peak]
-    assert "1792.020 Hz" in result.summary_md.read_text()
+    low = int(np.argmin(np.abs(frequency - current_coil()["f_test_low_hz"])))
+    high = int(np.argmin(np.abs(frequency - current_coil()["f_test_high_hz"])))
+    assert 20 < gain[low] < 70
+    assert 20 < gain[high] < 70
+    assert max(gain[low], gain[high]) / min(gain[low], gain[high]) < 1.5
+    assert "1765.000 Hz" in result.summary_md.read_text()
 
 
 @pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice not installed")
-def test_jumper_moves_the_peak_to_about_2_1_khz(tmp_path):
-    source = Path(__file__).parents[1] / "receiver_design/spice/receiver.cir"
-    netlist = tmp_path / "receiver.cir"
-    netlist.write_text(source.read_text().replace(".param Vjumper=0", ".param Vjumper=1"))
+def test_receiver_has_no_onboard_tuning_bank(tmp_path):
+    netlist = Path(__file__).parents[1] / "receiver_design/spice/receiver.cir"
+    assert "C25 " not in netlist.read_text()
+    assert "Lcoil " not in netlist.read_text()
     result = build_spice_report(
         netlist, tmp_path / "report", input_node="source",
         output_positive="ads_ain0", output_negative="vref",
-        resonance_hz=2098.5, passband_hz=(2046.0, 2151.0),
+        marker_hz=current_coil()["f_test_high_hz"], passband_hz=(1500.0, 2500.0),
     )
     response = np.genfromtxt(result.response_csv, delimiter=",", names=True)
     frequency = response["frequency_hz"]
     gain = 10 ** (response["gain_db"] / 20)
-    band = (frequency > 1500) & (frequency < 2500)
-    peak = int(np.argmax(gain[band]))
-    assert 2050 < frequency[band][peak] < 2150
-    assert gain[band][peak] > 500
-    low = int(np.argmin(np.abs(frequency - 1792)))
-    assert gain[low] < 0.5 * gain[band][peak]
+    low = int(np.argmin(np.abs(frequency - current_coil()["f_test_low_hz"])))
+    high = int(np.argmin(np.abs(frequency - current_coil()["f_test_high_hz"])))
+    assert gain[high] > 20
+    assert gain[low] > 20

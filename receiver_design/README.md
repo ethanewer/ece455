@@ -2,19 +2,16 @@
 
 This directory defines the receiver from the external FID sensing pair through a HiLetgo ADS1256 module and Seeed Studio XIAO RP2350. The selected ADC module is the Amazon item at https://www.amazon.com/dp/B09KGXC44Q.
 
-## Signal path
+## Receiver boundary and signal path
 
-1. `J1` connects the series-aiding sensing pair from `CoilDesign.xlsx`: 99.936 ohm and 152.568 mH. `J4` selects the tank and is the only setup change between the two test bands. A shunt on pins 1-2 connects `C25` (47 nF) and `C26` (4.7 nF), resonant at 1792 Hz. A shunt on pins 2-3 connects `C27` (33 nF) and `C28` (4.7 nF), resonant at 2099 Hz. Each tank is about 104 Hz wide because that width is R/(2πL). With the shunt removed, an external capacitor from pin 4 to pin 2 uses C = 1/(4π²f²L) when the measured inductance differs. The amplifier, blanking, bias, and 1.5–2.5 kHz filter stay fitted for both bands.
-2. `R2` is 8.2 megohm from the buffer input to the 1.50 V bias. With `R1` (1 kilohm) and `C5` (3.3 nF) the load on the tank is 8.20 megohm at 1792 Hz, inside the 5 to 10 megohm target. `C5` blocks the coil's DC ground from the bias. `D1` and `D2` clamp overvoltage. `U1B`'s 1.516 kHz high-pass is the first gain and is what attenuates 50/60 Hz. The series-aiding pair does not cancel uniform pickup.
-3. `U2`, a TMUX1101, shorts the protected input to the 1.50 V bias while `BLANK_D1_GPIO27` is high. `R3` makes blanking the power-up default. While the switch is on, the tank is loaded by `C5` and `R1`.
-4. `U1A`, one channel of an OPA4197, is a unity-gain buffer. The tank provides the voltage step-up, about 17 at resonance. A gain of 56 ahead of the 1.516 kHz pole would amplify residual mains and would drive the 3.64 µV Curie-law FID past the ADC full scale.
-5. `U1B`, `C7`, `R8`, and `R9` form a 1.516 kHz high-pass stage with high-frequency gain minus 56.19 V/V. `C7` is 100 nF C0G in 1206; that value does not exist in 0603.
-6. `U1C`, `R10`, `R11`, `C8`, and `C23` form a unity-gain Sallen-Key low-pass with a 3.03 kHz natural frequency. It passes both 1.7 kHz and 2.1 kHz. The ADS1256 digital filter's −3 dB bandwidth at 30 kSPS is 6.1 kHz; this analog pole adds rejection above that bandwidth. The selected tank rejects 30 kHz much more strongly than this stage alone.
-7. `R12` and `C9` form a 7.23 kHz differential input pole. The signal goes to ADS1256 `AIN0`; the buffered 1.50 V bias goes to `AIN1`. `R14` and `R15` hold D3's cathode at 1.80 V. The signal bias reverse-biases D3. A `U1C` output stuck at 5 V can raise `AIN0` only by one BAS116 drop above 1.80 V, which remains below the buffer limit of AVDD−2 V (3.0 V). The BAS116 forward voltage is 0.9 V maximum at 1 mA, and the fault current through 10 kΩ is below that. `AIN2` through `AIN7` are tied to the same 1.50 V bias.
-8. The ADS1256 input buffer is enabled and its PGA is set to 64. With the module's nominal 2.5 V ADR03 reference, differential full scale is plus or minus 78.125 mV.
-9. The ADS1256 sends 30 kSPS data to the XIAO RP2350 over SPI. Target firmware must feed samples to the estimator and report frequency and field through USB CDC.
+`J1` accepts signal and return from an external sensor assembly. The coil, any tuning capacitor, and any switched damping resistor are outside this receiver and its BOM. No receiver part is placed across the input to make an LC tank. The 99.94 ohm, 152.6 mH coil pair in `verification_modeling/coil.py` is an external sensor estimate, not circuitry fitted here.
 
-`U1B` still sets a high-frequency gain of 56.19. That high-pass and the 3.03 kHz low-pass pass both test bands, so they are not changed when `J4` moves. The simulated coil-source-to-ADC differential gain is 647 V/V (56.2 dB) with the 1792 Hz shunt and 751 V/V (57.5 dB) with the 2099 Hz shunt. This gain excludes the ADS1256 internal PGA. These are simulated nominal values.
+1. `C5` AC couples the external signal into `U1A`, the unity-gain low-noise input buffer. `R1` limits clamp current, `D1` and `D2` protect the input, and ten available 510 kohm resistors (`R2`, `R6`, `R24`–`R31`) form a 5.1 megohm bias return. `U2` shorts the protected input to the buffered 1.36 V bias during blanking.
+2. `U1B` uses `C7` 100 nF, `R8` 1.05 kohm, and `R9` 56 kohm for a 1.516 kHz high pass and 53.33 V/V high frequency gain. `U1C` uses `R10`+`R22` and `R11`+`R23` at 11 kohm per leg, `C8` and `C32` at 3.3 nF each in parallel, and `C23` at 3.3 nF for a 3.10 kHz natural low pass frequency.
+3. `R12` 6.8 kohm and `C9` 3.3 nF provide a 7.09 kHz differential ADC input pole. `R14` 1.47 kohm and `R15` 680 ohm hold the `D3` clamp cathode near 1.58 V. Allowing for divider rise under a 5.25 V rail fault and a 0.9 V BAS116 drop, the estimated AIN0 fault level is about 2.74 V, below the 3.0 V buffer limit. `AIN1` and unused analog inputs receive the buffered bias.
+4. The ADS1256 input buffer is enabled and its PGA is set to 64. With the module's nominal 2.5 V reference, differential full scale is plus or minus 78.125 mV. The ADS1256 sends 30 kSPS data to the XIAO RP2350 over SPI.
+
+The SPICE deck applies a 10 µV FID test source through 30 kohm of representative external source impedance. Its plots show receiver input-to-ADC gain. They do not predict the signal gain, resonance, or damping of the external coil assembly. The supplied inventory lists passive values, but omits quantities, dielectrics, voltage ratings, and packages. The KiCad footprints are nominal until the supplied parts are identified.
 
 ## ADC module interface
 
@@ -38,11 +35,11 @@ The ADC module uses 5 V digital I/O. Four SN74AHCT1G125 buffers translate XIAO S
 
 ## Power
 
-This revision is USB-powered. The XIAO RP2350 receives 5 V through its onboard USB-C connector. Its exposed VBUS pad powers the ADS1256 module and the four AHCT level shifters. `C14` provides bulk bypass on the 5 V module rail; the purchased module retains its onboard local bypassing.
+This revision is USB-powered. The XIAO RP2350 receives 5 V through its onboard USB-C connector. Its exposed VBUS pad powers the ADS1256 module and the four AHCT level shifters. `C14` provides 1 uF bypass on the 5 V module rail; the purchased module retains its onboard local bypassing.
 
 The XIAO's onboard regulator produces `3V3_OUT`. `FB1` and `C10` through `C13` filter that rail into `AVDD_3V3` for the TMUX1101 and input clamps. The two LVC level shifters use unfiltered XIAO 3.3 V so their switching currents do not flow through the analog ferrite.
 
-The OPA4197 is not a 3.3 V part: its specified minimum supply is 4.5 V. `FB2`, `C21`, and `C22` therefore filter USB VBUS into `OPA_AVDD_5V` for U1. `U1D` buffers the 1.50 V bias made by `R4` (23.2 kΩ), `R5` (10 kΩ), and `C6`. On a 5 V rail that bias is below (V+)−3 V, the common-mode region where TI specifies the 5.5 nV/√Hz density. The module's ADR03 remains the 2.5 V conversion reference; it is not this bias.
+The OPA4197 is not a 3.3 V part: its specified minimum supply is 4.5 V. `FB2`, `C21`, and `C22` therefore filter USB VBUS into `OPA_AVDD_5V` for U1. `U1D` buffers the 1.36 V bias made by `R4` (20 kΩ), `R5` (7.5 kΩ), and `C6`. On a 5 V rail that bias is below (V+)−3 V, the common-mode region where TI specifies the 5.5 nV/√Hz density. The module's ADR03 remains the 2.5 V conversion reference; it is not this bias.
 
 The former battery connector was removed because this ADS1256 module requires 5 V and the XIAO battery input does not provide a 5 V module rail. Do not inject an external 5 V source into VBUS while USB is connected.
 
@@ -57,7 +54,7 @@ The former battery connector was removed because this ADS1256 module requires 5 
 - `kicad/validate.py` regenerates connectivity and runs available KiCad CLI checks.
 - `bom.csv` lists every fitted part, the ADS1256 module, and sensor assumptions.
 
-Run `make figures` to regenerate plots, `make kicad` to regenerate and check KiCad artifacts, and `make eda` after any receiver change. Run `make export` to test the current receiver and create a timestamped review package under `local/`. The package shares the construction schematic, BOM, and connectivity, and writes separate `1.7kHz/` and `2.1kHz/` simulation results for the two J4 shunts. PCB renders appear only after a strict-DRC-clean board exists. See `docs/circuit-tooling.md`.
+Run `make figures` to regenerate plots, `make kicad` to regenerate and check KiCad artifacts, and `make eda` after any receiver change. Run `make export` to test the current receiver and create a timestamped review package under `local/`. The package shares the construction schematic, BOM, and connectivity, and writes separate `1.7kHz/` and `2.1kHz/` receiver-input simulations. PCB renders appear only after a strict-DRC-clean board exists. See `docs/circuit-tooling.md`.
 
 ## Required ADS1256 configuration
 
@@ -75,7 +72,7 @@ The ADS1256 does not offer a 20 kSPS data-rate setting. Estimator code must use 
 
 ## Limits and required work
 
-This is a complete circuit definition, not hardware proof. The compact OPA4197 model does not include TI's full production behavior. The SPICE model represents the selected PGA as an ideal internal block and does not include ADS1256 converter noise, digital-filter alias response, INL, reference noise, clock tolerance, or settling. Verify those properties on the purchased module at PGA 64 and 30 kSPS.
+This is a complete circuit definition, not hardware proof. The compact OPA4197 model does not include TI's full production behavior or the external sensor LC response. The SPICE model represents the selected PGA as an ideal internal block and does not include ADS1256 converter noise, digital-filter alias response, INL, reference noise, clock tolerance, or settling. Verify those properties on the purchased module at PGA 64 and 30 kSPS.
 
 XIAO ADC acquisition is no longer used. ADS1256 SPI acquisition, DRDY handling, blanking control, estimator integration, and USB reporting firmware are not implemented yet. `frequency_estimator_firmware/` currently contains only the portable estimator core and host tests.
 

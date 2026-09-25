@@ -36,10 +36,10 @@ def test_bandlimited_noise_has_requested_rms_and_band():
 def test_front_end_noise_includes_bias_resistor():
     from verification_modeling.coil import current_coil
     coil = current_coil()
-    density = float(physics.front_end_noise_density(coil["f_tune_hz"]))
+    density = float(physics.front_end_noise_density(coil["f_test_low_hz"]))
     coil_only = physics.coil_thermal_noise_density(coil["r_coil"])
-    # Tuned 8.2 megohm input: coil Johnson noise plus a smaller amplifier term.
-    assert density == pytest.approx(1.352e-9, rel=0.02)
+    # The default has no external tuning capacitor; U1A noise is input referred.
+    assert density == pytest.approx(7.115e-9, rel=0.02)
     assert density > coil_only
 
 

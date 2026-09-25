@@ -1,54 +1,60 @@
 Reference,Qty,Value or part,Package,Function
-J1,1,FID sensing coil connector,Altech AK100 2-pin 5.00mm,External series-aiding sensor pair
-C25,1,47 nF C0G 2%,1206,~1.7 kHz tuning bank; J4 pins 1-2
-C26,1,4.7 nF C0G 2%,0603,~1.7 kHz tuning bank; J4 pins 1-2
-C27,1,33 nF C0G 2%,1206,~2.1 kHz tuning bank; J4 pins 2-3
-C28,1,4.7 nF C0G 2%,0603,~2.1 kHz tuning bank; J4 pins 2-3
-J4,1,1x4 2.54 mm header and one shunt,Pin header,Selects the 1.7 kHz bank, the 2.1 kHz bank, or an external tuning capacitor
-C5,1,3.3 nF C0G 2%,0603,DC block from the tuned coil into the 8.2 megohm bias
-R1,1,1 kohm 1%,0603,Input surge current limit
-R2,1,8.2 megohm 1%,0603,Tank load and bias return to 1.50 V
+J1,1,External sensor input connector,Altech AK100 2-pin 5.00mm,Signal and return from external coil/tuning assembly
+C5,1,3.3 nF,0603,AC block from external sensor input to buffered bias
+R1,1,1 kohm,0603,Input surge current limit
+R2,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
+R6,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
+R24,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
+R25,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
+R26,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
+R27,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
+R28,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
+R29,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
+R30,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
+R31,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
 D1 D2,2,BAS116H,SOD-323,Low-leakage input clamps
 U2,1,TMUX1101DBVR,SOT-23-5,Default-on shunt blanker
-R3,1,100 kohm 1%,0603,Blank-enable pull-up
+R3,1,100 kohm,0603,Blank-enable pull-up
 U1,1,OPA4197IPWR,TSSOP-14,Reference buffer and three explicit analog stages
-R4,1,23.2 kohm 0.1%,0603,1.50 V bias divider from OPA_AVDD_5V
-R5,1,10 kohm 0.1%,0603,1.50 V bias divider to ground
-C6,1,10 uF 10 V,0805,Reference filtering
-C7,1,100 nF C0G 5%,1206,U1B 1.516 kHz high-pass input
-R8,1,1.05 kohm 0.1%,0603,U1B input resistor
-R9,1,59 kohm 0.1%,0603,U1B gain-56.19 feedback
-R10,1,10.2 kohm 0.1%,0603,U1C Sallen-Key series resistor
-R11,1,10.2 kohm 0.1%,0603,U1C Sallen-Key series resistor
-C8,1,6.8 nF C0G 2%,0603,U1C low-pass feedback capacitor
-C23,1,3.9 nF C0G 2%,0603,U1C low-pass shunt capacitor
-R12,1,10 kohm 0.1%,0603,ADS1256 input isolation and clamp current limit
-C9,1,2.2 nF C0G 2%,0603,ADS1256 7.23 kHz differential input pole
-R14,1,1.21 kohm 1%,0603,AIN0 clamp divider from OPA_AVDD_5V
-R15,1,681 ohm 1%,0603,AIN0 clamp divider to ground
-C24,1,100 nF X7R,0603,AIN0 1.80 V clamp bypass
-D3,1,BAS116H,SOD-323,AIN0 clamp; cathode at 1.80 V keeps a 5 V fault under 3.0 V
-R13,1,100 kohm 1%,0603,ADS1256 CS idle-high pull-up
-R16,1,100 kohm 1%,0603,ADS1256 SYNC/PDWN idle-high pull-up
-R17,1,100 kohm 1%,0603,ADS1256 DOUT pull-up
-R18,1,100 kohm 1%,0603,ADS1256 DRDY pull-up
-R19,1,100 kohm 1%,0603,SCLK idle-low pull-down
-R20,1,100 kohm 1%,0603,MOSI idle-low pull-down
+R4,1,20 kohm,0603 nominal footprint; verify supplied package,1.36 V bias divider upper leg
+R5,1,7.5 kohm,0603 nominal footprint; verify supplied package,1.36 V bias divider lower leg
+C6,1,1 uF,0603 nominal footprint; verify supplied package,Reference filtering
+C7,1,100 nF,1206 nominal footprint; verify supplied package,U1B 1.516 kHz high-pass input
+R8,1,1.05 kohm,0603,U1B input resistor
+R9,1,56 kohm,0603 nominal footprint; verify supplied package,U1B inverting feedback; gain 53.33
+R10,1,10 kohm,0603 nominal footprint; verify supplied package,First part of 11 kohm U1C Sallen-Key series leg
+R22,1,1 kohm,0603 nominal footprint; verify supplied package,Second part of R10 U1C series leg
+R11,1,10 kohm,0603 nominal footprint; verify supplied package,First part of 11 kohm U1C Sallen-Key series leg
+R23,1,1 kohm,0603 nominal footprint; verify supplied package,Second part of R11 U1C series leg
+C8,1,3.3 nF,0603 nominal footprint; verify supplied package,First half of 6.6 nF low-pass feedback branch
+C32,1,3.3 nF,0603 nominal footprint; verify supplied package,Second half of 6.6 nF low-pass feedback branch
+C23,1,3.3 nF,0603 nominal footprint; verify supplied package,U1C low-pass shunt capacitor
+R12,1,6.8 kohm,0603 nominal footprint; verify supplied package,ADS1256 input isolation and clamp current limit
+C9,1,3.3 nF,0603 nominal footprint; verify supplied package,ADS1256 7.09 kHz differential input pole
+R14,1,1.47 kohm,0603 nominal footprint; verify supplied package,AIN0 clamp divider upper leg
+R15,1,680 ohm,0603 nominal footprint; verify supplied package,AIN0 clamp divider lower leg
+C24,1,100 nF,0603,AIN0 1.58 V clamp bypass
+D3,1,BAS116H,SOD-323,AIN0 clamp; cathode near 1.58 V
+R13,1,100 kohm,0603,ADS1256 CS idle-high pull-up
+R16,1,100 kohm,0603,ADS1256 SYNC/PDWN idle-high pull-up
+R17,1,100 kohm,0603,ADS1256 DOUT pull-up
+R18,1,100 kohm,0603,ADS1256 DRDY pull-up
+R19,1,100 kohm,0603,SCLK idle-low pull-down
+R20,1,100 kohm,0603,MOSI idle-low pull-down
 FB1,1,600 ohm at 100 MHz 500 mA,0603,TMUX1101 and clamp 3.3 V supply isolation
 FB2,1,600 ohm at 100 MHz 500 mA,0603,OPA4197 5 V supply isolation
-C10,1,10 uF 10 V,0805,Analog 3.3 V bulk bypass
-C11 C12,2,100 nF X7R,0603,Analog local bypass
-C13,1,1 uF X7R,0603,Analog rail bypass
-C14,1,10 uF 10 V,0805,ADS1256 module 5 V bulk bypass
-C15 C16 C17 C18,4,100 nF X7R,0603,One local bypass per 5 V AHCT buffer
-C19 C20,2,100 nF X7R,0603,One local bypass per 3.3 V LVC buffer
-C21,1,10 uF 10 V,0805,OPA4197 filtered 5 V bulk bypass
-C22,1,100 nF X7R,0603,OPA4197 local 5 V bypass
+C10,1,1 uF,0603 nominal footprint; verify supplied package,Analog 3.3 V rail bypass
+C11 C12,2,100 nF,0603,Analog local bypass
+C13,1,1 uF,0603,Analog rail bypass
+C14,1,1 uF,0603 nominal footprint; verify supplied package,ADS1256 module 5 V rail bypass
+C15 C16 C17 C18,4,100 nF,0603,One local bypass per 5 V AHCT buffer
+C19 C20,2,100 nF,0603,One local bypass per 3.3 V LVC buffer
+C21,1,1 uF,0603 nominal footprint; verify supplied package,OPA4197 filtered 5 V rail bypass
+C22,1,100 nF,0603,OPA4197 local 5 V bypass
 U3,1,Seeed Studio XIAO RP2350,SMD castellated plus rear pads,MCU SPI USB and power management
 U4 U5 U6 U7,4,SN74AHCT1G125DBVR,SOT-23-5,3.3 V to 5 V SPI control translation
 U8 U9,2,SN74LVC1G125DBVR,SOT-23-5,5 V to 3.3 V DOUT and DRDY translation
 J2,1,HiLetgo ADS1256 digital interface,1x8 2.54 mm logical header,5V GND SCLK DIN DOUT CS DRDY PDWN
-J3,1,HiLetgo ADS1256 analog interface,1x8 2.54 mm logical header,AIN0 signal and AIN1 at 1.50 V; AIN2-AIN7 tied to the same bias
+J3,1,HiLetgo ADS1256 analog interface,1x8 2.54 mm logical header,AIN0 signal and AIN1 at 1.36 V; AIN2-AIN7 tied to the same bias
 MOD1,1,HiLetgo ADS1256 5V 8-channel 24-bit ADC module,Amazon ASIN B09KGXC44Q,External ADC module with ADR03 2.5 V reference
 TP1-TP12,12,Plated test point,2.0 mm,Ground rails signals blanking and DRDY probes
-SENSOR,1,99.94 ohm and 152.6 mH nominal,External series-aiding pair,FID pickup coil supplied outside PCB

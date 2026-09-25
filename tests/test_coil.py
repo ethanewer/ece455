@@ -15,10 +15,10 @@ def test_active_coil_profile():
     assert math.pi * coil["radius_m"] ** 2 == pytest.approx(0.056 * 0.056)
     assert coil["r_coil"] == pytest.approx(2 * 49.9679)
     assert coil["l_coil"] == pytest.approx(2 * 76.2841e-3)
-    assert coil["c_tune"] == pytest.approx(51.7e-9)
-    assert coil["c_tune_alt"] == pytest.approx(37.7e-9)
-    assert coil["f_tune_alt_hz"] == pytest.approx(2098.5, abs=0.5)
-    assert coil["r_in_ohm"] == pytest.approx(8.2e6)
+    assert coil["f_test_low_hz"] == pytest.approx(1765.0)
+    assert coil["f_test_high_hz"] == pytest.approx(2129.0)
+    assert "c_tune" not in coil
+    assert coil["r_in_ohm"] == pytest.approx(5.1e6)
     assert coil["hardware_characterized"] is False
     assert SENSOR["turns"] == 1477
 
@@ -29,23 +29,17 @@ def test_active_coil_maps_to_receiver_fid_amplitude():
         b_pol=coil["b_pol"],
         n_turns=coil["n_turns"],
         coil_radius_m=coil["radius_m"],
-        b_earth=coil["f_tune_hz"] / physics.GAMMA_HZ_PER_T,
+        b_earth=coil["f_test_low_hz"] / physics.GAMMA_HZ_PER_T,
     )
-    assert coil["f_tune_hz"] == pytest.approx(1792.020, abs=0.01)
-    assert v0 == pytest.approx(3.642200856e-6, rel=1e-6)
+    assert v0 == pytest.approx(3.587e-6, rel=1e-3)
 
 
-def test_pair_noise_tank_and_polarizer_time_constant():
+def test_pair_noise_and_polarizer_time_constant():
     coil = current_coil()
     single_noise = physics.coil_thermal_noise_density(SENSOR["resistance_ohm"])
     assert physics.coil_thermal_noise_density(coil["r_coil"]) == pytest.approx(
         math.sqrt(2) * single_noise
     )
-    omega = 2.0 * math.pi * coil["f_tune_hz"]
-    q_unloaded = omega * coil["l_coil"] / coil["r_coil"]
-    assert q_unloaded == pytest.approx(17.19, abs=0.02)
-    loaded = coil["r_in_ohm"] / (coil["r_in_ohm"] + q_unloaded * omega * coil["l_coil"])
-    assert loaded == pytest.approx(1.0, abs=0.01)
     assert POLARIZER["inductance_h"] / POLARIZER["resistance_ohm"] == pytest.approx(
         1.244e-3, rel=0.002
     )
@@ -61,9 +55,9 @@ def test_external_tuning_capacitor_follows_measured_inductance():
     )
 
 
-def test_amplifier_load_is_5_to_10_megohm_at_resonance():
+def test_receiver_input_bias_return_is_high_impedance():
     coil = current_coil()
-    omega = 2.0 * math.pi * coil["f_tune_hz"]
-    # R1 + R2 + C5, the network in parallel with C25 and C26.
+    omega = 2.0 * math.pi * coil["f_test_low_hz"]
+    # R1, ten 510 kohm bias resistors, and C5 load the external sensor port.
     impedance = 1.0e3 + coil["r_in_ohm"] + 1.0 / (1j * omega * 3.3e-9)
-    assert 5.0e6 <= abs(impedance) <= 10.0e6
+    assert 5.0e6 <= abs(impedance) <= 5.2e6

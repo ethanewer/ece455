@@ -2,34 +2,35 @@
 
 ```mermaid
 flowchart LR
-  coil["Coil\n99.9 Ω, 153 mH\nJ4: 1.7 or 2.1 kHz"] --> buf["Buffer\n8.2 MΩ"]
-  buf --> blank["Blanker\n200 ms"]
-  blank --> hp2["High-pass\n1.52 kHz\ngain −56.2"]
-  hp2 --> lpf["Sallen–Key\n3.03 kHz"]
-  lpf --> pole["Pole\n7.23 kHz"]
+  ext["External sensor assembly\ncoil, tuning, damping"] --> input["J1 receiver input\n5.1 MΩ return"]
+  input --> blank["Input blanker\n200 ms"]
+  blank --> buffer["OPA4197\nlow-noise buffer"]
+  buffer --> hp["High-pass\n1.52 kHz\ngain −53.3"]
+  hp --> lpf["Sallen–Key\n3.10 kHz"]
+  lpf --> pole["Pole\n7.09 kHz"]
   pole --> adc["ADS1256\nPGA 64\n30 kSPS"]
 ```
 
-- J4 selects a 1792 Hz tank or a 2099 Hz tank
-- Amplifier, blanking, and 1.5–2.5 kHz filter stay fitted for both
-- 647 V/V at 1792 Hz and 751 V/V at 2099 Hz, before the PGA
+- The receiver starts at J1; coil tuning and damping stay in the external assembly
+- The fixed filter passes example inputs at 1765 and 2129 Hz
+- About 37 V/V receiver input-to-ADC gain at either frequency, before the PGA
 
 ---
 
 # Analog stages
 
-- U1A is a unity-gain buffer; U1B is the first gain
+- U1A is the unity-gain low-noise first stage
 - U1B's 1.52 kHz high-pass attenuates 50/60 Hz
-- Sallen–Key natural frequency is 3.03 kHz
-- Tank bandwidth is about 104 Hz around 1792 Hz
+- Sallen–Key natural frequency is 3.10 kHz
+- The receiver adds no LC resonance
 
 ---
 
 # Construction schematic
 
-- OPA4197 signal path, blanker, and 1.50 V bias
+- J1 external input, OPA4197 signal path, blanker, and 1.36 V bias
 - AIN0 clamp is D3 with R14, R15, and C24
-- ADS1256 PGA is on the module, not on this drawing
+- ADS1256 PGA is on the module
 
 ![Analog construction schematic](receiver-construction-schematic.png)
 
@@ -37,33 +38,31 @@ flowchart LR
 
 # Transient response
 
-- Simulated, not measured
-- 3.64 µV peak at the coil, 1792 Hz
-- Differential ADC input settles near ±2.3 mV
+- Simulated 10 µV input through 30 kΩ external source impedance
+- Differential ADC input peak is about 0.30 mV in the 200–220 ms window
 - PGA 64 full scale is ±78 mV
 
-![Coil source and AIN0−AIN1](../receiver_design/analysis/receiver-waveforms.png)
+![External test source and AIN0−AIN1](../receiver_design/analysis/receiver-waveforms.png)
 
 ---
 
 # Frequency response
 
-- Simulated, not measured
-- 647 V/V at 1792 Hz
-- Tank half-power width is about 104 Hz
-- 30 kHz is far below the tuned peak
+- Simulated receiver gain is 37.3 V/V at 1765 Hz and 37.6 V/V at 2129 Hz
+- The response excludes external coil tuning and damping
+- 30 kHz is far below the receiver passband
 
-![Source-to-ADC gain and phase](../receiver_design/analysis/receiver-frequency-response.png)
+![Receiver input-to-ADC gain and phase](../receiver_design/analysis/receiver-frequency-response.png)
 
 ---
 
 # ADC input
 
 - Differential AIN0 − AIN1, buffer on, PGA 64, 30 kSPS
-- Signal bias is 1.50 V, inside the op-amp’s low-noise common-mode range
+- Signal bias is 1.36 V, inside the op-amp’s low-noise common-mode range
 - ADC reference stays 2.5 V; full scale is ±78 mV
-- Clamp cathode is 1.80 V, so the diode is off in normal operation
-- A 5 V saturated output leaves AIN0 at or below 2.76 V, under the 3.0 V buffer limit
+- Clamp cathode is 1.58 V, so the diode is off in normal operation
+- A 5.25 V saturated output leaves AIN0 around 2.74 V in the nominal divider model
 
 ---
 

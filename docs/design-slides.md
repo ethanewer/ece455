@@ -1,19 +1,19 @@
 # Proton magnetometer
 
-- One receiver, one coil pair, one frequency estimator
+- One receiver, one external coil assembly, one frequency estimator
 - USB-powered bench instrument
 - Target: proton free-induction decay, about 35–59 µT
 - Figures below are ngspice results, not bench measurements
 
 ---
 
-# Signal chain
+# Signal chain and boundary
 
-- Series-aiding coil, 99.9 Ω and 153 mH, tuned at 1792 Hz
-- Analog front end on an OPA4197, 647 V/V at 1792 Hz and 751 V/V at 2099 Hz
+- The external assembly contains the sensing coil, any tuning capacitor, and any damping switch
+- J1 is the receiver input boundary
+- OPA4197 low-noise first stage, followed by fixed analog signal processing
 - HiLetgo ADS1256 module, PGA 64, 30 kSPS
 - Seeed XIAO RP2350 estimates frequency and reports field over USB
-- Acquisition firmware is not on the XIAO yet
 
 ---
 
@@ -21,53 +21,52 @@
 
 - Shielded proton: 42.576 Hz/µT
 - 1 nT is 0.0426 Hz
-- Two test bands, about 1.7 kHz and about 2.1 kHz
-- J4 pins 1-2 tune to 1792 Hz; pins 2-3 tune to 2099 Hz
-- Each tank is about 104 Hz wide; the active filter still spans 1.5–2.5 kHz
+- Receiver input examples: 1765 Hz and 2129 Hz
+- The receiver contains no LC tuning bank or resonant shunt
 
 ---
 
-# Coil and blanking
+# Input and blanking
 
-- J4 selects C25+C26 or C27+C28; the 8.2 MΩ load stays fitted
-- U1A is a unity-gain buffer; the 1.52 kHz high-pass is the first gain
+- J1 accepts signal and return from the external sensor assembly
+- Ten 510 kΩ resistors in series provide a 5.1 MΩ input bias return
+- U1A is a unity-gain low-noise buffer
 - BAS116 clamps and a 1 kΩ series resistor limit input current
-- TMUX1101 shorts the input to the 1.50 V bias while blanking
+- TMUX1101 shorts the input to the 1.36 V bias while blanking
 - Blanking is the power-up default; drive it off after 200 ms
 
 ---
 
 # Analog path
 
-- U1A: unity-gain buffer across the tank
-- U1B: 1.516 kHz high-pass, gain −56.19
-- U1C: unity-gain Sallen–Key low-pass, natural frequency 3.03 kHz
-- R12/C9: 7.23 kHz pole into ADS1256 AIN0
-- Tank Q is about 17; simulated gain at 1792 Hz is 647 V/V
-- PGA 64 is extra and is not in these gain numbers
+- U1B: 1.516 kHz high-pass, high-frequency gain −53.33
+- U1C: unity-gain Sallen–Key low-pass, natural frequency 3.10 kHz
+- R12/C9: 7.09 kHz pole into ADS1256 AIN0
+- Simulated receiver input-to-ADC gain is about 37 V/V at both test frequencies
+- External coil resonance and voltage step-up are measured separately
 
 ---
 
 # Transient response
 
-- Nominal FID: 3.64 µV peak at the coil, 1792 Hz
-- T2* in the model is 0.95 s, so 20 ms shows little decay
-- Differential ADC input settles near ±2.3 mV
-- PGA 64 full scale is ±78.1 mV, so this tone uses about 3% of range
+- Example source at J1: 10 µV peak with 30 kΩ external source impedance
+- T2* in the example is 0.95 s; the plotted 200–220 ms window follows blanking
+- Differential ADC input peak in that window is about 0.30 mV
+- PGA 64 full scale is ±78.1 mV
 
-![Nominal receiver transient, coil source and AIN0−AIN1](../receiver_design/analysis/receiver-waveforms.png)
+![Receiver transient, external test source and AIN0−AIN1](../receiver_design/analysis/receiver-waveforms.png)
 
 ---
 
 # Frequency response
 
-- Shaded band is the fixed 1.5–2.5 kHz filter, covering both test frequencies
-- Dashed line is the default J4 peak at 1792 Hz
-- Gain is 647 V/V (56.2 dB) at 1792 Hz and 751 V/V (57.5 dB) at 2099 Hz
-- Gain at 30 kHz is far below the tuned peak because the tank rolls off
+- Shaded band is the fixed 1.5–2.5 kHz receiver filter
+- Dashed line is the 1765 Hz example input frequency
+- Gain is 37.3 V/V at 1765 Hz and 37.6 V/V at 2129 Hz
+- External coil resonance is absent from this response
 - ADS1256 digital filter is already −3 dB at 6.1 kHz
 
-![Nominal receiver frequency response](../receiver_design/analysis/receiver-frequency-response.png)
+![Receiver input-to-ADC gain and phase](../receiver_design/analysis/receiver-frequency-response.png)
 
 ---
 
@@ -75,20 +74,18 @@
 
 - Differential AIN0 − AIN1, input buffer on, PGA 64, 30 kSPS
 - Conversion reference is the module ADR03, 2.5 V
-- Analog bias is a separate 1.50 V, not that reference
-- 1.50 V is below (V+)−3 V on the 5 V op-amp rail, where 5.5 nV/√Hz is specified
+- Analog bias is a separate 1.36 V
 - Buffer inputs must stay between 0 V and AVDD−2 V (3.0 V)
-- AIN2–AIN7 sit on the 1.50 V bias
+- AIN2–AIN7 sit on the 1.36 V bias
 
 ---
 
 # Input clamp
 
-- D3 cathode is held at 1.80 V, so the diode is off at the 1.50 V bias
-- A 5 V saturated output can raise AIN0 only by one diode drop above 1.80 V
+- D3 cathode is held near 1.58 V, reverse biased at the 1.36 V signal bias
 - BAS116 forward drop is 0.9 V maximum at 1 mA
-- Fault current through 10 kΩ is below 1 mA, so AIN0 stays under 3.0 V
-- With the datasheet maximum drop, that fault point is 2.76 V
+- A 5.25 V saturated output is estimated to leave AIN0 near 2.74 V
+- Fault current through R12 is below 1 mA
 
 ---
 
@@ -149,7 +146,7 @@
 
 # What is ready for the bench
 
-- Simulated coil-to-ADC gain is 647 V/V at 1792 Hz and 751 V/V at 2099 Hz
+- Simulated receiver input-to-ADC gain is about 37 V/V at both example frequencies
 - Estimator agrees with an independent NumPy mirror to 0.01 Hz on the host vectors
 - Operating-SNR host error is inside 0.0426 Hz (1 nT) on those vectors
 - Those vectors are not a hardware sensitivity claim
@@ -158,7 +155,7 @@
 
 # Still required before a field result
 
-- Build from `receiver_design/bom.csv` and measure gain, noise, and recovery
+- Build the receiver from `receiver_design/bom.csv` and measure gain, noise, and recovery
 - Check ADS1256 clock error; 20 ppm is about 1 nT at 50 µT
 - Write ADS1256 SPI, DRDY, blanking, and USB firmware
 - There is no PCB yet, and no DRC result

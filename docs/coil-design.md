@@ -24,20 +24,10 @@ The receiver connects the two coils series-aiding and neglects mutual inductance
 - 56 mm square aperture, represented by an equal-area radius
 - provisional T2 star of 0.95 seconds
 
-`J4` selects the capacitor across the pair. The rest of the receiver stays fitted.
+The coil assembly, its tuning capacitor, and any switched damping resistor are outside the receiver. The receiver begins at `J1` and provides a nominal 5.1 megohm input bias return. Coil tuning must be chosen from measured inductance and the desired Larmor frequency using `C = 1/(4π²f²L)`. The example receiver input frequencies, 1765 and 2129 Hz, are test points rather than fitted tank settings.
 
-| `J4` shunt | Capacitors | Capacitance | Resonance with 152.568 mH |
-|---|---|---:|---:|
-| Pins 1-2, about 1.7 kHz | `C25` 47 nF + `C26` 4.7 nF | 51.7 nF | 1792 Hz, about 42.09 µT |
-| Pins 2-3, about 2.1 kHz | `C27` 33 nF + `C28` 4.7 nF | 37.7 nF | 2099 Hz, about 49.3 µT |
-| Removed | External capacitor, pin 4 to pin 2 | 1/(4π²f²L) | The measured inductance and the chosen test frequency |
-
-The workbook's exact capacitor for 1795 Hz is 51.53 nF. Unloaded Q at 1792 Hz is 17.19. The half-power width of either tank is R/(2πL), about 104 Hz, and the 1792 Hz amplitude ring-down time constant is 3.05 ms. Fit only one shunt. Two banks in parallel resonate at neither target.
-
-`R2`, 8.2 megohm, is the amplifier load on that tank. With `R1` and `C5` the load is 8.20 megohm at 1792 Hz, inside the 5 to 10 megohm target. The resonant resistance of the pair is about 30 kilohm, so this load leaves Q essentially unchanged.
-
-The Curie-law model gives an open-circuit pair amplitude of 3.64 µV at 1792 Hz with the 8.633 mT polarizing field. The workbook's 72 µV series-pair figure is an illustrative scaling from a 15 µV baseline, not the receiver stimulus. Both windings contribute Johnson noise. The model grants no common-mode cancellation: the workbook's series-aiding connection adds uniform pickup.
+The Curie-law model gives an open-circuit pair amplitude of about 3.59 µV at 1765 Hz with the 8.633 mT polarizing field. An external tuned network can change the voltage presented to `J1`; its gain and damping must be measured separately. The workbook's 72 µV series-pair figure is an illustrative scaling from a 15 µV baseline, not the receiver stimulus. Both windings contribute Johnson noise. The model grants no common-mode cancellation: the workbook's series-aiding connection adds uniform pickup.
 
 ## Measurements still required
 
-Measure DC resistance, inductance, mutual inductance, resonance, Q, ring-down, sample placement, sensing polarity, polarizer field, turnoff transient, FID amplitude, and T2 star. The current values remain conditional until those results update `coil.py`, the ngspice model, and the KiCad design. The signal model assumes equilibrium magnetization. Measure water T1 and account for incomplete saturation during the nominal 5 second pulse.
+Measure DC resistance, inductance, mutual inductance, resonance, Q, ring-down, sample placement, sensing polarity, polarizer field, turnoff transient, FID amplitude, and T2 star. The current values remain conditional until those results update `coil.py` and the external sensor model. The receiver input model should use the measured source impedance. The signal model assumes equilibrium magnetization. Measure water T1 and account for incomplete saturation during the nominal 5 second pulse.

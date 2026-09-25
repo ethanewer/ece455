@@ -65,8 +65,8 @@ raw_3v3 = Net("XIAO_3V3_OUT")
 avdd = Net("AVDD_3V3")
 opamp5 = Net("OPA_AVDD_5V")
 vref_raw = Net("VREF_RAW")
-vref = Net("VBIAS_1V5")
-coil_hi = Net("COIL_HI")
+vref = Net("VBIAS_1V36")
+receiver_in = Net("RECEIVER_IN")
 protected = Net("PROTECTED")
 pre_in = Net("PRE_IN")
 stage1 = Net("STAGE1")
@@ -75,7 +75,9 @@ stage2 = Net("STAGE2")
 stage3_n = Net("STAGE3_N")
 stage3 = Net("STAGE3")
 sk_mid = Net("SK_MID")
-clamp3 = Net("CLAMP_1V8")
+sk10_mid = Net("SK_R10_MID")
+sk11_mid = Net("SK_R11_MID")
+clamp3 = Net("CLAMP_1V6")
 ads_ain0 = Net("ADS1256_AIN0_SIGNAL")
 ads_ain1 = vref
 blank = Net("BLANK_D1_GPIO27")
@@ -94,45 +96,27 @@ ads_pdwn = Net("ADS1256_PDWN_5V")
 ads_dout = Net("ADS1256_DOUT_5V")
 ads_drdy = Net("ADS1256_DRDY_5V")
 
-# Series-aiding sensing pair from CoilDesign.xlsx. J4 selects which tuning
-# bank grounds. Pins 1-2: C25+C26 at 1792 Hz. Pins 2-3: C27+C28 at 2099 Hz.
-# Pin 4 is COIL_HI; with the shunt removed, an external capacitor from pin 4
-# to pin 2 sets a measured-L correction. R2 remains the 8.2 megohm tank load.
-tune17 = Net("TUNE_1V7")
-tune21 = Net("TUNE_2V1")
-j1 = part("Connector_Generic", "Conn_01x02", "J1", "FID SENSING COIL",
+# J1 is the receiver boundary. The tuned coil and damping circuit are
+# external; this circuit supplies no capacitor or shunt across J1.
+j1 = part("Connector_Generic", "Conn_01x02", "J1", "EXTERNAL SENSOR SIGNAL",
           "TerminalBlock_Altech:Altech_AK100_1x02_P5.00mm")
-j1[1] += coil_hi
+j1[1] += receiver_in
 j1[2] += gnd
-c25 = capacitor("C25", "47n C0G 2%", "Capacitor_SMD:C_1206_3216Metric")
-c26 = capacitor("C26", "4.7n C0G 2%")
-c27 = capacitor("C27", "33n C0G 2%", "Capacitor_SMD:C_1206_3216Metric")
-c28 = capacitor("C28", "4.7n C0G 2%")
-c25[1] += coil_hi
-c25[2] += tune17
-c26[1] += coil_hi
-c26[2] += tune17
-c27[1] += coil_hi
-c27[2] += tune21
-c28[1] += coil_hi
-c28[2] += tune21
-j4 = part("Connector_Generic", "Conn_01x04", "J4", "TUNE SELECT",
-          "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
-j4[1] += tune17
-j4[2] += gnd
-j4[3] += tune21
-j4[4] += coil_hi
 
 # Coupling, current limit, low-leakage clamps, bias, and default-on blanking.
-c5 = capacitor("C5", "3.3n C0G 2%")
-c5[1] += coil_hi
+c5 = capacitor("C5", "3.3n")
+c5[1] += receiver_in
 c5[2] += protected
-r1 = resistor("R1", "1k 1%")
+r1 = resistor("R1", "1k")
 r1[1] += protected
 r1[2] += pre_in
-r2 = resistor("R2", "8.2M 1%")
-r2[1] += pre_in
-r2[2] += vref
+# Ten available 510 kohm resistors provide a 5.1 megohm bias return.
+bias_nets = [pre_in] + [Net(f"BIAS_RETURN_{index}") for index in range(1, 10)] + [vref]
+for index, ref in enumerate(("R2", "R6", "R24", "R25", "R26", "R27",
+                             "R28", "R29", "R30", "R31")):
+    r = resistor(ref, "510k")
+    r[1] += bias_nets[index]
+    r[2] += bias_nets[index + 1]
 d1 = part("Device", "D", "D1", "BAS116H low leakage",
           "Diode_SMD:D_SOD-323_HandSoldering")
 d1[1] += pre_in  # cathode
@@ -148,43 +132,43 @@ u2[2] += vref
 u2[3] += gnd
 u2[4] += blank
 u2[5] += avdd
-r3 = resistor("R3", "100k 1%")
+r3 = resistor("R3", "100k")
 r3[1] += avdd
 r3[2] += blank
 
 # OPA4197 quad on a filtered 5 V rail (its specified minimum is 4.5 V). U1D
-# buffers a 1.50 V bias, below (V+)-3 V, where the 5.5 nV/sqrt(Hz) density
-# is specified. U1A buffers the tuned coil. U1B and U1C are the bandpass
+# buffers a 1.36 V bias, below (V+)-3 V, where the 5.5 nV/sqrt(Hz) density
+# is specified. U1A buffers the external sensor signal. U1B and U1C are the bandpass
 # ahead of the ADS1256, whose internal PGA is not included here.
 u1 = part("Amplifier_Operational", "OPA4197xPW", "U1", "OPA4197IPWR",
           "Package_SO:TSSOP-14_4.4x5mm_P0.65mm")
 u1[4] += opamp5
 u1[11] += gnd
 
-r4 = resistor("R4", "23.2k 0.1%")
-r5 = resistor("R5", "10k 0.1%")
+r4 = resistor("R4", "20k")
+r5 = resistor("R5", "7.5k")
 r4[1] += opamp5
 r4[2] += vref_raw
 r5[1] += vref_raw
 r5[2] += gnd
-c6 = capacitor("C6", "10u 10V", "Capacitor_SMD:C_0805_2012Metric")
+c6 = capacitor("C6", "1u")
 c6[1] += vref_raw
 c6[2] += gnd
 u1[12] += vref_raw
 u1[13] += vref
 u1[14] += vref
 
-# U1A is a unity-gain buffer. The parallel tank provides the step-up, and
-# U1B is the first stage with gain so its 1.516 kHz pole rejects 50/60 Hz.
+# U1A is a unity-gain low-noise buffer. U1B is the first stage with gain,
+# after its 1.516 kHz pole rejects 50/60 Hz.
 u1[3] += pre_in
 u1[1] += stage1
 u1[2] += stage1
 
-# U1B high-pass, 1.516 kHz corner and inverting gain 56.19.
-# 100 nF C0G does not fit in 0603; this part is 1206.
-c7 = capacitor("C7", "100n C0G 5%", "Capacitor_SMD:C_1206_3216Metric")
-r8 = resistor("R8", "1.05k 0.1%")
-r9 = resistor("R9", "59k 0.1%")
+# U1B high-pass, 1.516 kHz corner and inverting gain 53.33.
+# C7 uses a nominal 1206 footprint; verify the supplied part before assembly.
+c7 = capacitor("C7", "100n", "Capacitor_SMD:C_1206_3216Metric")
+r8 = resistor("R8", "1.05k")
+r9 = resistor("R9", "56k")
 c7[1] += stage1
 c7[2] += r8[1]
 r8[2] += stage2_n
@@ -195,35 +179,44 @@ u1[6] += stage2_n
 u1[7] += stage2
 
 # U1C unity-gain Sallen-Key low-pass. Pin 10 is IN+, pin 9 is IN- tied to OUT.
-r10 = resistor("R10", "10.2k 0.1%")
-r11 = resistor("R11", "10.2k 0.1%")
-c8 = capacitor("C8", "6.8n C0G 2%")
-c23 = capacitor("C23", "3.9n C0G 2%")
+r10 = resistor("R10", "10k")
+r22 = resistor("R22", "1k")
+r11 = resistor("R11", "10k")
+r23 = resistor("R23", "1k")
+c8 = capacitor("C8", "3.3n")
+c32 = capacitor("C32", "3.3n")
+c23 = capacitor("C23", "3.3n")
 r10[1] += stage2
-r10[2] += sk_mid
+r10[2] += sk10_mid
+r22[1] += sk10_mid
+r22[2] += sk_mid
 r11[1] += sk_mid
-r11[2] += stage3_n
+r11[2] += sk11_mid
+r23[1] += sk11_mid
+r23[2] += stage3_n
 c8[1] += sk_mid
 c8[2] += stage3
+c32[1] += sk_mid
+c32[2] += stage3
 c23[1] += stage3_n
 c23[2] += vref
 u1[10] += stage3_n
 u1[9] += stage3
 u1[8] += stage3
 
-# Differential ADS1256 input. AIN1 is the buffered 1.50 V bias. PGA=64 gives
+# Differential ADS1256 input. AIN1 is the buffered 1.36 V bias. PGA=64 gives
 # a nominal differential full scale of +/-2*2.5V/64 = +/-78.125 mV with the
-# module's ADR03 reference. D3's cathode is 1.80 V, so a rail-saturated U1C
+# module's ADR03 reference. D3's cathode is 1.58 V, so a rail-saturated U1C
 # leaves AIN0 below the buffer's AVDD-2 V limit after one BAS116 drop.
-r12 = resistor("R12", "10k 0.1%")
-c9 = capacitor("C9", "2.2n C0G 2%")
+r12 = resistor("R12", "6.8k")
+c9 = capacitor("C9", "3.3n")
 r12[1] += stage3
 r12[2] += ads_ain0
 c9[1] += ads_ain0
 c9[2] += ads_ain1
-r14 = resistor("R14", "1.21k 1%")
-r15 = resistor("R15", "681 1%")
-c24 = capacitor("C24", "100n X7R")
+r14 = resistor("R14", "1.47k")
+r15 = resistor("R15", "680")
+c24 = capacitor("C24", "100n")
 d3 = part("Device", "D", "D3", "BAS116H low leakage",
           "Diode_SMD:D_SOD-323_HandSoldering")
 r14[1] += opamp5
@@ -245,19 +238,19 @@ fb2 = part("Device", "FerriteBead", "FB2", "600R@100MHz 500mA",
 fb2[1] += vbus5
 fb2[2] += opamp5
 for ref, value, fp, rail in (
-    ("C10", "10u 10V", "Capacitor_SMD:C_0805_2012Metric", avdd),
-    ("C11", "100n X7R", "Capacitor_SMD:C_0603_1608Metric", avdd),
-    ("C12", "100n X7R", "Capacitor_SMD:C_0603_1608Metric", avdd),
-    ("C13", "1u X7R", "Capacitor_SMD:C_0603_1608Metric", avdd),
-    ("C14", "10u 10V", "Capacitor_SMD:C_0805_2012Metric", vbus5),
-    ("C15", "100n X7R", "Capacitor_SMD:C_0603_1608Metric", vbus5),
-    ("C16", "100n X7R", "Capacitor_SMD:C_0603_1608Metric", vbus5),
-    ("C17", "100n X7R", "Capacitor_SMD:C_0603_1608Metric", vbus5),
-    ("C18", "100n X7R", "Capacitor_SMD:C_0603_1608Metric", vbus5),
-    ("C19", "100n X7R", "Capacitor_SMD:C_0603_1608Metric", raw_3v3),
-    ("C20", "100n X7R", "Capacitor_SMD:C_0603_1608Metric", raw_3v3),
-    ("C21", "10u 10V", "Capacitor_SMD:C_0805_2012Metric", opamp5),
-    ("C22", "100n X7R", "Capacitor_SMD:C_0603_1608Metric", opamp5),
+    ("C10", "1u", "Capacitor_SMD:C_0603_1608Metric", avdd),
+    ("C11", "100n", "Capacitor_SMD:C_0603_1608Metric", avdd),
+    ("C12", "100n", "Capacitor_SMD:C_0603_1608Metric", avdd),
+    ("C13", "1u", "Capacitor_SMD:C_0603_1608Metric", avdd),
+    ("C14", "1u", "Capacitor_SMD:C_0603_1608Metric", vbus5),
+    ("C15", "100n", "Capacitor_SMD:C_0603_1608Metric", vbus5),
+    ("C16", "100n", "Capacitor_SMD:C_0603_1608Metric", vbus5),
+    ("C17", "100n", "Capacitor_SMD:C_0603_1608Metric", vbus5),
+    ("C18", "100n", "Capacitor_SMD:C_0603_1608Metric", vbus5),
+    ("C19", "100n", "Capacitor_SMD:C_0603_1608Metric", raw_3v3),
+    ("C20", "100n", "Capacitor_SMD:C_0603_1608Metric", raw_3v3),
+    ("C21", "1u", "Capacitor_SMD:C_0603_1608Metric", opamp5),
+    ("C22", "100n", "Capacitor_SMD:C_0603_1608Metric", opamp5),
 ):
     c = capacitor(ref, value, fp)
     c[1] += rail
@@ -297,10 +290,10 @@ level_buffer("U9", "74LVC1G125", ads_drdy, mcu_drdy, raw_3v3)
 # active-low on the ADS1256, so the pull-ups hold the converter running
 # and deselected. DOUT and DRDY are high-Z in power-down; their pull-ups
 # keep the LVC inputs from floating.
-r13 = resistor("R13", "100k 1%")
-r16 = resistor("R16", "100k 1%")
-r17 = resistor("R17", "100k 1%")
-r18 = resistor("R18", "100k 1%")
+r13 = resistor("R13", "100k")
+r16 = resistor("R16", "100k")
+r17 = resistor("R17", "100k")
+r18 = resistor("R18", "100k")
 r13[1] += raw_3v3
 r13[2] += mcu_cs
 r16[1] += raw_3v3
@@ -311,8 +304,8 @@ r18[1] += vbus5
 r18[2] += ads_drdy
 # ADS1256 SPI mode keeps SCLK low between bytes. Pull SCLK and MOSI down so
 # the always-enabled AHCT inputs are not floating while the XIAO pins are high-Z.
-r19 = resistor("R19", "100k 1%")
-r20 = resistor("R20", "100k 1%")
+r19 = resistor("R19", "100k")
+r20 = resistor("R20", "100k")
 r19[1] += mcu_sclk
 r19[2] += gnd
 r20[1] += mcu_mosi
@@ -331,13 +324,13 @@ j3 = part("Connector_Generic", "Conn_01x08", "J3",
           "Connector_PinHeader_2.54mm:PinHeader_1x08_P2.54mm_Vertical")
 j3[1] += ads_ain0
 j3[2] += ads_ain1
-# Unused analog inputs sit at the buffered 1.50 V bias, inside the
+# Unused analog inputs sit at the buffered 1.36 V bias, inside the
 # ADS1256 buffer's allowed range, instead of floating.
 for pin in range(3, 9):
     j3[pin] += vref
 
 for ref, net in (
-    ("TP1", gnd), ("TP2", coil_hi), ("TP3", pre_in), ("TP4", vref),
+    ("TP1", gnd), ("TP2", receiver_in), ("TP3", pre_in), ("TP4", vref),
     ("TP5", stage1), ("TP6", stage2), ("TP7", stage3),
     ("TP8", ads_ain0), ("TP9", blank), ("TP10", avdd),
     ("TP11", vbus5), ("TP12", ads_drdy),
