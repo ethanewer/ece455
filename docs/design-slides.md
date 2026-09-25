@@ -9,8 +9,8 @@
 
 # Signal chain
 
-- Series-opposed coil, 14 Ω and 22 mH, untuned
-- Analog front end on an OPA4197, about 2000 V/V
+- Series-aiding coil, 99.9 Ω and 153 mH, tuned at 1792 Hz
+- Analog front end on an OPA4197, 647 V/V at 1792 Hz and 751 V/V at 2099 Hz
 - HiLetgo ADS1256 module, PGA 64, 30 kSPS
 - Seeed XIAO RP2350 estimates frequency and reports field over USB
 - Acquisition firmware is not on the XIAO yet
@@ -21,16 +21,16 @@
 
 - Shielded proton: 42.576 Hz/µT
 - 1 nT is 0.0426 Hz
-- 50 µT is 2128.8 Hz, the nominal design point
-- Passband 1.5–2.5 kHz covers about 35–59 µT
-- 1.8 kHz is a valid proton signal near 42 µT; no notch there
+- Two test bands, about 1.7 kHz and about 2.1 kHz
+- J4 pins 1-2 tune to 1792 Hz; pins 2-3 tune to 2099 Hz
+- Each tank is about 104 Hz wide; the active filter still spans 1.5–2.5 kHz
 
 ---
 
 # Coil and blanking
 
-- No tuning capacitor, so 1.7 kHz and 2.1 kHz both pass
-- Input high-pass near 480 Hz, before any gain
+- J4 selects C25+C26 or C27+C28; the 8.2 MΩ load stays fitted
+- U1A is a unity-gain buffer; the 1.52 kHz high-pass is the first gain
 - BAS116 clamps and a 1 kΩ series resistor limit input current
 - TMUX1101 shorts the input to the 1.50 V bias while blanking
 - Blanking is the power-up default; drive it off after 200 ms
@@ -39,21 +39,21 @@
 
 # Analog path
 
-- U1A: non-inverting gain 55.9
+- U1A: unity-gain buffer across the tank
 - U1B: 1.516 kHz high-pass, gain −56.19
 - U1C: unity-gain Sallen–Key low-pass, natural frequency 3.03 kHz
 - R12/C9: 7.23 kHz pole into ADS1256 AIN0
-- Resistor-set gain is 3141 V/V; the filters bring the band to about 2000 V/V
+- Tank Q is about 17; simulated gain at 1792 Hz is 647 V/V
 - PGA 64 is extra and is not in these gain numbers
 
 ---
 
 # Transient response
 
-- Nominal FID: about 1 µV peak at the coil, 2128.8 Hz
+- Nominal FID: 3.64 µV peak at the coil, 1792 Hz
 - T2* in the model is 0.95 s, so 20 ms shows little decay
-- Differential ADC input settles near ±2.0 mV
-- PGA 64 full scale is ±78.1 mV, so this tone uses about 2.6% of range
+- Differential ADC input settles near ±2.3 mV
+- PGA 64 full scale is ±78.1 mV, so this tone uses about 3% of range
 
 ![Nominal receiver transient, coil source and AIN0−AIN1](../receiver_design/analysis/receiver-waveforms.png)
 
@@ -61,11 +61,10 @@
 
 # Frequency response
 
-- Shaded band is the 1.5–2.5 kHz measurement window
-- Dashed line is 2128.8 Hz
-- In-band gain is flat: 1924–2032 V/V
-- Gain at 2128.8 Hz is 2020 V/V (66.1 dB)
-- Gain at 30 kHz is 7.3 V/V, 49 dB below the passband
+- Shaded band is the fixed 1.5–2.5 kHz filter, covering both test frequencies
+- Dashed line is the default J4 peak at 1792 Hz
+- Gain is 647 V/V (56.2 dB) at 1792 Hz and 751 V/V (57.5 dB) at 2099 Hz
+- Gain at 30 kHz is far below the tuned peak because the tank rolls off
 - ADS1256 digital filter is already −3 dB at 6.1 kHz
 
 ![Nominal receiver frequency response](../receiver_design/analysis/receiver-frequency-response.png)
@@ -150,7 +149,7 @@
 
 # What is ready for the bench
 
-- Simulated coil-to-ADC gain near 2000 V/V at 1.7 kHz and 2.1 kHz
+- Simulated coil-to-ADC gain is 647 V/V at 1792 Hz and 751 V/V at 2099 Hz
 - Estimator agrees with an independent NumPy mirror to 0.01 Hz on the host vectors
 - Operating-SNR host error is inside 0.0426 Hz (1 nT) on those vectors
 - Those vectors are not a hardware sensitivity claim

@@ -4,17 +4,17 @@ This directory defines the receiver from the external FID sensing pair through a
 
 ## Signal path
 
-1. `J1` connects the nominal 14 ohm, 22 mH series-opposed sensing pair. The input has no fixed tuning capacitor, because a tank tuned for the 2.1 kHz development field would reject the roughly 1.7 kHz deployment signal.
-2. `C5` and `R2` form a high-pass near 480 Hz in front of the amplifier, `R1` limits clamp current, and `D1` and `D2` clamp overvoltage. The early pole attenuates 50/60 Hz before the gain stages. A notch at 1.8 kHz is not fitted: that frequency is a valid proton signal near 42 µT, inside the measurement band. Uniform magnetic pickup at that frequency is what the series-opposed pair rejects.
-3. `U2`, a TMUX1101, shorts the protected input to the 1.50 V bias while `BLANK_D1_GPIO27` is high. `R3` makes blanking the power-up default.
-4. `U1A`, one channel of an OPA4197, is a non-inverting preamplifier. `R6` and `R7` set gain to 55.9 V/V.
+1. `J1` connects the series-aiding sensing pair from `CoilDesign.xlsx`: 99.936 ohm and 152.568 mH. `J4` selects the tank and is the only setup change between the two test bands. A shunt on pins 1-2 connects `C25` (47 nF) and `C26` (4.7 nF), resonant at 1792 Hz. A shunt on pins 2-3 connects `C27` (33 nF) and `C28` (4.7 nF), resonant at 2099 Hz. Each tank is about 104 Hz wide because that width is R/(2πL). With the shunt removed, an external capacitor from pin 4 to pin 2 uses C = 1/(4π²f²L) when the measured inductance differs. The amplifier, blanking, bias, and 1.5–2.5 kHz filter stay fitted for both bands.
+2. `R2` is 8.2 megohm from the buffer input to the 1.50 V bias. With `R1` (1 kilohm) and `C5` (3.3 nF) the load on the tank is 8.20 megohm at 1792 Hz, inside the 5 to 10 megohm target. `C5` blocks the coil's DC ground from the bias. `D1` and `D2` clamp overvoltage. `U1B`'s 1.516 kHz high-pass is the first gain and is what attenuates 50/60 Hz. The series-aiding pair does not cancel uniform pickup.
+3. `U2`, a TMUX1101, shorts the protected input to the 1.50 V bias while `BLANK_D1_GPIO27` is high. `R3` makes blanking the power-up default. While the switch is on, the tank is loaded by `C5` and `R1`.
+4. `U1A`, one channel of an OPA4197, is a unity-gain buffer. The tank provides the voltage step-up, about 17 at resonance. A gain of 56 ahead of the 1.516 kHz pole would amplify residual mains and would drive the 3.64 µV Curie-law FID past the ADC full scale.
 5. `U1B`, `C7`, `R8`, and `R9` form a 1.516 kHz high-pass stage with high-frequency gain minus 56.19 V/V. `C7` is 100 nF C0G in 1206; that value does not exist in 0603.
-6. `U1C`, `R10`, `R11`, `C8`, and `C23` form a unity-gain Sallen-Key low-pass with a 3.03 kHz natural frequency. Simulated gain at 30 kHz is about 7.3 V/V, 49 dB below the passband. The ADS1256 digital filter's −3 dB bandwidth at 30 kSPS is 6.1 kHz; this analog pole adds rejection above that bandwidth.
+6. `U1C`, `R10`, `R11`, `C8`, and `C23` form a unity-gain Sallen-Key low-pass with a 3.03 kHz natural frequency. It passes both 1.7 kHz and 2.1 kHz. The ADS1256 digital filter's −3 dB bandwidth at 30 kSPS is 6.1 kHz; this analog pole adds rejection above that bandwidth. The selected tank rejects 30 kHz much more strongly than this stage alone.
 7. `R12` and `C9` form a 7.23 kHz differential input pole. The signal goes to ADS1256 `AIN0`; the buffered 1.50 V bias goes to `AIN1`. `R14` and `R15` hold D3's cathode at 1.80 V. The signal bias reverse-biases D3. A `U1C` output stuck at 5 V can raise `AIN0` only by one BAS116 drop above 1.80 V, which remains below the buffer limit of AVDD−2 V (3.0 V). The BAS116 forward voltage is 0.9 V maximum at 1 mA, and the fault current through 10 kΩ is below that. `AIN2` through `AIN7` are tied to the same 1.50 V bias.
 8. The ADS1256 input buffer is enabled and its PGA is set to 64. With the module's nominal 2.5 V ADR03 reference, differential full scale is plus or minus 78.125 mV.
 9. The ADS1256 sends 30 kSPS data to the XIAO RP2350 over SPI. Target firmware must feed samples to the estimator and report frequency and field through USB CDC.
 
-The resistor-set gain above the high-pass poles is 55.9 × 56.19 = 3141 V/V. Attenuation from the input high-pass, the 1.516 kHz high-pass, the Sallen-Key low-pass, and the 7.23 kHz ADC input pole leaves the simulated coil-source-to-ADC differential gain near 2000 V/V in the intended band. This gain excludes the ADS1256 internal PGA. The untuned input and active bandpass cover both the roughly 1.7 kHz deployment frequency and roughly 2.1 kHz development frequency. These are simulated nominal values.
+`U1B` still sets a high-frequency gain of 56.19. That high-pass and the 3.03 kHz low-pass pass both test bands, so they are not changed when `J4` moves. The simulated coil-source-to-ADC differential gain is 647 V/V (56.2 dB) with the 1792 Hz shunt and 751 V/V (57.5 dB) with the 2099 Hz shunt. This gain excludes the ADS1256 internal PGA. These are simulated nominal values.
 
 ## ADC module interface
 
@@ -57,7 +57,7 @@ The former battery connector was removed because this ADS1256 module requires 5 
 - `kicad/validate.py` regenerates connectivity and runs available KiCad CLI checks.
 - `bom.csv` lists every fitted part, the ADS1256 module, and sensor assumptions.
 
-Run `make figures` to regenerate plots, `make kicad` to regenerate and check KiCad artifacts, and `make eda` after any receiver change. Run `make export` to test the current receiver and create a timestamped review package under `local/`. The export includes a construction schematic generated by `schematic.py`; PCB renders appear only after a strict-DRC-clean board exists. See `docs/circuit-tooling.md`.
+Run `make figures` to regenerate plots, `make kicad` to regenerate and check KiCad artifacts, and `make eda` after any receiver change. Run `make export` to test the current receiver and create a timestamped review package under `local/`. The package shares the construction schematic, BOM, and connectivity, and writes separate `1.7kHz/` and `2.1kHz/` simulation results for the two J4 shunts. PCB renders appear only after a strict-DRC-clean board exists. See `docs/circuit-tooling.md`.
 
 ## Required ADS1256 configuration
 

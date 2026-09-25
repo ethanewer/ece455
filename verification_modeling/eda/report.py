@@ -63,6 +63,8 @@ def build_spice_report(
     passband_hz: tuple[float, float] | None = None,
     transient_stop_s: float = 0.020,
     max_step_s: float = 5e-6,
+    transient_title: str = "Nominal receiver transient response",
+    response_title: str = "Nominal receiver frequency response",
 ) -> ReportResult:
     """Run transient and AC analyses and write CSV, PNG, and Markdown outputs."""
     if passband_hz is not None and not 0 < passband_hz[0] < passband_hz[1]:
@@ -148,7 +150,7 @@ def build_spice_report(
     fig, axes = plt.subplots(2, 1, figsize=(10, 6.5), sharex=True, constrained_layout=True)
     axes[0].plot(time_s * 1e3, input_v * 1e6, color="#1769aa", linewidth=1)
     axes[0].set_ylabel("FID source (µV)")
-    axes[0].set_title("Nominal receiver transient response")
+    axes[0].set_title(transient_title)
     axes[1].plot(time_s * 1e3, output_v * 1e6, color="#c62828", linewidth=1)
     axes[1].set_ylabel("ADS1256 AIN0 − AIN1 (µV)")
     axes[1].set_xlabel("Time (ms)")
@@ -162,7 +164,10 @@ def build_spice_report(
     if passband_hz is not None:
         gain_axis.axvspan(
             passband_hz[0], passband_hz[1], color="#2e7d32", alpha=0.10,
-            label=f"Intended passband {passband_hz[0] / 1000:g}-{passband_hz[1] / 1000:g} kHz",
+            label=(
+                f"Intended passband {passband_hz[0] / 1000:.3f}"
+                f"-{passband_hz[1] / 1000:.3f} kHz"
+            ),
         )
         gain_axis.legend(loc="lower left")
     gain_axis.set_xlabel("Frequency (Hz)")
@@ -170,7 +175,7 @@ def build_spice_report(
     phase_axis = gain_axis.twinx()
     phase_axis.semilogx(frequency_hz, phase_deg, color="#c62828", linewidth=1.1, alpha=0.8)
     phase_axis.set_ylabel("Phase (degrees)", color="#c62828")
-    gain_axis.set_title("Nominal receiver frequency response")
+    gain_axis.set_title(response_title)
     response_png = output_dir / "receiver-frequency-response.png"
     fig.savefig(response_png, dpi=180)
     plt.close(fig)

@@ -31,6 +31,8 @@ This module is the "transducer" layer of the scoring harness: given coil +
 front-end parameters it produces sampled, quantized records exactly as an
 MCU would see them, so estimator code can be scored without hardware.
 """
+import math
+
 import numpy as np
 
 # Shielded proton in water, CODATA 2018 (42.57638474 MHz/T; the 2014 value
@@ -116,33 +118,69 @@ def input_noise_density(f: np.ndarray, r_coil: float, l_coil: float,
     return np.sqrt(e_coil**2 + e_amp**2 + (i_amp * np.abs(z_src))**2)
 
 
-def front_end_noise_density(f, r_coil=14.0, l_coil=22e-3,
-                            r_series=1.0e3, r_bias=100.0e3, c_couple=3.3e-9,
-                            e_amp=5.5e-9, i_amp=1.5e-15) -> np.ndarray:
-    """Coil-EMF-referred density of the active input network, V/sqrt(Hz).
+def _preamp_gain(freq_hz, r_coil, l_coil, r_series, r_bias, c_couple, c_tune,
+                 emf=1.0, e_series=0.0, e_bias=0.0, i_in=0.0):
+    """Voltage at the bias resistor from one input-network excitation.
 
-    r_series and r_bias are the receiver's R1 and R2. c_couple is C5.
-    e_amp defaults to the OPA4197 density specified below (V+)-3 V.
-    The op-amp voltage noise is referred through the passive divider; the
-    current noise flows through the series impedance. This is the input
-    network only, not the later bandpass gain.
+    Nodes are the coil terminal, the coupling-capacitor/series-resistor
+    junction, and the amplifier input. emf is in series with the coil.
+    e_series is in series with r_series, e_bias is in series with r_bias,
+    and i_in enters the amplifier input node.
     """
-    f = np.asarray(f, dtype=float)
-    w = 2.0 * np.pi * f
-    z_series = (r_coil + 1j * w * l_coil + 1.0 / (1j * w * c_couple)
-                + r_series)
-    gain = r_bias / (z_series + r_bias)
-    e_coil = np.sqrt(4.0 * K_B * T_AMBIENT * r_coil)
-    e_series = np.sqrt(4.0 * K_B * T_AMBIENT * r_series)
-    e_bias = np.sqrt(4.0 * K_B * T_AMBIENT * r_bias)
-    total = (e_coil**2 + e_series**2
-             + (e_bias * np.abs(z_series / r_bias))**2
-             + (e_amp / np.abs(gain))**2
-             + (i_amp * np.abs(z_series))**2)
-    return np.sqrt(total)
+    w = 2.0 * math.pi * freq_hz
+    z_l = r_coil + 1j * w * l_coil
+    y_c = 1j * w * c_couple
+    y_t = 1j * w * c_tune
+    g_s = 1.0 / r_series
+    g_b = 1.0 / r_bias
+    matrix = np.array([
+        [1.0 / z_l + y_t + y_c, -y_c, 0.0],
+        [y_c, -(y_c + g_s), g_s],
+        [0.0, g_s, -(g_s + g_b)],
+    ], dtype=complex)
+    drive = np.array([
+        emf / z_l,
+        -e_series * g_s,
+        e_series * g_s - e_bias * g_b + i_in,
+    ], dtype=complex)
+    _coil, _mid, preamp = np.linalg.solve(matrix, drive)
+    return preamp
 
 
-def input_noise_rms(r_coil=14.0, l_coil=22e-3, e_amp=1.4e-9, i_amp=0.1e-12,
+def front_end_noise_density(f, r_coil=99.9358, l_coil=152.5682e-3,
+                            r_series=1.0e3, r_bias=8.2e6, c_couple=3.3e-9,
+                            c_tune=51.7e-9, e_amp=5.5e-9, i_amp=1.5e-15):
+    """Coil-EMF-referred density of the tuned input network, V/sqrt(Hz).
+
+    The coil, r_coil and l_coil, is shunted by c_tune. C5 is c_couple, R1
+    is r_series, and R2 is r_bias. e_amp defaults to the OPA4197 density
+    specified below (V+)-3 V. This is the input network only, not the later
+    bandpass gain.
+    """
+    requested = np.asarray(f, dtype=float)
+    flat = np.atleast_1d(requested)
+    density = np.empty(flat.shape, dtype=float)
+    e_coil = math.sqrt(4.0 * K_B * T_AMBIENT * r_coil)
+    e_r1 = math.sqrt(4.0 * K_B * T_AMBIENT * r_series)
+    e_r2 = math.sqrt(4.0 * K_B * T_AMBIENT * r_bias)
+    args = (r_coil, l_coil, r_series, r_bias, c_couple, c_tune)
+    for index, freq_hz in enumerate(flat):
+        gain = _preamp_gain(float(freq_hz), *args, emf=1.0)
+        v_r1 = _preamp_gain(float(freq_hz), *args, emf=0.0, e_series=e_r1)
+        v_r2 = _preamp_gain(float(freq_hz), *args, emf=0.0, e_bias=e_r2)
+        v_i = _preamp_gain(float(freq_hz), *args, emf=0.0, i_in=i_amp)
+        referred = np.array([
+            e_coil,
+            abs(v_r1 / gain),
+            abs(v_r2 / gain),
+            e_amp / abs(gain),
+            abs(v_i / gain),
+        ])
+        density[index] = float(np.sqrt(np.sum(referred**2)))
+    return density.reshape(requested.shape)
+
+
+def input_noise_rms(r_coil=99.9358, l_coil=152.5682e-3, e_amp=1.4e-9, i_amp=0.1e-12,
                     f_lo=None, f_hi=None) -> float:
     """Coil-plus-amplifier RMS noise over a rectangular band [V].
 
@@ -170,7 +208,7 @@ def _bandlimited_noise(n, fs, f_lo, f_hi, sigma, rng):
 
 def generate_record(b_tesla=50e-6, v0=2e-6, tau=1.5, phase=0.0,
                     fs=20_000.0, blanking_s=0.2, record_s=1.5,
-                    r_coil=14.0, l_coil=22e-3, e_amp=1.4e-9, i_amp=0.1e-12,
+                    r_coil=99.9358, l_coil=152.5682e-3, e_amp=1.4e-9, i_amp=0.1e-12,
                     f_lo=None, f_hi=None, gain=5000.0,
                     adc_bits=16, adc_fs=2.048, rng=None,
                     sigma_in=None, interferers=None,

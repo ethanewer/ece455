@@ -18,7 +18,7 @@ make export    # timestamped engineering report under local/export-YYYYMMDD-HHMM
 
 Uncommitted pipeline output belongs under `local/`. SKiDL runtime files go to `local/skidl/`, and KiCad ERC and DRC reports go to `local/kicad/`. Git keeps the `local/` directory but ignores its contents. Committed analysis CSV and PNG files remain under `receiver_design/analysis/` because they are review artifacts, not scratch output.
 
-`make export` runs connectivity and ngspice checks against the current files, then creates a new timestamped directory. Each export contains transient and frequency-response CSV/PNG pairs, a construction schematic in SVG and PNG, the BOM in CSV and Markdown, exact SPICE and connectivity inputs, a manifest, and a verification log. If a PCB exists, the command first requires strict DRC, then includes the `.kicad_pcb` source, a routed-copper SVG, and a KiCad 3D PNG. Until a board exists, it writes `PCB-NOT-AVAILABLE.txt` rather than fabricating an image.
+`make export` runs connectivity and ngspice checks against the current files, then creates a new timestamped directory. The package shares one construction schematic, one BOM, the canonical SPICE deck, and the connectivity netlist. It also writes `1.7kHz/` and `2.1kHz/`, one directory per J4 shunt. Each directory contains that shunt's SPICE deck, transient and frequency-response CSV/PNG pairs, and an analysis summary. If a PCB exists, the command first requires strict DRC, then includes the `.kicad_pcb` source, a routed-copper SVG, and a KiCad 3D PNG. Until a board exists, it writes `PCB-NOT-AVAILABLE.txt` rather than fabricating an image.
 
 ## Simulation architecture
 

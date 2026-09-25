@@ -69,7 +69,6 @@ vref = Net("VBIAS_1V5")
 coil_hi = Net("COIL_HI")
 protected = Net("PROTECTED")
 pre_in = Net("PRE_IN")
-stage1_n = Net("STAGE1_N")
 stage1 = Net("STAGE1")
 stage2_n = Net("STAGE2_N")
 stage2 = Net("STAGE2")
@@ -95,12 +94,34 @@ ads_pdwn = Net("ADS1256_PDWN_5V")
 ads_dout = Net("ADS1256_DOUT_5V")
 ads_drdy = Net("ADS1256_DRDY_5V")
 
-# External sensing pair. Do not shunt it with the former fixed tuning bank:
-# the untuned input must cover proton frequencies from 1.5 to 2.5 kHz.
+# Series-aiding sensing pair from CoilDesign.xlsx. J4 selects which tuning
+# bank grounds. Pins 1-2: C25+C26 at 1792 Hz. Pins 2-3: C27+C28 at 2099 Hz.
+# Pin 4 is COIL_HI; with the shunt removed, an external capacitor from pin 4
+# to pin 2 sets a measured-L correction. R2 remains the 8.2 megohm tank load.
+tune17 = Net("TUNE_1V7")
+tune21 = Net("TUNE_2V1")
 j1 = part("Connector_Generic", "Conn_01x02", "J1", "FID SENSING COIL",
           "TerminalBlock_Altech:Altech_AK100_1x02_P5.00mm")
 j1[1] += coil_hi
 j1[2] += gnd
+c25 = capacitor("C25", "47n C0G 2%", "Capacitor_SMD:C_1206_3216Metric")
+c26 = capacitor("C26", "4.7n C0G 2%")
+c27 = capacitor("C27", "33n C0G 2%", "Capacitor_SMD:C_1206_3216Metric")
+c28 = capacitor("C28", "4.7n C0G 2%")
+c25[1] += coil_hi
+c25[2] += tune17
+c26[1] += coil_hi
+c26[2] += tune17
+c27[1] += coil_hi
+c27[2] += tune21
+c28[1] += coil_hi
+c28[2] += tune21
+j4 = part("Connector_Generic", "Conn_01x04", "J4", "TUNE SELECT",
+          "Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical")
+j4[1] += tune17
+j4[2] += gnd
+j4[3] += tune21
+j4[4] += coil_hi
 
 # Coupling, current limit, low-leakage clamps, bias, and default-on blanking.
 c5 = capacitor("C5", "3.3n C0G 2%")
@@ -109,7 +130,7 @@ c5[2] += protected
 r1 = resistor("R1", "1k 1%")
 r1[1] += protected
 r1[2] += pre_in
-r2 = resistor("R2", "100k 1%")
+r2 = resistor("R2", "8.2M 1%")
 r2[1] += pre_in
 r2[2] += vref
 d1 = part("Device", "D", "D1", "BAS116H low leakage",
@@ -133,8 +154,8 @@ r3[2] += blank
 
 # OPA4197 quad on a filtered 5 V rail (its specified minimum is 4.5 V). U1D
 # buffers a 1.50 V bias, below (V+)-3 V, where the 5.5 nV/sqrt(Hz) density
-# is specified. U1A through U1C provide about 2000 V/V source-to-ADC gain in
-# the 1.5-2.5 kHz passband, before the ADS1256 internal PGA.
+# is specified. U1A buffers the tuned coil. U1B and U1C are the bandpass
+# ahead of the ADS1256, whose internal PGA is not included here.
 u1 = part("Amplifier_Operational", "OPA4197xPW", "U1", "OPA4197IPWR",
           "Package_SO:TSSOP-14_4.4x5mm_P0.65mm")
 u1[4] += opamp5
@@ -153,16 +174,11 @@ u1[12] += vref_raw
 u1[13] += vref
 u1[14] += vref
 
-# U1A non-inverting gain 55.9. The input high-pass is C5 with R1+R2.
+# U1A is a unity-gain buffer. The parallel tank provides the step-up, and
+# U1B is the first stage with gain so its 1.516 kHz pole rejects 50/60 Hz.
 u1[3] += pre_in
-u1[2] += stage1_n
 u1[1] += stage1
-r6 = resistor("R6", "1k 0.1%")
-r7 = resistor("R7", "54.9k 0.1%")
-r6[1] += stage1_n
-r6[2] += vref
-r7[1] += stage1
-r7[2] += stage1_n
+u1[2] += stage1
 
 # U1B high-pass, 1.516 kHz corner and inverting gain 56.19.
 # 100 nF C0G does not fit in 0603; this part is 1206.

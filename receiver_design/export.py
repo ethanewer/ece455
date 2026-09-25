@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Build a timestamped engineering export of the current receiver."""
+"""Build a timestamped engineering export of both J4 receiver settings."""
 from __future__ import annotations
 
 import csv
+import re
 import shutil
 import subprocess
 import sys
@@ -15,7 +16,10 @@ KICAD_DIR = RECEIVER / "kicad"
 LOCAL = ROOT / "local"
 sys.path.insert(0, str(ROOT))
 
+from receiver_design.analyze import _append_tuning_note
 from receiver_design.schematic import build_receiver_schematic
+from verification_modeling import physics
+from verification_modeling.coil import current_coil
 from verification_modeling.eda.report import build_spice_report
 
 
@@ -47,6 +51,32 @@ def new_export_directory() -> Path:
         suffix += 1
     path.mkdir()
     return path
+
+
+def select_j4(source: str, *, jumper: int, frequency_hz: float, amplitude_v: float) -> str:
+    """Return the receiver deck with one J4 shunt and its matching FID stimulus."""
+    if jumper not in (0, 1):
+        raise ValueError("jumper must be 0 (pins 1-2) or 1 (pins 2-3)")
+    replacements = (
+        (r"(?m)^\.param fL=.*$", f".param fL={frequency_hz:.6f}"),
+        (r"(?m)^\.param V0=.*$", f".param V0={amplitude_v * 1e6:.9f}u"),
+        (r"(?m)^\.param Vjumper=.*$", f".param Vjumper={jumper}"),
+    )
+    text = source
+    for pattern, replacement in replacements:
+        text, count = re.subn(pattern, replacement, text, count=1)
+        if count != 1:
+            raise RuntimeError(f"receiver deck is missing a unique match for {pattern}")
+    return text
+
+
+def fid_amplitude(coil: dict, frequency_hz: float) -> float:
+    return physics.estimate_v0(
+        b_pol=coil["b_pol"],
+        n_turns=coil["n_turns"],
+        coil_radius_m=coil["radius_m"],
+        b_earth=frequency_hz / physics.GAMMA_HZ_PER_T,
+    )
 
 
 def write_bom_markdown(csv_path: Path, output_path: Path) -> None:
@@ -147,6 +177,53 @@ def export_board(output_dir: Path, verification_log: Path) -> str:
     return "strict DRC passed; routed SVG, final KiCad board, and 3D PNG exported"
 
 
+def export_j4_version(
+    output_dir: Path,
+    source: str,
+    coil: dict,
+    *,
+    name: str,
+    jumper: int,
+    frequency_hz: float,
+    shunt: str,
+) -> None:
+    """Simulate one J4 shunt and write its deck, figures, and summary."""
+    version_dir = output_dir / name
+    version_dir.mkdir()
+    netlist = version_dir / "receiver.cir"
+    netlist.write_text(select_j4(
+        source,
+        jumper=jumper,
+        frequency_hz=frequency_hz,
+        amplitude_v=fid_amplitude(coil, frequency_hz),
+    ))
+    label = f"{shunt}, {frequency_hz:.0f} Hz"
+    result = build_spice_report(
+        netlist,
+        version_dir,
+        input_node="source",
+        output_positive="ads_ain0",
+        output_negative="vref",
+        resonance_hz=frequency_hz,
+        passband_hz=(1500.0, 2500.0),
+        transient_title=f"Receiver transient, {label}",
+        response_title=f"Receiver frequency response, {label}",
+    )
+    heading = "# Generated receiver analysis\n"
+    text = result.summary_md.read_text()
+    if not text.startswith(heading):
+        raise RuntimeError("analysis summary is missing its heading")
+    result.summary_md.write_text(
+        heading
+        + "\n"
+        + f"This directory is the {label} setting. `Vjumper={jumper}` selects "
+        + "that tank. The shaded span is the fixed 1.5–2.5 kHz filter shared "
+        + "with the other setting.\n"
+        + text[len(heading):]
+    )
+    _append_tuning_note(result.summary_md)
+
+
 def main() -> None:
     output_dir = new_export_directory()
     verification_log = output_dir / "verification.log"
@@ -155,17 +232,18 @@ def main() -> None:
         run([sys.executable, str(KICAD_DIR / "validate.py")], log=verification_log)
         run([sys.executable, str(RECEIVER / "verify.py"), "--require-tools"], log=verification_log)
 
-        result = build_spice_report(
-            RECEIVER / "spice" / "receiver.cir",
-            output_dir,
-            input_node="source",
-            output_positive="ads_ain0",
-            output_negative="vref",
-            resonance_hz=2128.819237,
-            passband_hz=(1500.0, 2500.0),
+        coil = current_coil()
+        source = (RECEIVER / "spice" / "receiver.cir").read_text()
+        export_j4_version(
+            output_dir, source, coil,
+            name="1.7kHz", jumper=0, frequency_hz=coil["f_tune_hz"],
+            shunt="J4 pins 1-2",
         )
-        analysis_summary = output_dir / "analysis-summary.md"
-        result.summary_md.replace(analysis_summary)
+        export_j4_version(
+            output_dir, source, coil,
+            name="2.1kHz", jumper=1, frequency_hz=coil["f_tune_alt_hz"],
+            shunt="J4 pins 2-3",
+        )
         build_receiver_schematic(output_dir)
 
         bom_csv = output_dir / "bill-of-materials.csv"
@@ -182,17 +260,24 @@ def main() -> None:
             f"- Created: {datetime.now().astimezone().isoformat(timespec='seconds')}\n"
             f"- Git revision: `{revision}`\n"
             f"- Tracked working tree: {'modified' if dirty else 'clean'}\n"
-            "- Simulation: ngspice transient and AC analyses passed\n"
+            "- Simulation: ngspice transient and AC analyses passed for both J4 shunts\n"
             "- Connectivity: receiver validation passed\n"
             f"- PCB: {pcb_status}\n\n"
-            "## Contents\n\n"
-            "- `receiver-waveforms.png` and `.csv`: transient source and ADC input response\n"
-            "- `receiver-frequency-response.png` and `.csv`: AC gain and phase response\n"
-            "- `receiver-construction-schematic.svg` and `.png`: readable analog construction schematic\n"
-            "- `bill-of-materials.csv` and `.md`: machine-readable and reviewable BOM\n"
-            "- `receiver.cir` and `receiver.net`: exact simulation and connectivity inputs\n"
+            "The board, BOM, and construction schematic are shared. `1.7kHz/` is "
+            "J4 pins 1-2. `2.1kHz/` is J4 pins 2-3. The amplifier, blanking, bias, "
+            "and 1.5–2.5 kHz filter are the same in both.\n\n"
+            "## Shared contents\n\n"
+            "- `receiver-construction-schematic.svg` and `.png`: both tanks and the J4 shunt\n"
+            "- `bill-of-materials.csv` and `.md`: one BOM; the shunt selects the tank\n"
+            "- `receiver.cir`: canonical deck, default shunt on pins 1-2\n"
+            "- `receiver.net`: connectivity for both capacitor banks\n"
             "- `verification.log`: commands and validation output\n"
             "- PCB source and images when a strict-DRC-clean board exists\n\n"
+            "## Each J4 directory\n\n"
+            "- `receiver.cir`: that shunt, with the FID stimulus at its resonance\n"
+            "- `receiver-waveforms.png` and `.csv`: transient source and ADC input\n"
+            "- `receiver-frequency-response.png` and `.csv`: AC gain and phase\n"
+            "- `README.md`: gain, amplitudes, and the tuning note\n\n"
             "Simulation and connectivity checks are not hardware measurements.\n"
         )
         (output_dir / "README.md").write_text(manifest)

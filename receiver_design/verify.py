@@ -33,8 +33,12 @@ def artifact_check() -> None:
     required_spice = (
         "XU1A", "XU1B", "XU1C", "XU1D", "OPA4197", "TMUXSW",
         "ads_ain0", "Epga", ".param PGA=64", "30 kSPS", "D8/GPIO2",
-        "R7 stage1 stage1_n 54.9k", "C7 stage1 hp_in 100n",
-        "C5 coil_hi protected 3.3n", "R2 pre_in vref 100k",
+        "XU1A pre_in stage1 stage1 opamp5 0 OPA4197",
+        "C7 stage1 hp_in 100n",
+        "C25 coil_hi n17 47n", "C26 coil_hi n17 4.7n",
+        "C27 coil_hi n21 33n", "C28 coil_hi n21 4.7n",
+        ".param Vjumper=0",
+        "C5 coil_hi protected 3.3n", "R2 pre_in vref 8.2Meg",
         "R8 hp_in stage2_n 1.05k", "R9 stage2 stage2_n 59k",
         "R10 stage2 sk_mid 10.2k", "C8 sk_mid stage3 6.8n",
         "D3 ads_ain0 clamp3 BAS116",
@@ -43,7 +47,7 @@ def artifact_check() -> None:
         "OPA4197IPWR", "TMUX1101DBVR", "XIAO-RP2350-SMD",
         "HILETGO ADS1256 DIGITAL HEADER", "ADS1256_AIN0_SIGNAL",
         "BLANK_D1_GPIO27", "74AHCT1G125", "74LVC1G125",
-        "FID SENSING COIL", "USB_VBUS_5V",
+        "FID SENSING COIL", "TUNE SELECT", "USB_VBUS_5V",
     )
     for token in required_spice:
         if token not in spice:
@@ -65,7 +69,13 @@ def artifact_check() -> None:
     expected_nodes = {
         "GND": {("U1", "11"), ("U2", "3"), ("U3", "13"),
                 ("U3", "26"), ("U3", "30"), ("J2", "2"),
-                ("R19", "2"), ("R20", "2")},
+                ("R19", "2"), ("R20", "2"),
+                ("J4", "2")},
+        "COIL_HI": {("J1", "1"), ("C5", "1"), ("C25", "1"), ("C26", "1"),
+                    ("C27", "1"), ("C28", "1"), ("J4", "4")},
+        "TUNE_1V7": {("C25", "2"), ("C26", "2"), ("J4", "1")},
+        "TUNE_2V1": {("C27", "2"), ("C28", "2"), ("J4", "3")},
+        "STAGE1": {("U1", "1"), ("U1", "2"), ("C7", "1")},
         "USB_VBUS_5V": {("U3", "14"), ("J2", "1"),
                         ("U4", "5"), ("U7", "5"),
                         ("R17", "1"), ("R18", "1")},

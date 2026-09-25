@@ -34,12 +34,12 @@ def test_bandlimited_noise_has_requested_rms_and_band():
 
 
 def test_front_end_noise_includes_bias_resistor():
-    density = physics.front_end_noise_density(2128.819237)
-    # Coil, 1 kohm, 100 kohm through C5, and 5.5 nV/sqrt(Hz), at 300 K.
-    assert density == pytest.approx(11.5e-9, rel=0.05)
-    coil_only = physics.input_noise_density(
-        np.array([2128.819237]), 14.0, 22e-3, 5.5e-9, 1.5e-15
-    )[0]
+    from verification_modeling.coil import current_coil
+    coil = current_coil()
+    density = float(physics.front_end_noise_density(coil["f_tune_hz"]))
+    coil_only = physics.coil_thermal_noise_density(coil["r_coil"])
+    # Tuned 8.2 megohm input: coil Johnson noise plus a smaller amplifier term.
+    assert density == pytest.approx(1.352e-9, rel=0.02)
     assert density > coil_only
 
 

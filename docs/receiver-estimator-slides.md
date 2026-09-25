@@ -2,28 +2,26 @@
 
 ```mermaid
 flowchart LR
-  coil["Coil\n14 Ω, 22 mH"] --> hp["High-pass\n480 Hz"]
-  hp --> blank["Blanker\n200 ms"]
-  blank --> g1["Gain\n55.9"]
-  g1 --> hp2["High-pass\n1.52 kHz\ngain −56.2"]
+  coil["Coil\n99.9 Ω, 153 mH\nJ4: 1.7 or 2.1 kHz"] --> buf["Buffer\n8.2 MΩ"]
+  buf --> blank["Blanker\n200 ms"]
+  blank --> hp2["High-pass\n1.52 kHz\ngain −56.2"]
   hp2 --> lpf["Sallen–Key\n3.03 kHz"]
   lpf --> pole["Pole\n7.23 kHz"]
   pole --> adc["ADS1256\nPGA 64\n30 kSPS"]
 ```
 
-- Untuned coil, so 1.7 kHz and 2.1 kHz both pass
-- About 2000 V/V from coil to the ADC pins, before the PGA
-- Passband 1.5–2.5 kHz
+- J4 selects a 1792 Hz tank or a 2099 Hz tank
+- Amplifier, blanking, and 1.5–2.5 kHz filter stay fitted for both
+- 647 V/V at 1792 Hz and 751 V/V at 2099 Hz, before the PGA
 
 ---
 
 # Analog stages
 
-- High-pass before gain, so 50/60 Hz is attenuated first
-- U1A and U1B set 55.9 × 56.2 = 3141 V/V
-- Filters bring the 1.5–2.5 kHz band down to about 2000 V/V
+- U1A is a unity-gain buffer; U1B is the first gain
+- U1B's 1.52 kHz high-pass attenuates 50/60 Hz
 - Sallen–Key natural frequency is 3.03 kHz
-- No notch at 1.8 kHz; that is a valid proton signal
+- Tank bandwidth is about 104 Hz around 1792 Hz
 
 ---
 
@@ -40,8 +38,8 @@ flowchart LR
 # Transient response
 
 - Simulated, not measured
-- About 1 µV peak at the coil, 2128.8 Hz
-- Differential ADC input settles near ±2.0 mV
+- 3.64 µV peak at the coil, 1792 Hz
+- Differential ADC input settles near ±2.3 mV
 - PGA 64 full scale is ±78 mV
 
 ![Coil source and AIN0−AIN1](../receiver_design/analysis/receiver-waveforms.png)
@@ -51,9 +49,9 @@ flowchart LR
 # Frequency response
 
 - Simulated, not measured
-- In-band gain 1924–2032 V/V
-- 2020 V/V at 2128.8 Hz
-- 7.3 V/V at 30 kHz, 49 dB below the passband
+- 647 V/V at 1792 Hz
+- Tank half-power width is about 104 Hz
+- 30 kHz is far below the tuned peak
 
 ![Source-to-ADC gain and phase](../receiver_design/analysis/receiver-frequency-response.png)
 

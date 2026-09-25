@@ -1,8 +1,13 @@
 Reference,Qty,Value or part,Package,Function
-J1,1,FID sensing coil connector,Altech AK100 2-pin 5.00mm,External sensor pair
-C5,1,3.3 nF C0G 2%,0603,Input high-pass near 480 Hz
+J1,1,FID sensing coil connector,Altech AK100 2-pin 5.00mm,External series-aiding sensor pair
+C25,1,47 nF C0G 2%,1206,~1.7 kHz tuning bank; J4 pins 1-2
+C26,1,4.7 nF C0G 2%,0603,~1.7 kHz tuning bank; J4 pins 1-2
+C27,1,33 nF C0G 2%,1206,~2.1 kHz tuning bank; J4 pins 2-3
+C28,1,4.7 nF C0G 2%,0603,~2.1 kHz tuning bank; J4 pins 2-3
+J4,1,1x4 2.54 mm header and one shunt,Pin header,Selects the 1.7 kHz bank, the 2.1 kHz bank, or an external tuning capacitor
+C5,1,3.3 nF C0G 2%,0603,DC block from the tuned coil into the 8.2 megohm bias
 R1,1,1 kohm 1%,0603,Input surge current limit
-R2,1,100 kohm 1%,0603,Input bias and high-pass return to 1.50 V
+R2,1,8.2 megohm 1%,0603,Tank load and bias return to 1.50 V
 D1 D2,2,BAS116H,SOD-323,Low-leakage input clamps
 U2,1,TMUX1101DBVR,SOT-23-5,Default-on shunt blanker
 R3,1,100 kohm 1%,0603,Blank-enable pull-up
@@ -10,8 +15,6 @@ U1,1,OPA4197IPWR,TSSOP-14,Reference buffer and three explicit analog stages
 R4,1,23.2 kohm 0.1%,0603,1.50 V bias divider from OPA_AVDD_5V
 R5,1,10 kohm 0.1%,0603,1.50 V bias divider to ground
 C6,1,10 uF 10 V,0805,Reference filtering
-R6,1,1 kohm 0.1%,0603,U1A gain setting
-R7,1,54.9 kohm 0.1%,0603,U1A gain-55.9 feedback
 C7,1,100 nF C0G 5%,1206,U1B 1.516 kHz high-pass input
 R8,1,1.05 kohm 0.1%,0603,U1B input resistor
 R9,1,59 kohm 0.1%,0603,U1B gain-56.19 feedback
@@ -48,4 +51,4 @@ J2,1,HiLetgo ADS1256 digital interface,1x8 2.54 mm logical header,5V GND SCLK DI
 J3,1,HiLetgo ADS1256 analog interface,1x8 2.54 mm logical header,AIN0 signal and AIN1 at 1.50 V; AIN2-AIN7 tied to the same bias
 MOD1,1,HiLetgo ADS1256 5V 8-channel 24-bit ADC module,Amazon ASIN B09KGXC44Q,External ADC module with ADR03 2.5 V reference
 TP1-TP12,12,Plated test point,2.0 mm,Ground rails signals blanking and DRDY probes
-SENSOR,1,14 ohm and 22 mH nominal,External series-opposed pair,FID pickup coil supplied outside PCB
+SENSOR,1,99.94 ohm and 152.6 mH nominal,External series-aiding pair,FID pickup coil supplied outside PCB

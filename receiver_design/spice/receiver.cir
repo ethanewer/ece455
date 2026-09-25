@@ -1,24 +1,41 @@
 * Complete receiver using the HiLetgo ADS1256 module and XIAO RP2350
-* Nominal 50 uT operating point; ADS1256 at 30 kSPS, differential, PGA=64
-.param fL=2128.819237
-.param V0=1.008442079u
+* Default J4 shunt is the ~1.7 kHz tank. Set Vjumper=1 and fL to the
+* alternate resonance to simulate the ~2.1 kHz tank. ADS1256 at 30 kSPS,
+* differential, PGA=64.
+.param fL=1792.019986
+.param V0=3.642200856u
+.param Vjumper=0
+* R17 and R21 model the J4 shunt: 0.01 ohm on the selected bank and
+* 1 terohm on the other. Vjumper=0 selects the 1792 Hz bank.
+.param Rlo={1e12*Vjumper + 0.01*(1-Vjumper)}
+.param Rhi={1e12*(1-Vjumper) + 0.01*Vjumper}
 .param T2s=0.95
 .param VDD=3.3
 .param PGA=64
 
-* Induced FID test source and external nominal series-opposed sensing pair.
-* The input is intentionally untuned so the receiver covers magnetic fields
-* that put the proton frequency anywhere in the 1.5-2.5 kHz passband.
+* Induced FID test source and the CoilDesign.xlsx series-aiding sensing pair.
+* J4 connects exactly one capacitor bank across the 99.9358 ohm, 152.5682 mH
+* pair. Vjumper=0 shorts n17 (C25+C26, 1792 Hz). Vjumper=1 shorts n21
+* (C27+C28, 2099 Hz). The amplifier load stays R1+R2, 8.201 megohm.
+* If measured L differs, remove the shunt and fit C = 1/(4*pi^2*f^2*L)
+* from J4 pin 4 (COIL_HI) to pin 2 (GND).
 Vfid source 0 DC 0 AC 1 SINE(0 {V0} {fL} 0 {1/T2s})
-Rcoil source coil_l 14
-Lcoil coil_l coil_hi 22m
+Rcoil source coil_l 99.9358
+Lcoil coil_l coil_hi 152.5682m
+R17 n17 0 {Rlo}
+R21 n21 0 {Rhi}
+C25 coil_hi n17 47n
+C26 coil_hi n17 4.7n
+C27 coil_hi n21 33n
+C28 coil_hi n21 4.7n
 
-* Coupling, clamp-current limit, bias, and default-on shunt blanker.
-* C5 with R1+R2 is a ~480 Hz high-pass in front of the gain, so 50/60 Hz
-* is attenuated before U1A. The 1.5-2.5 kHz measurement band is left intact.
+* AC coupling, clamp-current limit, 8.2 megohm bias, and default-on blanker.
+* C5 with R2 is a 5.9 Hz high-pass. At 1792 Hz its reactance is 27 kilohm,
+* so the tank still sees 8.20 megohm. U1B's 1.516 kHz high-pass is the
+* first gain stage and is what attenuates 50/60 Hz.
 C5 coil_hi protected 3.3n
 R1 protected pre_in 1k
-R2 pre_in vref 100k
+R2 pre_in vref 8.2Meg
 D1 0 pre_in BAS116
 D2 pre_in avdd BAS116
 Sblank pre_in vref blank 0 TMUXSW
@@ -55,10 +72,10 @@ R5 vref_raw 0 10k
 C6 vref_raw 0 10u
 XU1D vref_raw vref vref opamp5 0 OPA4197
 
-* U1A non-inverting preamplifier, gain 55.9.
-XU1A pre_in stage1_n stage1 opamp5 0 OPA4197
-R6 stage1_n vref 1k
-R7 stage1 stage1_n 54.9k
+* U1A unity-gain buffer. The tank's Q is the voltage step-up. Keeping this
+* stage at unity leaves 50/60 Hz for U1B to reject before the gain of 56,
+* and keeps the Curie-law FID inside the ADS1256's +/-78 mV full scale.
+XU1A pre_in stage1 stage1 opamp5 0 OPA4197
 
 * U1B high-pass stage, fc=1.516 kHz and inverting gain 56.19.
 C7 stage1 hp_in 100n
@@ -117,7 +134,6 @@ Cout out 0 2p
 
 .model BAS116 D(Is=2p Rs=1 Cjo=2p Bv=85 Ibv=100n)
 .model TMUXSW SW(Ron=1.8 Roff=1T Vt=1.0 Vh=0.1)
-
 .options plotwinsize=0
 .ac dec 1000 100 100k
 * Integrate through the ADS1256's 6.106 kHz digital-filter bandwidth at

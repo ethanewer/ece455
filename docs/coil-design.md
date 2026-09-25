@@ -1,35 +1,42 @@
 # Active coil model
 
-The nominal values come from `docs/current_work/Week3 # Polarization Coil Design # Hunter_Vania.pptx.pdf`, slides 2 through 7. They describe a proposal, not measured hardware. `verification_modeling/coil.py` is the machine-readable copy.
+The nominal values come from `CoilDesign.xlsx`. They are winding estimates, not measurements. `verification_modeling/coil.py` is the machine-readable copy. The workbook says to measure L and R after winding and recalculate.
 
 ## Polarizer
 
-- Rectangular 7 by 14 cm cross-section, 10 cm length
-- 360 turns in four layers, 18 AWG, about 144 m of wire
-- Nominal 3 ohm and 15.4 mH
-- 3 A for at least 5 seconds
-- 13.6 mT ideal-solenoid estimate
-- 9.38 mT finite rectangular-coil center estimate used by the signal model
-
-The nominal L/R time constant is 5.13 ms. Stored energy at 3 A is 69.3 mJ. The winding drops 9 V and dissipates 27 W during the pulse, excluding switching losses.
+- Rectangular 140 by 70 mm aperture, 100 mm winding length, 146 by 76 mm bobbin outline
+- 331 turns in three layers, 0.714 mm insulated diameter, about 149 m of wire
+- 7.905 ohm and 9.835 mH
+- 3 A for 5 seconds, 23.7 V and 71.1 W in the winding
+- 8.633 mT center-field estimate, scaled from the earlier 342-turn, 8.92 mT geometry
+- Stored energy at 3 A is 44.3 mJ
+- L/R time constant is 1.244 ms
 
 ## Sensor pair
 
-Each sensing coil has a 6 by 6 cm square bore, 10 cm length, four layers of 22 AWG wire, about 135 m of wire, 7 ohm resistance, and 10 to 12 mH inductance. The model infers 138 turns per layer, or 552 turns per coil.
+Each sensing coil has a 56 by 56 mm aperture, 100 mm winding length, and a 60 by 60 mm bobbin outline. The estimate is 1477 turns in seven layers of 0.462 mm insulated wire, about 373 m, 49.968 ohm, and 76.284 mH.
 
-The receiver model assumes a series-opposed pair with negligible mutual inductance. It uses:
+The receiver connects the two coils series-aiding and neglects mutual inductance:
 
-- 552 signal turns because only one coil contains the active sample
-- 14 ohm series resistance
-- 22 mH series inductance
-- no tuning capacitor in the active receiver
-- 264 nF tuning capacitance only as a historical source-slide value
-- 0.0036 square meter bore area, represented by an equal-area radius
+- 2954 signal turns, because the workbook counts both windings
+- 99.936 ohm series resistance
+- 152.568 mH series inductance
+- 56 mm square aperture, represented by an equal-area radius
 - provisional T2 star of 0.95 seconds
 
-Both windings contribute Johnson noise. The model grants no common-mode cancellation without measurements. If both coils contain aligned polarized samples, the opposed connection may cancel signal.
+`J4` selects the capacitor across the pair. The rest of the receiver stays fitted.
 
-The ideal pair resonance with the source's 264 nF is 2088 Hz, about 49.1 uT. That roughly 101 Hz unloaded bandwidth cannot cover both the 1.7 kHz deployment signal and 2.1 kHz development signal. The active receiver therefore leaves the sensor untuned and uses a 1.5 to 2.5 kHz active bandpass. The 264 nF value remains only for comparison with the source slides and optional characterization measurements.
+| `J4` shunt | Capacitors | Capacitance | Resonance with 152.568 mH |
+|---|---|---:|---:|
+| Pins 1-2, about 1.7 kHz | `C25` 47 nF + `C26` 4.7 nF | 51.7 nF | 1792 Hz, about 42.09 µT |
+| Pins 2-3, about 2.1 kHz | `C27` 33 nF + `C28` 4.7 nF | 37.7 nF | 2099 Hz, about 49.3 µT |
+| Removed | External capacitor, pin 4 to pin 2 | 1/(4π²f²L) | The measured inductance and the chosen test frequency |
+
+The workbook's exact capacitor for 1795 Hz is 51.53 nF. Unloaded Q at 1792 Hz is 17.19. The half-power width of either tank is R/(2πL), about 104 Hz, and the 1792 Hz amplitude ring-down time constant is 3.05 ms. Fit only one shunt. Two banks in parallel resonate at neither target.
+
+`R2`, 8.2 megohm, is the amplifier load on that tank. With `R1` and `C5` the load is 8.20 megohm at 1792 Hz, inside the 5 to 10 megohm target. The resonant resistance of the pair is about 30 kilohm, so this load leaves Q essentially unchanged.
+
+The Curie-law model gives an open-circuit pair amplitude of 3.64 µV at 1792 Hz with the 8.633 mT polarizing field. The workbook's 72 µV series-pair figure is an illustrative scaling from a 15 µV baseline, not the receiver stimulus. Both windings contribute Johnson noise. The model grants no common-mode cancellation: the workbook's series-aiding connection adds uniform pickup.
 
 ## Measurements still required
 
