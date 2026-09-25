@@ -1,60 +1,27 @@
-Reference,Qty,Value or part,Package,Function
-J1,1,External sensor input connector,Altech AK100 2-pin 5.00mm,Signal and return from external coil/tuning assembly
-C5,1,3.3 nF,0603,AC block from external sensor input to buffered bias
-R1,1,1 kohm,0603,Input surge current limit
-R2,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
-R6,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
-R24,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
-R25,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
-R26,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
-R27,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
-R28,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
-R29,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
-R30,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
-R31,1,510 kohm,0603 nominal footprint; verify supplied package,One of ten 510 kohm resistors in 5.1 megohm input bias return
-D1 D2,2,BAS116H,SOD-323,Low-leakage input clamps
-U2,1,TMUX1101DBVR,SOT-23-5,Default-on shunt blanker
-R3,1,100 kohm,0603,Blank-enable pull-up
-U1,1,OPA4197IPWR,TSSOP-14,Reference buffer and three explicit analog stages
-R4,1,20 kohm,0603 nominal footprint; verify supplied package,1.36 V bias divider upper leg
-R5,1,7.5 kohm,0603 nominal footprint; verify supplied package,1.36 V bias divider lower leg
-C6,1,1 uF,0603 nominal footprint; verify supplied package,Reference filtering
-C7,1,100 nF,1206 nominal footprint; verify supplied package,U1B 1.516 kHz high-pass input
-R8,1,1.05 kohm,0603,U1B input resistor
-R9,1,56 kohm,0603 nominal footprint; verify supplied package,U1B inverting feedback; gain 53.33
-R10,1,10 kohm,0603 nominal footprint; verify supplied package,First part of 11 kohm U1C Sallen-Key series leg
-R22,1,1 kohm,0603 nominal footprint; verify supplied package,Second part of R10 U1C series leg
-R11,1,10 kohm,0603 nominal footprint; verify supplied package,First part of 11 kohm U1C Sallen-Key series leg
-R23,1,1 kohm,0603 nominal footprint; verify supplied package,Second part of R11 U1C series leg
-C8,1,3.3 nF,0603 nominal footprint; verify supplied package,First half of 6.6 nF low-pass feedback branch
-C32,1,3.3 nF,0603 nominal footprint; verify supplied package,Second half of 6.6 nF low-pass feedback branch
-C23,1,3.3 nF,0603 nominal footprint; verify supplied package,U1C low-pass shunt capacitor
-R12,1,6.8 kohm,0603 nominal footprint; verify supplied package,ADS1256 input isolation and clamp current limit
-C9,1,3.3 nF,0603 nominal footprint; verify supplied package,ADS1256 7.09 kHz differential input pole
-R14,1,1.47 kohm,0603 nominal footprint; verify supplied package,AIN0 clamp divider upper leg
-R15,1,680 ohm,0603 nominal footprint; verify supplied package,AIN0 clamp divider lower leg
-C24,1,100 nF,0603,AIN0 1.58 V clamp bypass
-D3,1,BAS116H,SOD-323,AIN0 clamp; cathode near 1.58 V
-R13,1,100 kohm,0603,ADS1256 CS idle-high pull-up
-R16,1,100 kohm,0603,ADS1256 SYNC/PDWN idle-high pull-up
-R17,1,100 kohm,0603,ADS1256 DOUT pull-up
-R18,1,100 kohm,0603,ADS1256 DRDY pull-up
-R19,1,100 kohm,0603,SCLK idle-low pull-down
-R20,1,100 kohm,0603,MOSI idle-low pull-down
-FB1,1,600 ohm at 100 MHz 500 mA,0603,TMUX1101 and clamp 3.3 V supply isolation
-FB2,1,600 ohm at 100 MHz 500 mA,0603,OPA4197 5 V supply isolation
-C10,1,1 uF,0603 nominal footprint; verify supplied package,Analog 3.3 V rail bypass
-C11 C12,2,100 nF,0603,Analog local bypass
-C13,1,1 uF,0603,Analog rail bypass
-C14,1,1 uF,0603 nominal footprint; verify supplied package,ADS1256 module 5 V rail bypass
-C15 C16 C17 C18,4,100 nF,0603,One local bypass per 5 V AHCT buffer
-C19 C20,2,100 nF,0603,One local bypass per 3.3 V LVC buffer
-C21,1,1 uF,0603 nominal footprint; verify supplied package,OPA4197 filtered 5 V rail bypass
-C22,1,100 nF,0603,OPA4197 local 5 V bypass
-U3,1,Seeed Studio XIAO RP2350,SMD castellated plus rear pads,MCU SPI USB and power management
-U4 U5 U6 U7,4,SN74AHCT1G125DBVR,SOT-23-5,3.3 V to 5 V SPI control translation
-U8 U9,2,SN74LVC1G125DBVR,SOT-23-5,5 V to 3.3 V DOUT and DRDY translation
-J2,1,HiLetgo ADS1256 digital interface,1x8 2.54 mm logical header,5V GND SCLK DIN DOUT CS DRDY PDWN
-J3,1,HiLetgo ADS1256 analog interface,1x8 2.54 mm logical header,AIN0 signal and AIN1 at 1.36 V; AIN2-AIN7 tied to the same bias
-MOD1,1,HiLetgo ADS1256 5V 8-channel 24-bit ADC module,Amazon ASIN B09KGXC44Q,External ADC module with ADR03 2.5 V reference
-TP1-TP12,12,Plated test point,2.0 mm,Ground rails signals blanking and DRDY probes
+Reference,Qty,Value or part,Package
+R15,1,680 ohm,0603 nominal
+R1 R22 R23,3,1 kohm,0603 nominal
+R8,1,1.05 kohm,0603 nominal
+R14,1,1.47 kohm,0603 nominal
+R12,1,6.8 kohm,0603 nominal
+R5,1,7.5 kohm,0603 nominal
+R10 R11,2,10 kohm,0603 nominal
+R4,1,20 kohm,0603 nominal
+R9,1,56 kohm,0603 nominal
+R3 R13 R16 R17 R18 R19 R20,7,100 kohm,0603 nominal
+R2 R6 R24 R25 R26 R27 R28 R29 R30 R31,10,510 kohm,0603 nominal
+C5 C8 C9 C23 C32,5,3.3 nF,0603 nominal
+C11 C12 C15 C16 C17 C18 C19 C20 C22 C24,10,100 nF,0603 nominal
+C7,1,100 nF,1206 nominal
+C6 C10 C13 C14 C21,5,1 uF,0603 nominal
+D1 D2 D3,3,BAS116H,SOD-323
+FB1 FB2,2,600 ohm at 100 MHz 500 mA,0603
+U1,1,OPA4197IPWR,TSSOP-14
+U2,1,TMUX1101DBVR,SOT-23-5
+U3,1,Seeed Studio XIAO RP2350,SMD castellated plus rear pads
+U4 U5 U6 U7,4,SN74AHCT1G125DBVR,SOT-23-5
+U8 U9,2,SN74LVC1G125DBVR,SOT-23-5
+MOD1,1,HiLetgo ADS1256 5V 8-channel 24-bit ADC module,Amazon ASIN B09KGXC44Q
+J1,1,Altech AK100 2-pin terminal block,5.00 mm pitch
+J2 J3,2,1x8 2.54 mm header,Logical module interface; verify physical fit
+TP1-TP12,12,Plated test point,2.0 mm

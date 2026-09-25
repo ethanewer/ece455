@@ -33,6 +33,9 @@ def allowed_passives_check() -> None:
         refs = row["Reference"].split()
         if forbidden_receiver_refs.intersection(refs):
             raise SystemExit(f"external sensor part remains in receiver BOM: {refs}")
+        if all(re.fullmatch(r"[A-Z]+\d+", ref) for ref in refs):
+            if int(row["Qty"]) != len(refs):
+                raise SystemExit(f"BOM quantity does not match references: {row['Reference']}")
         if not refs or not all(re.fullmatch(r"[RC]\d+", ref) for ref in refs):
             continue
         match = re.fullmatch(

@@ -52,7 +52,7 @@ The former battery connector was removed because this ADS1256 module requires 5 
 - `analyze.py` generates transient and frequency-response data and figures.
 - `analysis/` contains generated CSV, PNG, and Markdown results.
 - `kicad/validate.py` regenerates connectivity and runs available KiCad CLI checks.
-- `bom.csv` lists every fitted part, the ADS1256 module, and sensor assumptions.
+- `bom.csv` groups receiver parts by value and package, with quantities and reference designators. The external sensor assembly is excluded.
 
 Run `make figures` to regenerate plots, `make kicad` to regenerate and check KiCad artifacts, and `make eda` after any receiver change. Run `make export` to test the current receiver and create a timestamped review package under `local/`. The package shares the construction schematic, BOM, and connectivity, and writes separate `1.7kHz/` and `2.1kHz/` receiver-input simulations. PCB renders appear only after a strict-DRC-clean board exists. See `docs/circuit-tooling.md`.
 
