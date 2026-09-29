@@ -36,6 +36,6 @@ make verify     # all applicable tests and EDA checks
 
 ## Current status
 
-The active receiver uses lab passives, 1N4148 diodes, and 2N3904 transistors around the already purchased HiLetgo ADS1256 and XIAO RP2350 modules. The ADS1256 internal buffer and PGA are the first active analog stage. The passive input protection, 200 ms sample-discard interval, selectable SPI logic voltage, and USB power path are defined. Its reduced sensitivity remains to be measured; the ngspice analog model omits converter noise and digital filtering.
+The active receiver is a minimal discrete low-noise amplifier: 24 Thomson kit parts (four gain transistors, two transistor clamps) between J1 and the already purchased HiLetgo ADS1256, with the XIAO RP2350 wired directly to the ADC's SPI. In ngspice it gives at least 2000 V/V from J1 to the ADC across 1.5–2.5 kHz and |Z_in| above 1 MΩ, at nominal and worst-case transistor beta, temperature, and USB-voltage corners. Its noise keeps the simulated frequency Cramér–Rao bound well under the 1 nT target. Allowed parts, including the two modules, are listed in `new_allowed_components.json`. Gain, input impedance, and noise remain to be measured on hardware.
 
 There is not yet a reviewed graphical KiCad schematic or physical PCB. `make pcb` therefore fails intentionally. A connectivity netlist and simulated figures do not establish fabrication readiness or measured hardware performance. See `receiver_design/README.md` and `docs/verification-plan.md`.

@@ -18,7 +18,7 @@ def test_active_coil_profile():
     assert coil["f_test_low_hz"] == pytest.approx(1765.0)
     assert coil["f_test_high_hz"] == pytest.approx(2129.0)
     assert "c_tune" not in coil
-    assert coil["r_in_ohm"] == pytest.approx(5.1e6)
+    assert coil["r_in_ohm"] == pytest.approx(2.1e6)
     assert coil["hardware_characterized"] is False
     assert SENSOR["turns"] == 1477
 
@@ -55,9 +55,7 @@ def test_external_tuning_capacitor_follows_measured_inductance():
     )
 
 
-def test_receiver_input_bias_return_is_high_impedance():
+def test_receiver_input_impedance_barely_loads_tuned_sensor():
     coil = current_coil()
-    omega = 2.0 * math.pi * coil["f_test_low_hz"]
-    # R1, ten 510 kohm bias resistors, and C5 load the external sensor port.
-    impedance = 1.0e3 + coil["r_in_ohm"] + 1.0 / (1j * omega * 3.3e-9)
-    assert 5.0e6 <= abs(impedance) <= 5.2e6
+    # A tuned tank near 30 kohm loses under 2% of its voltage to the receiver.
+    assert 30e3 / (30e3 + coil["r_in_ohm"]) < 0.02

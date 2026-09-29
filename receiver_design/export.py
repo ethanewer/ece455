@@ -181,11 +181,12 @@ def export_frequency_case(
     result = build_spice_report(
         netlist,
         version_dir,
-        input_node="source",
-        output_positive="ads_ain0",
-        output_negative="vref",
+        input_node="receiver_in",
+        output_positive="out",
+        output_negative="bias",
         marker_hz=frequency_hz,
-        passband_hz=None,
+        gain_input_node="receiver_in",
+        passband_hz=(1500.0, 2500.0),
         transient_start_s=0.200,
         transient_stop_s=0.220,
         transient_title=f"Receiver transient, {label}",
@@ -198,9 +199,11 @@ def export_frequency_case(
     result.summary_md.write_text(
         heading + "\n"
         + f"This directory uses a 10 µV, {label} with 30 kohm source "
-        + "impedance. The analog path has no narrow bandpass or gain. "
-        + "Coil tuning and damping are external; converter noise and digital "
-        + "filtering are absent from these plots.\n"
+        + "impedance. Gain is from J1 to AIN0−AIN1 through the minimal "
+        + "discrete receiver (at least 2000 V/V across 1.5–2.5 kHz). Coil "
+        + "tuning and damping are "
+        + "external; converter noise and digital filtering are absent from "
+        + "these plots.\n"
         + text[len(heading):]
     )
 
@@ -246,7 +249,7 @@ def main() -> None:
             "The two frequency directories exercise the same receiver from "
             "its input connector. Coil tuning and damping remain external.\n\n"
             "## Shared contents\n\n"
-            "- `receiver-construction-schematic.svg` and `.png`: receiver input and signal path\n"
+            "- `receiver-construction-schematic.svg` and `.png`: transistor-level receiver and module wiring\n"
             "- `bill-of-materials.csv` and `.md`: receiver parts only\n"
             "- `assembly.md`: provisional perfboard wiring and power-up checks\n"
             "- `receiver.cir`: canonical receiver deck\n"
@@ -255,7 +258,7 @@ def main() -> None:
             "- PCB source and images when a strict-DRC-clean board exists\n\n"
             "## Each input-frequency directory\n\n"
             "- `receiver.cir`: 10 µV external-port stimulus at the named frequency\n"
-            "- `receiver-waveforms.png` and `.csv`: transient source and ADC input\n"
+            "- `receiver-waveforms.png` and `.csv`: transient J1 input and ADC input\n"
             "- `receiver-frequency-response.png` and `.csv`: AC gain and phase\n"
             "- `README.md`: receiver gain and amplitudes\n\n"
             "Simulation and connectivity checks are not hardware measurements.\n"

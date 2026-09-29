@@ -48,7 +48,9 @@ SENSOR = dict(
 # They do not imply an on-board LC network or an accepted external tuning part.
 FID_LOW_HZ = 1765.0
 FID_HIGH_HZ = 2129.0
-R_IN_OHM = 5.1e6
+# Simulated |Z_in| at J1 across 1.5-2.5 kHz (receiver_design/analysis).
+# R1 is bootstrapped, so the input is set mainly by Q1's base.
+R_IN_OHM = 2.1e6
 
 
 def pair_inductance_h() -> float:
@@ -71,8 +73,9 @@ def current_coil():
 
     The workbook counts both windings in the open-circuit EMF and treats
     mutual inductance as negligible, so L and R are twice one coil. The
-    equal-area radius is the 56 mm square aperture. The receiver's 5.1
-    megohm input return is supplied for interface calculations.
+    equal-area radius is the 56 mm square aperture. The receiver's
+    simulated 2.1 megohm input impedance is supplied for interface
+    calculations.
     """
     inductance_h = pair_inductance_h()
     return dict(

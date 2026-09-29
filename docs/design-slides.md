@@ -11,53 +11,54 @@
 
 - The external assembly contains the sensing coil, tuning capacitor, and damping switch
 - J1 is the receiver boundary; the receiver contains no LC tank
-- The already purchased HiLetgo ADS1256 module supplies the first active input buffer and PGA
-- The already purchased XIAO RP2350 controls conversion and estimates frequency
-- Every other fitted part in the active BOM is in the Thomson lab kit
+- A minimal discrete transistor amplifier drives the already purchased HiLetgo ADS1256 module
+- The already purchased XIAO RP2350 connects directly to the ADC's SPI and estimates frequency
+- Every other fitted part is one of 24 Thomson kit parts in `new_allowed_components.json`
 
 ---
 
-# Analog input
+# Analog chain
 
-- C5 22 nF AC coupling; R1 10 kΩ current limit
-- R2/R3 total 2 MΩ bias return; C9 100 pF to common-mode bias
-- D1/D2 kit 1N4148 clamps from AIN0 to the 1.60 V bias
-- ADS1256 AIN0 − AIN1, input buffer enabled, PGA 64, 30 kSPS
-- Nominal input impedance near 1.8 kHz is about 0.8 MΩ
-- No external analog gain or narrow bandpass is fitted
+- Diode-connected 2N3904 clamps at J1 (femtoamp leakage), 100 nF coupling
+- Stage 1, ×26.5: low-noise 2N3904 input at 32 µA, 2N3906 gain stage, 2N3904 follower
+- Stage 2, ×95: one common-emitter 2N3904 driving AIN0 directly
+- One DC loop (R3) sets every bias point; its filtered node is also AIN1
+- Bootstrapped bias resistor, and a stage-1 loop gain near 40, give megohm input impedance
+- ADS1256: AIN0 − AIN1, buffer on, PGA 1, 30 kSPS
 
-![Analog construction overview](receiver-construction-schematic.png)
+![Analog construction schematic](receiver-construction-schematic.png)
 
 ---
 
-# Noise tradeoff
+# Simulated performance
 
-- ADS1256 datasheet input noise: 1.742 µV RMS at 30 kSPS with buffer on and PGA 64
-- Coil model nominal FID: 3.59 µV peak, about 6 dB peak-amplitude per-sample SNR before other noise
-- The older 0.41 µV estimate falls below converter noise per sample
-- Frequency fitting may recover a periodic FID; the 1 nT target needs a hardware test
+- 2425–2514 V/V from J1 across 1.5–2.5 kHz; at least 2122 V/V at the worst combined corner
+- |Z_in| 2.10–2.19 MΩ; at least 1.51 MΩ with transistor beta halved
+- 3.59 nV/√Hz with the untuned coil: frequency CRB 0.02 nT (3.59 µV FID) or 0.17 nT (0.41 µV)
+- 1.3 dB noise figure against the 30 kΩ tuned-sensor fixture
+- ADS1256 noise at PGA 1 is about 4.5 nV referred to J1; the sinc filter rejects aliases
 
 ---
 
 # Simulated transfer
 
 - Example source: 10 µV peak through a provisional 30 kΩ external source impedance
-- The analog path is near unity gain over the example FID frequencies
+- The nominal 3.59 µV FID becomes about 9 mV peak at the ADC
 - These plots exclude converter noise, digital filtering, and coil resonance
 
 ![Receiver transient](../receiver_design/analysis/receiver-waveforms.png)
 
-![Receiver source-to-ADC transfer](../receiver_design/analysis/receiver-frequency-response.png)
+![Receiver J1-to-ADC transfer](../receiver_design/analysis/receiver-frequency-response.png)
 
 ---
 
 # Digital interface and blanking
 
-- Six kit 2N3904 stages translate SPI signals; RP2350 GPIO inversion restores polarity
-- JP1 selects the module's measured SPI logic voltage, 3.3 V or 5 V
-- SCLK and DIN idle low; CS and SYNC/PDWN idle high
-- Discard the first 200 ms of data, then pulse SYNC/PDWN briefly and wait for valid DRDY
-- Verify the purchased module's physical header order, voltage, and translator edge timing before wiring
+- SPI wires run directly from the XIAO to the module; ADS1256 inputs accept 5.25 V and its outputs stay at or below DVDD
+- Measure the module's DRDY high level (about 3.3 V) before connecting
+- Firmware drives CS and SYNC/PDWN high, then waits for DRDY
+- Discard the blank, then pulse SYNC/PDWN briefly and wait for valid DRDY
+- Verify the purchased module's physical header order before wiring
 
 ---
 
@@ -72,8 +73,8 @@
 
 # Bench gates
 
-- Measure the actual polarizer turnoff voltage before connecting the sensor; verify C5 rating and clamp current
-- Measure ADC input noise, receiver loading, bias, and recovery
-- Check module SPI levels, select one JP1 bridge, and scope translated SPI at the selected clock
+- Measure the actual polarizer turnoff voltage before connecting the sensor; verify Q5/Q6 clamp current
+- Measure stage bias points, gain, passband, input noise, loading, and recovery
+- Check the module DRDY level and scope SPI at the selected clock
 - Verify frequency repeatability and gross error rate with a wet FID
 - There is no accepted PCB or fabrication DRC result

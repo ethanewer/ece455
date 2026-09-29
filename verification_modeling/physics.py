@@ -153,9 +153,9 @@ def front_end_noise_density(f, r_coil=99.9358, l_coil=152.5682e-3,
     """Coil-EMF-referred density with an optional external tuning capacitor.
 
     Set c_tune explicitly to model an external coil capacitor. Its default
-    is zero because the receiver has no tuning capacitor. C5 is c_couple,
-    R1 is r_series, and the ten 510 kohm bias resistors form r_bias.
-    e_amp defaults to the OPA4197 density specified below (V+)-3 V.
+    is zero because the receiver has no tuning capacitor. The other
+    defaults describe an earlier op-amp input network. The active discrete
+    receiver's noise comes from ngspice in receiver_design/analyze.py.
     This is the input network only, not the later bandpass gain.
     """
     requested = np.asarray(f, dtype=float)

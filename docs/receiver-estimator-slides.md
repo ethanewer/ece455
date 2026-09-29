@@ -2,41 +2,42 @@
 
 ```mermaid
 flowchart LR
-  ext["External sensor assembly<br/>coil, tuning, damping"] --> input["J1 and kit passive input<br/>about 0.8 MΩ at 1.8 kHz"]
-  input --> adc["Purchased ADS1256<br/>internal buffer, PGA 64<br/>30 kSPS"]
-  adc --> xiao["Purchased XIAO RP2350<br/>filter and frequency estimator"]
+  ext["External sensor assembly<br/>coil, tuning, damping"] --> amp["Minimal discrete amplifier<br/>≥ 2000 V/V, |Z_in| ≥ 1 MΩ"]
+  amp --> adc["Purchased ADS1256<br/>buffer on, PGA 1<br/>30 kSPS"]
+  adc -->|direct SPI| xiao["Purchased XIAO RP2350<br/>filter and frequency estimator"]
 ```
 
 - The receiver starts at J1; coil tuning and damping remain external.
-- The ADS1256 internal buffer is the first active stage. No external analog amplifier or LC tank is fitted.
-- The passive path has approximately unity gain in the FID region; the converter noise limits sensitivity.
+- 24 Thomson kit parts: four gain transistors, two transistor clamps, 11 resistors, and 7 capacitors.
+- The ADC's sinc filter and firmware do the band limiting, so no analog bandpass is needed.
 
 ---
 
 # Lab parts
 
-- 22 nF coupling capacitor, 10 kΩ series resistor, 2 MΩ bias return, and 100 pF shunt capacitor
-- Two 1N4148 diodes clamp AIN0 near the 1.60 V bias
-- Six 2N3904 transistors and six more 1N4148 diodes translate SPI levels
+- Stage 1 ×26.5 with a 32 µA 2N3904 input; stage 2 is one common-emitter stage, ×95
+- A single DC loop sets every bias point; its filtered node doubles as ADS1256 AIN1
+- R11/C6 filter USB 5 V into the 4.8 V analog rail; total draw is 0.37 mA
+- No level translators: the XIAO drives the ADS1256 SPI directly
 - No additional online component order is specified; the ADC and XIAO are already purchased
 
-![Analog construction overview](receiver-construction-schematic.png)
+![Analog construction schematic](receiver-construction-schematic.png)
 
 ---
 
 # Sensitivity and blanking
 
-- TI lists 1.742 µV RMS ADC input noise at 30 kSPS, PGA 64, and buffer enabled
-- A nominal 3.59 µV peak coil signal gives about 6 dB peak-amplitude SNR per sample before other noise
-- XIAO discards the first 200 ms of samples, then briefly pulses SYNC/PDWN to restart the digital filter
-- The polarizer turnoff pulse and actual recovery require measurement before sensor hookup
+- Simulated input noise: 3.59 nV/√Hz with the untuned coil, 25.8 nV/√Hz with a 30 kΩ source
+- Frequency CRB with the untuned coil: 0.02 nT for the 3.59 µV FID, 0.17 nT for 0.41 µV; target 1 nT
+- XIAO discards the blank, then briefly pulses SYNC/PDWN to restart the digital filter
+- Simulated recovery from a ±10 V input pulse reaches 10 mV within about 210 ms and 1 mV within about 300 ms
 
 ---
 
 # Simulated analog transfer
 
 - Example 10 µV source through provisional 30 kΩ external source impedance
-- The receiver's analog path has no narrow bandpass or voltage gain
+- 2425–2514 V/V from J1 across 1.5–2.5 kHz; |Z_in| 2.1–2.2 MΩ
 - The model excludes ADC noise, digital filtering, and external coil resonance
 
 ![External test source and AIN0−AIN1](../receiver_design/analysis/receiver-waveforms.png)

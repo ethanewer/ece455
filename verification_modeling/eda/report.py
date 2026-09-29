@@ -7,6 +7,7 @@ alternatives.
 from __future__ import annotations
 
 import csv
+import re
 import shutil
 import subprocess
 import tempfile
@@ -14,6 +15,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+
+
+@dataclass(frozen=True)
+class NoiseResult:
+    spot_hz: float
+    input_density_v_rt_hz: float
+    output_density_v_rt_hz: float
+    band_hz: tuple[float, float]
+    band_input_rms_v: float
+    band_output_rms_v: float
 
 
 @dataclass(frozen=True)
@@ -60,6 +71,7 @@ def build_spice_report(
     output_positive: str,
     output_negative: str,
     marker_hz: float,
+    gain_input_node: str | None = None,
     passband_hz: tuple[float, float] | None = None,
     transient_stop_s: float = 0.020,
     transient_start_s: float = 0.0,
@@ -67,7 +79,12 @@ def build_spice_report(
     transient_title: str = "Nominal receiver transient response",
     response_title: str = "Nominal receiver frequency response",
 ) -> ReportResult:
-    """Run transient and AC analyses and write CSV, PNG, and Markdown outputs."""
+    """Run transient and AC analyses and write CSV, PNG, and Markdown outputs.
+
+    Gain is measured from the AC source unless gain_input_node names the node
+    whose voltage is the gain reference, for example a receiver input port
+    behind a source-impedance fixture.
+    """
     if passband_hz is not None and not 0 < passband_hz[0] < passband_hz[1]:
         raise ValueError("passband_hz must contain increasing positive frequencies")
     if not 0 <= transient_start_s < transient_stop_s:
@@ -94,6 +111,15 @@ def build_spice_report(
                 f"vdb({output_positive},{output_negative}) "
                 f"vp({output_positive},{output_negative})"
             )
+        ac_lets = []
+        if gain_input_node is not None:
+            output = (output_positive if output_negative == "0" else
+                      f"{output_positive},{output_negative}")
+            ac_lets = [
+                f"let report_gain_db = vdb({output}) - vdb({gain_input_node})",
+                f"let report_phase = vp({output}) - vp({gain_input_node})",
+            ]
+            ac_vectors = "report_gain_db report_phase"
         lines += [
             ".control",
             "set wr_singlescale",
@@ -101,6 +127,7 @@ def build_spice_report(
             f"tran {max_step_s:g} {transient_stop_s:g} {transient_start_s:g} {max_step_s:g}",
             f"wrdata {tran_raw} {transient_vectors}",
             "ac dec 1000 100 100k",
+            *ac_lets,
             f"wrdata {ac_raw} {ac_vectors}",
             ".endc",
             ".end",
@@ -174,7 +201,10 @@ def build_spice_report(
         )
         gain_axis.legend(loc="lower left")
     gain_axis.set_xlabel("Frequency (Hz)")
-    gain_axis.set_ylabel("Source-to-ADC differential gain (dB)", color="#1769aa")
+    gain_axis.set_ylabel(
+        f"{'Source' if gain_input_node is None else gain_input_node}-to-output gain (dB)",
+        color="#1769aa",
+    )
     phase_axis = gain_axis.twinx()
     phase_axis.semilogx(frequency_hz, phase_deg, color="#c62828", linewidth=1.1, alpha=0.8)
     phase_axis.set_ylabel("Phase (degrees)", color="#c62828")
@@ -200,9 +230,15 @@ def build_spice_report(
         if not np.any(in_band):
             raise RuntimeError("AC sweep has no samples in the requested passband")
         band_gain = 10 ** (gain_db[in_band] / 20)
+        peak_db = float(np.max(gain_db))
+        above = np.flatnonzero(gain_db >= peak_db - 20 * np.log10(np.sqrt(2)))
         passband_summary = (
             f"- Intended passband: {passband_hz[0]:.0f} to "
             f"{passband_hz[1]:.0f} Hz\n"
+            f"- Simulated peak gain: {10 ** (peak_db / 20):.1f} V/V at "
+            f"{frequency_hz[int(np.argmax(gain_db))]:.0f} Hz\n"
+            f"- Simulated -3 dB band: {frequency_hz[above[0]]:.0f} to "
+            f"{frequency_hz[above[-1]]:.0f} Hz\n"
             f"- Simulated in-band gain range: {np.min(band_gain):.1f} to "
             f"{np.max(band_gain):.1f} V/V\n"
         )
@@ -222,3 +258,116 @@ def build_spice_report(
     )
     return ReportResult(transient_csv, response_csv, waveforms_png,
                         response_png, summary_md)
+
+
+def measure_noise(
+    netlist: Path,
+    *,
+    source: str,
+    output_positive: str,
+    output_negative: str,
+    band_hz: tuple[float, float],
+    spot_hz: float,
+    points: int = 2001,
+) -> NoiseResult:
+    """Run ngspice .noise and return spot densities and band RMS values.
+
+    Input-referred values are referred to the named independent source.
+    """
+    if not 0 < band_hz[0] < band_hz[1]:
+        raise ValueError("band_hz must contain increasing positive frequencies")
+    if not band_hz[0] <= spot_hz <= band_hz[1]:
+        raise ValueError("spot_hz must lie inside band_hz")
+    executable = shutil.which("ngspice")
+    if executable is None:
+        raise RuntimeError("ngspice was not found on PATH")
+    output = (f"v({output_positive})" if output_negative == "0" else
+              f"v({output_positive},{output_negative})")
+    with tempfile.TemporaryDirectory(prefix="ece455-noise-") as directory:
+        work = Path(directory)
+        spectrum = work / "spectrum.dat"
+        driver = work / "noise.cir"
+        lines = _without_analysis_cards(netlist.read_text())
+        lines += [
+            ".control",
+            "set wr_singlescale",
+            f"noise {output} {source} lin {points} {band_hz[0]:g} {band_hz[1]:g}",
+            "print inoise_total onoise_total",
+            "setplot noise1",
+            f"wrdata {spectrum} inoise_spectrum onoise_spectrum",
+            ".endc",
+            ".end",
+        ]
+        driver.write_text("\n".join(lines) + "\n")
+        process = subprocess.run(
+            [executable, "-b", str(driver)], capture_output=True, text=True,
+            timeout=60,
+        )
+        totals = dict(re.findall(
+            r"^(inoise_total|onoise_total)\s*=\s*([-0-9.eE+]+)",
+            process.stdout, re.M,
+        ))
+        if (process.returncode != 0 or not spectrum.exists()
+                or set(totals) != {"inoise_total", "onoise_total"}):
+            raise RuntimeError(
+                "ngspice noise analysis failed:\n"
+                + process.stdout[-2000:] + process.stderr[-2000:]
+            )
+        data = np.loadtxt(spectrum)
+    if data.ndim != 2 or data.shape[1] != 3:
+        raise RuntimeError(f"unexpected noise wrdata shape {data.shape}")
+    frequency_hz = data[:, 0]
+    return NoiseResult(
+        spot_hz=spot_hz,
+        input_density_v_rt_hz=float(np.interp(spot_hz, frequency_hz, data[:, 1])),
+        output_density_v_rt_hz=float(np.interp(spot_hz, frequency_hz, data[:, 2])),
+        band_hz=band_hz,
+        band_input_rms_v=float(totals["inoise_total"]),
+        band_output_rms_v=float(totals["onoise_total"]),
+    )
+
+
+def measure_input_impedance(
+    netlist: Path,
+    *,
+    source: str,
+    node: str,
+    band_hz: tuple[float, float],
+    points: int = 201,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return frequencies and |Z| looking into node from a series source.
+
+    The named voltage source must drive node through a series fixture, so
+    its current is the current entering node.
+    """
+    if not 0 < band_hz[0] < band_hz[1]:
+        raise ValueError("band_hz must contain increasing positive frequencies")
+    executable = shutil.which("ngspice")
+    if executable is None:
+        raise RuntimeError("ngspice was not found on PATH")
+    with tempfile.TemporaryDirectory(prefix="ece455-zin-") as directory:
+        work = Path(directory)
+        data = work / "zin.dat"
+        driver = work / "zin.cir"
+        lines = _without_analysis_cards(netlist.read_text())
+        lines += [
+            ".control",
+            "set wr_singlescale",
+            f"ac lin {points} {band_hz[0]:g} {band_hz[1]:g}",
+            f"let report_zin = mag(v({node}) / i({source}))",
+            f"wrdata {data} report_zin",
+            ".endc",
+            ".end",
+        ]
+        driver.write_text("\n".join(lines) + "\n")
+        process = subprocess.run(
+            [executable, "-b", str(driver)], capture_output=True, text=True,
+            timeout=60,
+        )
+        if process.returncode != 0 or not data.exists():
+            raise RuntimeError(
+                "ngspice input-impedance analysis failed:\n"
+                + process.stdout[-2000:] + process.stderr[-2000:]
+            )
+        result = np.loadtxt(data)
+    return result[:, 0], result[:, 1]

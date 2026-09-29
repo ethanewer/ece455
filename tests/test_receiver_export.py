@@ -13,12 +13,14 @@ def test_construction_schematic_is_rendered(tmp_path: Path) -> None:
     assert svg.stat().st_size > 10_000
     assert png.stat().st_size > 10_000
     svg_text = svg.read_text()
-    assert "No external op-amp or LC tank" in svg_text
-    assert "ADS1256" in svg_text
+    assert "Minimal discrete" in svg_text
+    assert "Gain ≥ 2000 V/V" in svg_text
+    assert "ADS1256 AIN0" in svg_text
+    assert "ADS1256 AIN1" in svg_text
     assert "J1 signal" in svg_text
-    assert "R2+R3 2 MΩ" in svg_text
-    assert "C5 22 nF" in svg_text
-    assert "Q1 SCLK" in svg_text
+    assert "C1 100 nF" in svg_text
+    assert "R7 5.1 kΩ" in svg_text
+    assert "No level translation" in svg_text
     assert "J4" not in svg_text
     assert "tuning capacitor, and damping resistor are external" in svg_text
     assert "fill: #ffffff" in svg_text
