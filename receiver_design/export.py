@@ -16,6 +16,7 @@ KICAD_DIR = RECEIVER / "kicad"
 LOCAL = ROOT / "local"
 sys.path.insert(0, str(ROOT))
 
+from receiver_design import requirements
 from receiver_design.schematic import build_receiver_schematic
 from verification_modeling.coil import current_coil
 from verification_modeling.eda.report import build_spice_report
@@ -182,11 +183,11 @@ def export_frequency_case(
         netlist,
         version_dir,
         input_node="receiver_in",
-        output_positive="out",
-        output_negative="bias",
+        output_positive=requirements.OUTPUT_POSITIVE,
+        output_negative=requirements.OUTPUT_NEGATIVE,
         marker_hz=frequency_hz,
         gain_input_node="receiver_in",
-        passband_hz=(1500.0, 2500.0),
+        passband_hz=requirements.GAIN_BAND_HZ,
         transient_start_s=0.200,
         transient_stop_s=0.220,
         transient_title=f"Receiver transient, {label}",
@@ -200,7 +201,8 @@ def export_frequency_case(
         heading + "\n"
         + f"This directory uses a 10 µV, {label} with 30 kohm source "
         + "impedance. Gain is from J1 to AIN0−AIN1 through the minimal "
-        + "discrete receiver (at least 2000 V/V across 1.5–2.5 kHz). Coil "
+        + "discrete band-pass receiver (at least 2000 V/V across "
+        + "1.6–2.2 kHz). Coil "
         + "tuning and damping are "
         + "external; converter noise and digital filtering are absent from "
         + "these plots.\n"

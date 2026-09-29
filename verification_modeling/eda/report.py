@@ -25,6 +25,7 @@ class NoiseResult:
     band_hz: tuple[float, float]
     band_input_rms_v: float
     band_output_rms_v: float
+    max_input_density_v_rt_hz: float
 
 
 @dataclass(frozen=True)
@@ -324,7 +325,61 @@ def measure_noise(
         band_hz=band_hz,
         band_input_rms_v=float(totals["inoise_total"]),
         band_output_rms_v=float(totals["onoise_total"]),
+        max_input_density_v_rt_hz=float(np.max(data[:, 1])),
     )
+
+
+def measure_gain(
+    netlist: Path,
+    *,
+    input_node: str,
+    output_positive: str,
+    output_negative: str,
+    band_hz: tuple[float, float],
+    points: int = 201,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Return frequencies and |V(output) / V(input_node)| across band_hz."""
+    if not 0 < band_hz[0] < band_hz[1]:
+        raise ValueError("band_hz must contain increasing positive frequencies")
+    output = (output_positive if output_negative == "0" else
+              f"{output_positive},{output_negative}")
+    return _ac_magnitude(
+        netlist, f"vm({output}) / vm({input_node})", band_hz, points,
+    )
+
+
+def _ac_magnitude(netlist: Path, expression: str,
+                  band_hz: tuple[float, float], points: int
+                  ) -> tuple[np.ndarray, np.ndarray]:
+    executable = shutil.which("ngspice")
+    if executable is None:
+        raise RuntimeError("ngspice was not found on PATH")
+    with tempfile.TemporaryDirectory(prefix="ece455-ac-") as directory:
+        work = Path(directory)
+        data = work / "ac.dat"
+        driver = work / "ac.cir"
+        lines = _without_analysis_cards(netlist.read_text())
+        lines += [
+            ".control",
+            "set wr_singlescale",
+            f"ac lin {points} {band_hz[0]:g} {band_hz[1]:g}",
+            f"let report_magnitude = {expression}",
+            f"wrdata {data} report_magnitude",
+            ".endc",
+            ".end",
+        ]
+        driver.write_text("\n".join(lines) + "\n")
+        process = subprocess.run(
+            [executable, "-b", str(driver)], capture_output=True, text=True,
+            timeout=60,
+        )
+        if process.returncode != 0 or not data.exists():
+            raise RuntimeError(
+                "ngspice AC analysis failed:\n"
+                + process.stdout[-2000:] + process.stderr[-2000:]
+            )
+        result = np.loadtxt(data)
+    return result[:, 0], result[:, 1]
 
 
 def measure_input_impedance(
@@ -342,32 +397,6 @@ def measure_input_impedance(
     """
     if not 0 < band_hz[0] < band_hz[1]:
         raise ValueError("band_hz must contain increasing positive frequencies")
-    executable = shutil.which("ngspice")
-    if executable is None:
-        raise RuntimeError("ngspice was not found on PATH")
-    with tempfile.TemporaryDirectory(prefix="ece455-zin-") as directory:
-        work = Path(directory)
-        data = work / "zin.dat"
-        driver = work / "zin.cir"
-        lines = _without_analysis_cards(netlist.read_text())
-        lines += [
-            ".control",
-            "set wr_singlescale",
-            f"ac lin {points} {band_hz[0]:g} {band_hz[1]:g}",
-            f"let report_zin = mag(v({node}) / i({source}))",
-            f"wrdata {data} report_zin",
-            ".endc",
-            ".end",
-        ]
-        driver.write_text("\n".join(lines) + "\n")
-        process = subprocess.run(
-            [executable, "-b", str(driver)], capture_output=True, text=True,
-            timeout=60,
-        )
-        if process.returncode != 0 or not data.exists():
-            raise RuntimeError(
-                "ngspice input-impedance analysis failed:\n"
-                + process.stdout[-2000:] + process.stderr[-2000:]
-            )
-        result = np.loadtxt(data)
-    return result[:, 0], result[:, 1]
+    return _ac_magnitude(
+        netlist, f"mag(v({node}) / i({source}))", band_hz, points,
+    )

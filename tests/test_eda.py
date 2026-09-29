@@ -6,8 +6,10 @@ import numpy as np
 import pytest
 
 from verification_modeling.eda import circuit, ngspice
+from receiver_design import requirements
 from verification_modeling.eda.report import (
     build_spice_report,
+    measure_gain,
     measure_input_impedance,
     measure_noise,
 )
@@ -146,42 +148,63 @@ def test_report_gain_can_reference_an_internal_node(tmp_path):
 
 
 RECEIVER = Path(__file__).parents[1] / "receiver_design/spice/receiver.cir"
-BAND_HZ = (1500.0, 2500.0)
+NGSPICE = pytest.mark.skipif(shutil.which("ngspice") is None,
+                             reason="ngspice not installed")
 
 
-def _receiver_response(tmp_path):
-    result = build_spice_report(
-        RECEIVER, tmp_path / "report", input_node="receiver_in",
-        output_positive="out", output_negative="bias",
-        marker_hz=current_coil()["f_test_low_hz"],
-        gain_input_node="receiver_in", passband_hz=BAND_HZ,
+def _variant(tmp_path, old, new):
+    text = RECEIVER.read_text()
+    assert text.count(old) == 1
+    deck = tmp_path / "receiver.cir"
+    deck.write_text(text.replace(old, new))
+    return deck
+
+
+@NGSPICE
+def test_active_receiver_meets_requirements_at_nominal():
+    result = requirements.evaluate_corner(RECEIVER, requirements.CORNERS[0])
+    assert result.failures == []
+    # Keep margin for the corners that make verify checks.
+    assert result.gain_min > 1.2 * requirements.GAIN_MIN_V_PER_V
+    assert result.zin_min_ohm > 1.5 * requirements.ZIN_MIN_OHM
+
+
+@NGSPICE
+def test_active_receiver_band_pass_rejects_out_of_band():
+    frequency, gain = measure_gain(
+        RECEIVER, input_node="receiver_in", output_positive="ain0",
+        output_negative="bias", band_hz=(60.0, 20000.0), points=3,
     )
-    response = np.genfromtxt(result.response_csv, delimiter=",", names=True)
-    return response["frequency_hz"], 10 ** (response["gain_db"] / 20)
+    in_band = requirements.GAIN_MIN_V_PER_V
+    assert gain[0] < 1e-3 * in_band      # 60 Hz mains
+    assert gain[-1] < 0.5 * in_band      # 20 kHz
 
 
-@pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice not installed")
-def test_active_receiver_gain_is_at_least_2000_in_band(tmp_path):
-    frequency, gain = _receiver_response(tmp_path)
-    in_band = (frequency >= BAND_HZ[0]) & (frequency <= BAND_HZ[1])
-    # Nominal margin covers beta, temperature, and USB-voltage corners.
-    assert gain[in_band].min() >= 2000 * 1.15
+@NGSPICE
+def test_requirement_check_reports_low_gain_and_high_noise(tmp_path):
+    deck = _variant(tmp_path, "R8 q1_emit stage1_ac 150",
+                    "R8 q1_emit stage1_ac 2.2k")
+    failures = " ".join(requirements.evaluate_corner(
+        deck, requirements.CORNERS[0]).failures)
+    assert "gain" in failures
+    assert "noise" in failures
 
 
-@pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice not installed")
-def test_active_receiver_attenuates_mains(tmp_path):
-    frequency, gain = _receiver_response(tmp_path)
-    # The report sweep starts at 100 Hz, just below the second mains harmonic.
-    low = int(np.argmin(np.abs(frequency - 100.0)))
-    assert gain[low] < 0.1 * gain.max()
+@NGSPICE
+def test_requirement_check_reports_low_input_impedance(tmp_path):
+    deck = _variant(tmp_path, "Rsource source receiver_in 30k",
+                    "Rsource source receiver_in 30k\nRleak receiver_in 0 680k")
+    failures = requirements.evaluate_corner(deck, requirements.CORNERS[0]).failures
+    assert any("Z_in" in failure for failure in failures)
 
 
-@pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice not installed")
-def test_active_receiver_input_impedance_exceeds_1_megohm():
-    _, impedance = measure_input_impedance(
-        RECEIVER, source="Vfid", node="receiver_in", band_hz=BAND_HZ,
-    )
-    assert impedance.min() >= 1.5e6
+def test_corner_netlist_scales_beta_supply_and_temperature():
+    text = RECEIVER.read_text()
+    corner = requirements.Corner("test", beta_scale=0.5, temp_c=50.0, usb_v=4.75)
+    changed = requirements.corner_netlist(text, corner)
+    assert "Bf=208.2" in changed and "Bf=416.4" not in changed
+    assert "Vusb vbus5 0 4.75" in changed
+    assert ".options temp=50" in changed
 
 
 @pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice not installed")
@@ -195,26 +218,3 @@ def test_input_impedance_helper_matches_resistor(tmp_path):
         netlist, source="V1", node="port", band_hz=(100.0, 1000.0), points=3,
     )
     assert np.allclose(impedance, 250e3, rtol=1e-6)
-
-
-@pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice not installed")
-def test_active_receiver_noise_supports_1_nt_estimates():
-    coil = current_coil()
-    text = RECEIVER.read_text()
-    fixture = "Rsource source receiver_in 30k"
-    assert text.count(fixture) == 1
-    untuned = text.replace(
-        fixture,
-        f"Rsource source coil_mid {coil['r_coil']}\n"
-        f"Lsource coil_mid receiver_in {coil['l_coil']}",
-    )
-    with tempfile.TemporaryDirectory() as directory:
-        deck = Path(directory) / "receiver.cir"
-        deck.write_text(untuned)
-        result = measure_noise(
-            deck, source="Vfid", output_positive="out",
-            output_negative="bias", band_hz=BAND_HZ, spot_hz=1936.5,
-        )
-    # 5 nV/rtHz EMF-referred keeps the frequency CRB near 0.25 nT even for
-    # the pessimistic 0.41 uV FID; see receiver_design/analysis/README.md.
-    assert result.input_density_v_rt_hz < 5e-9

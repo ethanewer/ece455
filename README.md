@@ -30,12 +30,12 @@ make firmware   # compile and test the portable estimator
 make figures    # regenerate transient and frequency-response CSV/PNG outputs
 make kicad      # regenerate connectivity and run available KiCad CLI checks
 make pcb        # require a physical PCB and passing DRC
-make eda        # figures, KiCad generation/checks, connectivity, AC, and noise
+make eda        # figures, connectivity, and the hard receiver requirement checks
 make verify     # all applicable tests and EDA checks
 ```
 
 ## Current status
 
-The active receiver is a minimal discrete low-noise amplifier: 24 Thomson kit parts (four gain transistors, two transistor clamps) between J1 and the already purchased HiLetgo ADS1256, with the XIAO RP2350 wired directly to the ADC's SPI. In ngspice it gives at least 2000 V/V from J1 to the ADC across 1.5–2.5 kHz and |Z_in| above 1 MΩ, at nominal and worst-case transistor beta, temperature, and USB-voltage corners. Its noise keeps the simulated frequency Cramér–Rao bound well under the 1 nT target. Allowed parts, including the two modules, are listed in `new_allowed_components.json`. Gain, input impedance, and noise remain to be measured on hardware.
+The active receiver is a minimal discrete low-noise band-pass amplifier: 30 Thomson kit parts between J1 and the already purchased HiLetgo ADS1256, with the XIAO RP2350 wired directly to the ADC's SPI. Its requirements live in `receiver_design/requirements.py`: at least 2000 V/V from J1 to the ADC across 1.6–2.2 kHz, |Z_in| of at least 1 MΩ across 1.5–2.5 kHz, and input noise of at most 5 nV/√Hz with the coil. `make verify` simulates them at nine beta, temperature, and USB-voltage corners and fails if any is missed. Allowed parts, including the two modules, are listed in `new_allowed_components.json`. Gain, input impedance, and noise remain to be measured on hardware.
 
 There is not yet a reviewed graphical KiCad schematic or physical PCB. `make pcb` therefore fails intentionally. A connectivity netlist and simulated figures do not establish fabrication readiness or measured hardware performance. See `receiver_design/README.md` and `docs/verification-plan.md`.

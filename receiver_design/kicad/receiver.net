@@ -188,7 +188,7 @@
       (tstamps "a6fd326a-61cc-55ba-9b64-3e8df39c0c42"))
     (comp
       (ref "C7")
-      (value "470p")
+      (value "1.5n")
       (description "Unpolarized capacitor")
       (footprint "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm")
       (fields
@@ -210,6 +210,54 @@
         (tstamps "/"))
       (component_classes)
       (tstamps "16338a68-8eed-55bf-a491-963475c6f7f3"))
+    (comp
+      (ref "C8")
+      (value "1n")
+      (description "Unpolarized capacitor")
+      (footprint "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm")
+      (fields
+        (field
+          (name "Description") "Unpolarized capacitor")
+        (field
+          (name "Footprint") "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm")
+        (field
+          (name "Datasheet"))
+        (field
+          (name "SKiDL Tag") "C8")
+        (field
+          (name "SKiDL Line") "generate.py:34"))
+      (libsource
+        (lib "Device")
+        (part "C"))
+      (sheetpath
+        (names "/")
+        (tstamps "/"))
+      (component_classes)
+      (tstamps "5745235a-c3ad-560a-9498-c294be8e78c3"))
+    (comp
+      (ref "C9")
+      (value "1n")
+      (description "Unpolarized capacitor")
+      (footprint "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm")
+      (fields
+        (field
+          (name "Description") "Unpolarized capacitor")
+        (field
+          (name "Footprint") "Capacitor_THT:C_Disc_D5.0mm_W2.5mm_P5.00mm")
+        (field
+          (name "Datasheet"))
+        (field
+          (name "SKiDL Tag") "C9")
+        (field
+          (name "SKiDL Line") "generate.py:34"))
+      (libsource
+        (lib "Device")
+        (part "C"))
+      (sheetpath
+        (names "/")
+        (tstamps "/"))
+      (component_classes)
+      (tstamps "9ccc330f-2a4c-575c-9353-ad8096a286cf"))
     (comp
       (ref "J1")
       (value "EXTERNAL SENSOR WIRE INTERFACE")
@@ -427,6 +475,30 @@
       (component_classes)
       (tstamps "e1b2b674-b3d5-5a98-ba80-08b09ecb1a48"))
     (comp
+      (ref "Q7")
+      (value "2N3904")
+      (description "0.2A Ic, 40V Vce, Small Signal NPN Transistor, TO-92")
+      (footprint "Package_TO_SOT_THT:TO-92_Inline")
+      (fields
+        (field
+          (name "Description") "0.2A Ic, 40V Vce, Small Signal NPN Transistor, TO-92")
+        (field
+          (name "Footprint") "Package_TO_SOT_THT:TO-92_Inline")
+        (field
+          (name "Datasheet") "https://www.onsemi.com/pub/Collateral/2N3903-D.PDF")
+        (field
+          (name "SKiDL Tag") "Q7")
+        (field
+          (name "SKiDL Line") "generate.py:34"))
+      (libsource
+        (lib "Transistor_BJT")
+        (part "2N3904"))
+      (sheetpath
+        (names "/")
+        (tstamps "/"))
+      (component_classes)
+      (tstamps "adb2fbb9-0c8a-5053-b9af-969360b55a78"))
+    (comp
       (ref "R1")
       (value "470k")
       (description "Resistor")
@@ -498,6 +570,78 @@
         (tstamps "/"))
       (component_classes)
       (tstamps "146f51db-bb3a-5131-afc8-7744106d2cfe"))
+    (comp
+      (ref "R12")
+      (value "68k")
+      (description "Resistor")
+      (footprint "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal")
+      (fields
+        (field
+          (name "Description") "Resistor")
+        (field
+          (name "Footprint") "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal")
+        (field
+          (name "Datasheet"))
+        (field
+          (name "SKiDL Tag") "R12")
+        (field
+          (name "SKiDL Line") "generate.py:34"))
+      (libsource
+        (lib "Device")
+        (part "R"))
+      (sheetpath
+        (names "/")
+        (tstamps "/"))
+      (component_classes)
+      (tstamps "9f75750b-4097-5a2a-b9eb-5e3f319978ce"))
+    (comp
+      (ref "R13")
+      (value "300k")
+      (description "Resistor")
+      (footprint "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal")
+      (fields
+        (field
+          (name "Description") "Resistor")
+        (field
+          (name "Footprint") "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal")
+        (field
+          (name "Datasheet"))
+        (field
+          (name "SKiDL Tag") "R13")
+        (field
+          (name "SKiDL Line") "generate.py:34"))
+      (libsource
+        (lib "Device")
+        (part "R"))
+      (sheetpath
+        (names "/")
+        (tstamps "/"))
+      (component_classes)
+      (tstamps "2e9cb324-63c9-5ad4-ba1a-b618f4020bea"))
+    (comp
+      (ref "R14")
+      (value "100k")
+      (description "Resistor")
+      (footprint "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal")
+      (fields
+        (field
+          (name "Description") "Resistor")
+        (field
+          (name "Footprint") "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal")
+        (field
+          (name "Datasheet"))
+        (field
+          (name "SKiDL Tag") "R14")
+        (field
+          (name "SKiDL Line") "generate.py:34"))
+      (libsource
+        (lib "Device")
+        (part "R"))
+      (sheetpath
+        (names "/")
+        (tstamps "/"))
+      (component_classes)
+      (tstamps "fc87fb8d-6ec9-5f6a-ba62-fc9d37c462e7"))
     (comp
       (ref "R2")
       (value "100k")
@@ -644,7 +788,7 @@
       (tstamps "45fbc468-780f-56f4-b6ba-53310b6a0e74"))
     (comp
       (ref "R8")
-      (value "200")
+      (value "150")
       (description "Resistor")
       (footprint "Resistor_THT:R_Axial_DIN0207_L6.3mm_D2.5mm_P10.16mm_Horizontal")
       (fields
@@ -740,7 +884,7 @@
       (tstamps "21c4b62b-8c2d-56ee-9b42-d10ab095f277"))
     (comp
       (ref "TP3")
-      (value "ADS1256_AIN0_OUT")
+      (value "ADS1256_AIN0")
       (description "test point")
       (footprint "TestPoint:TestPoint_Plated_Hole_D2.0mm")
       (fields
@@ -859,6 +1003,30 @@
       (component_classes)
       (tstamps "47117044-94ce-5dd7-abf9-83e3ef59bacb"))
     (comp
+      (ref "TP8")
+      (value "STAGE2_OUT")
+      (description "test point")
+      (footprint "TestPoint:TestPoint_Plated_Hole_D2.0mm")
+      (fields
+        (field
+          (name "Description") "test point")
+        (field
+          (name "Footprint") "TestPoint:TestPoint_Plated_Hole_D2.0mm")
+        (field
+          (name "Datasheet"))
+        (field
+          (name "SKiDL Tag") "TP8")
+        (field
+          (name "SKiDL Line") "generate.py:34"))
+      (libsource
+        (lib "Connector")
+        (part "TestPoint"))
+      (sheetpath
+        (names "/")
+        (tstamps "/"))
+      (component_classes)
+      (tstamps "dbebd152-e861-5059-b279-ee96be584c75"))
+    (comp
       (ref "U3")
       (value "Seeed Studio XIAO RP2350")
       (description "")
@@ -885,26 +1053,22 @@
   (nets
     (net
       (code 1)
-      (name "ADS1256_AIN0_OUT")
+      (name "ADS1256_AIN0")
       (class "Default")
-      (node
-        (ref "C7")
-        (pin "1")
-        (pintype "PASSIVE"))
       (node
         (ref "J3")
         (pin "1")
         (pintype "PASSIVE"))
       (node
-        (ref "Q4")
-        (pin "3")
+        (ref "Q7")
+        (pin "1")
         (pintype "PASSIVE"))
       (node
-        (ref "R10")
+        (ref "R12")
         (pin "2")
         (pintype "PASSIVE"))
       (node
-        (ref "R3")
+        (ref "R14")
         (pin "1")
         (pintype "PASSIVE"))
       (node
@@ -964,6 +1128,10 @@
         (pin "3")
         (pintype "PASSIVE"))
       (node
+        (ref "Q7")
+        (pin "3")
+        (pintype "PASSIVE"))
+      (node
         (ref "R10")
         (pin "1")
         (pintype "PASSIVE"))
@@ -988,11 +1156,11 @@
         (pin "1")
         (pintype "PASSIVE"))
       (node
-        (ref "C7")
+        (ref "J3")
         (pin "2")
         (pintype "PASSIVE"))
       (node
-        (ref "J3")
+        (ref "R13")
         (pin "2")
         (pintype "PASSIVE"))
       (node
@@ -1044,6 +1212,10 @@
         (pin "2")
         (pintype "PASSIVE"))
       (node
+        (ref "C7")
+        (pin "2")
+        (pintype "PASSIVE"))
+      (node
         (ref "J1")
         (pin "2")
         (pintype "PASSIVE"))
@@ -1062,6 +1234,10 @@
       (node
         (ref "Q6")
         (pin "3")
+        (pintype "PASSIVE"))
+      (node
+        (ref "R14")
+        (pin "2")
         (pintype "PASSIVE"))
       (node
         (ref "R5")
@@ -1093,6 +1269,38 @@
         (pintype "PASSIVE")))
     (net
       (code 9)
+      (name "HP_A")
+      (class "Default")
+      (node
+        (ref "C8")
+        (pin "2")
+        (pintype "PASSIVE"))
+      (node
+        (ref "C9")
+        (pin "1")
+        (pintype "PASSIVE"))
+      (node
+        (ref "R12")
+        (pin "1")
+        (pintype "PASSIVE")))
+    (net
+      (code 10)
+      (name "HP_B")
+      (class "Default")
+      (node
+        (ref "C9")
+        (pin "2")
+        (pintype "PASSIVE"))
+      (node
+        (ref "Q7")
+        (pin "2")
+        (pintype "INPUT"))
+      (node
+        (ref "R13")
+        (pin "1")
+        (pintype "PASSIVE")))
+    (net
+      (code 11)
       (name "Q1_BASE")
       (class "Default")
       (node
@@ -1108,7 +1316,7 @@
         (pin "1")
         (pintype "PASSIVE")))
     (net
-      (code 10)
+      (code 12)
       (name "Q1_COLLECTOR")
       (class "Default")
       (node
@@ -1124,7 +1332,7 @@
         (pin "2")
         (pintype "PASSIVE")))
     (net
-      (code 11)
+      (code 13)
       (name "Q1_EMITTER_FEEDBACK")
       (class "Default")
       (node
@@ -1148,7 +1356,7 @@
         (pin "1")
         (pintype "PASSIVE")))
     (net
-      (code 12)
+      (code 14)
       (name "Q2_COLLECTOR")
       (class "Default")
       (node
@@ -1164,7 +1372,7 @@
         (pin "1")
         (pintype "PASSIVE")))
     (net
-      (code 13)
+      (code 15)
       (name "Q4_EMITTER")
       (class "Default")
       (node
@@ -1180,7 +1388,7 @@
         (pin "1")
         (pintype "PASSIVE")))
     (net
-      (code 14)
+      (code 16)
       (name "RECEIVER_IN")
       (class "Default")
       (node
@@ -1208,7 +1416,7 @@
         (pin "1")
         (pintype "PASSIVE")))
     (net
-      (code 15)
+      (code 17)
       (name "SPI0_MISO_D9_GPIO4_ADS_DOUT")
       (class "Default")
       (node
@@ -1220,7 +1428,7 @@
         (pin "10")
         (pintype "PASSIVE")))
     (net
-      (code 16)
+      (code 18)
       (name "SPI0_MOSI_D10_GPIO3_ADS_DIN")
       (class "Default")
       (node
@@ -1232,7 +1440,7 @@
         (pin "11")
         (pintype "PASSIVE")))
     (net
-      (code 17)
+      (code 19)
       (name "SPI0_SCLK_D8_GPIO2")
       (class "Default")
       (node
@@ -1244,7 +1452,7 @@
         (pin "9")
         (pintype "PASSIVE")))
     (net
-      (code 18)
+      (code 20)
       (name "STAGE1_AC_RETURN")
       (class "Default")
       (node
@@ -1256,7 +1464,7 @@
         (pin "2")
         (pintype "PASSIVE")))
     (net
-      (code 19)
+      (code 21)
       (name "STAGE1_OUT")
       (class "Default")
       (node
@@ -1280,7 +1488,35 @@
         (pin "1")
         (pintype "PASSIVE")))
     (net
-      (code 20)
+      (code 22)
+      (name "STAGE2_OUT")
+      (class "Default")
+      (node
+        (ref "C7")
+        (pin "1")
+        (pintype "PASSIVE"))
+      (node
+        (ref "C8")
+        (pin "1")
+        (pintype "PASSIVE"))
+      (node
+        (ref "Q4")
+        (pin "3")
+        (pintype "PASSIVE"))
+      (node
+        (ref "R10")
+        (pin "2")
+        (pintype "PASSIVE"))
+      (node
+        (ref "R3")
+        (pin "1")
+        (pintype "PASSIVE"))
+      (node
+        (ref "TP8")
+        (pin "1")
+        (pintype "PASSIVE")))
+    (net
+      (code 23)
       (name "USB_VBUS_5V")
       (class "Default")
       (node

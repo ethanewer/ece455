@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate fixed connectivity for the minimal discrete ADS1256 receiver.
+"""Generate fixed connectivity for the minimal discrete band-pass receiver.
 
 This is one circuit, not a search or topology generator. It mirrors
 spice/receiver.cir. The purchased module's physical header order and SPI
@@ -78,7 +78,10 @@ q2_col = Net("Q2_COLLECTOR")
 stage1_out = Net("STAGE1_OUT")
 q4_emit = Net("Q4_EMITTER")
 boot = Net("BOOTSTRAP")
-out = Net("ADS1256_AIN0_OUT")
+out = Net("STAGE2_OUT")
+hp_a = Net("HP_A")
+hp_b = Net("HP_B")
+ain0 = Net("ADS1256_AIN0")
 bias = Net("BIAS_AIN1_1V7")
 
 ads_sclk = Net("SPI0_SCLK_D8_GPIO2")
@@ -108,15 +111,23 @@ resistor("R5", "20k", q2_col, gnd)
 bjt("Q3", "2N3904", "2N3904", stage1_out, q2_col, va)
 resistor("R6", "4.7k", stage1_out, gnd)
 resistor("R7", "5.1k", stage1_out, q1_emit)
-resistor("R8", "200", q1_emit, stage1_ac)
+resistor("R8", "150", q1_emit, stage1_ac)
 capacitor("C4", "2.2u", stage1_ac, gnd, electrolytic=True)
 
-# Stage 2: common emitter driving ADS1256 AIN0 directly.
+# Stage 2: common emitter; C7 is the band-pass low-side pole.
 bjt("Q4", "2N3904", "2N3904", q4_emit, stage1_out, out)
 resistor("R9", "1k", q4_emit, gnd)
 capacitor("C5", "2.2u", q4_emit, gnd, electrolytic=True)
 resistor("R10", "20k", va, out)
-capacitor("C7", "470p", out, bias)
+capacitor("C7", "1.5n", out, gnd)
+
+# Band-pass high side: Sallen-Key high-pass buffered by Q7, which drives AIN0.
+capacitor("C8", "1n", out, hp_a)
+capacitor("C9", "1n", hp_a, hp_b)
+resistor("R12", "68k", hp_a, ain0)
+resistor("R13", "300k", hp_b, bias)
+bjt("Q7", "2N3904", "2N3904", ain0, hp_b, va)
+resistor("R14", "100k", ain0, gnd)
 
 # Bootstrapped bias and DC loop. BIAS is also ADS1256 AIN1.
 resistor("R1", "470k", q1_base, boot)
@@ -153,12 +164,12 @@ for pin, net in enumerate((vbus5, gnd, ads_sclk, ads_din, ads_dout,
     j2[pin] += net
 j3 = part("Connector_Generic", "Conn_01x02", "J3",
           "HILETGO ADS1256 LOGICAL ANALOG WIRES")
-j3[1] += out
+j3[1] += ain0
 j3[2] += bias
 
 for ref, net in (
-    ("TP1", gnd), ("TP2", receiver_in), ("TP3", out), ("TP4", bias),
-    ("TP5", va), ("TP6", stage1_out), ("TP7", q1_emit),
+    ("TP1", gnd), ("TP2", receiver_in), ("TP3", ain0), ("TP4", bias),
+    ("TP5", va), ("TP6", stage1_out), ("TP7", q1_emit), ("TP8", out),
 ):
     testpoint(ref, net)
 

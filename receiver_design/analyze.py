@@ -13,6 +13,7 @@ import numpy as np
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT.parent))
 
+from receiver_design import requirements
 from verification_modeling.coil import current_coil
 from verification_modeling.crb import freq_crb
 from verification_modeling.eda.report import (
@@ -27,11 +28,11 @@ from verification_modeling.physics import (
     estimate_v0,
 )
 
-PASSBAND_HZ = (1500.0, 2500.0)
+PASSBAND_HZ = requirements.GAIN_BAND_HZ
 SPOT_HZ = math.sqrt(PASSBAND_HZ[0] * PASSBAND_HZ[1])
-FIXTURE = "Rsource source receiver_in 30k"
-OUTPUT_POSITIVE = "out"
-OUTPUT_NEGATIVE = "bias"
+FIXTURE = requirements.FIXTURE
+OUTPUT_POSITIVE = requirements.OUTPUT_POSITIVE
+OUTPUT_NEGATIVE = requirements.OUTPUT_NEGATIVE
 # ngspice evaluates resistor thermal noise at its default 27 C.
 T_SPICE_K = 300.15
 # Estimator record used for the frequency CRB column.
@@ -91,7 +92,7 @@ def noise_table(netlist: Path, coil: dict) -> str:
             deck = Path(directory) / "receiver.cir"
             deck.write_text(text.replace(FIXTURE, lines))
             result = measure_noise(
-                deck, source="Vfid", output_positive=OUTPUT_POSITIVE,
+                deck, source=requirements.SOURCE, output_positive=OUTPUT_POSITIVE,
                 output_negative=OUTPUT_NEGATIVE, band_hz=PASSBAND_HZ,
                 spot_hz=SPOT_HZ,
             )
@@ -135,14 +136,15 @@ if __name__ == "__main__":
         transient_stop_s=0.220,
     )
     _, impedance = measure_input_impedance(
-        netlist, source="Vfid", node="receiver_in", band_hz=PASSBAND_HZ,
+        netlist, source=requirements.SOURCE, node=requirements.INPUT_NODE,
+        band_hz=requirements.ZIN_BAND_HZ,
     )
     summary = result.summary_md.read_text().rstrip()
     summary = re.sub(r"(?m)^- Intended passband:", "- Specified band:", summary)
     summary = re.sub(r"(?m)^(- Settled input peak:)", r"- Settled J1 input peak:", summary)
     impedance_line = (
-        f"- Simulated |Z_in| at J1 over {PASSBAND_HZ[0]:.0f}–"
-        f"{PASSBAND_HZ[1]:.0f} Hz: {impedance.min() / 1e6:.2f} to "
+        f"- Simulated |Z_in| at J1 over {requirements.ZIN_BAND_HZ[0]:.0f}–"
+        f"{requirements.ZIN_BAND_HZ[1]:.0f} Hz: {impedance.min() / 1e6:.2f} to "
         f"{impedance.max() / 1e6:.2f} MΩ\n"
     )
     figures = "\n![Input and output waveforms]"
@@ -153,11 +155,13 @@ if __name__ == "__main__":
         summary
         + "\n\nGain is from J1 (`receiver_in`) to ADS1256 AIN0−AIN1 with PGA 1. "
         "The requirement is at least 2000 V/V everywhere in the specified "
-        "band. The test source is 10 µV behind a 30 kΩ fixture that stands "
+        "band; `make verify` also checks it, |Z_in|, and noise at beta, "
+        "temperature, and USB-voltage corners. The test source is 10 µV behind a 30 kΩ fixture that stands "
         "in for the externally tuned sensor. Coil tuning and damping are "
         "outside this receiver model.\n\n"
         "## Noise\n\n"
-        "Input-referred to the source EMF, integrated from 1.5 to 2.5 kHz "
+        f"Input-referred to the source EMF, integrated from {PASSBAND_HZ[0] / 1000:g} "
+        f"to {PASSBAND_HZ[1] / 1000:g} kHz "
         "with ngspice `.noise`. The noise figure compares that total with "
         "the source resistance's thermal noise alone. The frequency CRB "
         f"uses the untuned coil's EMF-referred density at {SPOT_HZ:.0f} Hz "

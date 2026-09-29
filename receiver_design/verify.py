@@ -10,9 +10,13 @@ import re
 import shutil
 import subprocess
 import tempfile
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT))
+
+from receiver_design import requirements  # noqa: E402
 SPICE_NETLIST = ROOT / "receiver_design/spice/receiver.cir"
 KICAD_NETLIST = ROOT / "receiver_design/kicad/receiver.net"
 BOM = ROOT / "receiver_design/bom.csv"
@@ -156,8 +160,8 @@ def artifact_check() -> None:
     if connectivity.count("(") != connectivity.count(")"):
         raise SystemExit("KiCad connectivity netlist has unbalanced parentheses")
 
-    for token in (".param PGA=1", "Rsource source receiver_in 30k",
-                  "Epga pga_out 0 out bias {PGA}"):
+    for token in (".param PGA=1", requirements.FIXTURE, requirements.SUPPLY,
+                  "Epga pga_out 0 ain0 bias {PGA}"):
         if token not in spice:
             raise SystemExit(f"SPICE artifact is missing {token}")
 
@@ -192,7 +196,7 @@ def artifact_check() -> None:
     # Module and connector interfaces have no SPICE counterpart.
     interface = {
         ("J1", "1"): node_to_net["receiver_in"], ("J1", "2"): "GND",
-        ("J3", "1"): node_to_net["out"], ("J3", "2"): node_to_net["bias"],
+        ("J3", "1"): node_to_net["ain0"], ("J3", "2"): node_to_net["bias"],
         ("U3", "14"): "USB_VBUS_5V", ("J2", "1"): "USB_VBUS_5V",
         ("U3", "13"): "GND", ("J2", "2"): "GND",
         ("U3", "9"): "SPI0_SCLK_D8_GPIO2", ("J2", "3"): "SPI0_SCLK_D8_GPIO2",
@@ -237,6 +241,32 @@ def ngspice_check(required: bool) -> None:
     print("PASS ngspice receiver AC and noise analyses")
 
 
+def requirements_check() -> None:
+    """Fail unless every requirement holds at every corner."""
+    if shutil.which("ngspice") is None:
+        raise SystemExit("ngspice is required to check the receiver requirements")
+    print(
+        "REQUIREMENTS gain >= "
+        f"{requirements.GAIN_MIN_V_PER_V:.0f} V/V over "
+        f"{requirements.GAIN_BAND_HZ[0]:.0f}-{requirements.GAIN_BAND_HZ[1]:.0f} Hz; "
+        f"|Z_in| >= {requirements.ZIN_MIN_OHM / 1e6:g} Mohm over "
+        f"{requirements.ZIN_BAND_HZ[0]:.0f}-{requirements.ZIN_BAND_HZ[1]:.0f} Hz; "
+        f"noise <= {requirements.NOISE_MAX_V_RT_HZ * 1e9:g} nV/rtHz"
+    )
+    failures = []
+    for result in requirements.check_requirements(SPICE_NETLIST):
+        status = "PASS" if not result.failures else "FAIL"
+        print(
+            f"{status} {result.corner.name:26s} gain {result.gain_min:6.0f} V/V  "
+            f"|Z_in| {result.zin_min_ohm / 1e6:5.2f} Mohm  "
+            f"noise {result.noise_max_v_rt_hz * 1e9:5.2f} nV/rtHz"
+        )
+        failures += [f"{result.corner.name}: {text}" for text in result.failures]
+    if failures:
+        raise SystemExit("receiver requirements failed:\n  " + "\n  ".join(failures))
+    print("PASS receiver requirements hold at every corner")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -246,6 +276,7 @@ def main() -> None:
     args = parser.parse_args()
     artifact_check()
     ngspice_check(args.require_tools)
+    requirements_check()
     print("NOTE no routed PCB, DRC report, or clean KiCad ERC is claimed")
 
 

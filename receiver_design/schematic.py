@@ -68,10 +68,10 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
     drawing.config(unit=1.5, inches_per_unit=0.55, fontsize=8,
                    lw=1.1, bgcolor="white", margin=0.5)
 
-    label(drawing, (0.0, 17.2), "Minimal discrete proton magnetometer receiver",
+    label(drawing, (0.0, 17.2), "Minimal discrete band-pass proton magnetometer receiver",
           fontsize=14, halign="left", valign="bottom")
     label(drawing, (0.0, 16.6),
-          "Gain ≥ 2000 V/V (J1 to AIN0−AIN1) across 1.5–2.5 kHz; |Z_in| ≥ 1 MΩ. "
+          "Gain ≥ 2000 V/V (J1 to AIN0−AIN1) across 1.6–2.2 kHz; |Z_in| ≥ 1 MΩ. "
           "The sensing coil, tuning capacitor, and damping resistor are external to J1.",
           fontsize=8.5, color=BLUE, halign="left", valign="bottom")
 
@@ -128,7 +128,7 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
     wire(drawing, emit, (emit[0] + 0.7, y_fb))
     resistor(drawing, (stage1[0] - 0.6, y_fb), (emit[0] + 0.7, y_fb), "R7 5.1 kΩ", loc="bottom")
     wire(drawing, (stage1[0] - 0.6, y_fb), stage1)
-    resistor(drawing, emit, (emit[0], y_fb - 1.4), "R8\n200 Ω", loc="bottom")
+    resistor(drawing, emit, (emit[0], y_fb - 1.4), "R8\n150 Ω", loc="bottom")
     capacitor(drawing, (emit[0], y_fb - 1.4), (emit[0], y_fb - 2.7),
               "C4\n2.2 µF", polar=True, loc="bottom")
     ground(drawing, (emit[0], y_fb - 2.7))
@@ -168,25 +168,56 @@ def build_receiver_schematic(output_dir: Path) -> tuple[Path, Path]:
               "C5\n2.2 µF", polar=True, loc="bottom")
     ground(drawing, (e4[0] + 1.1, e4[1] - 1.5))
 
-    x_r3 = out[0] + 2.4
-    x_c7 = out[0] + 3.5
-    x_end = out[0] + 4.6
-    wire(drawing, out, (x_end, out[1]))
-    for x in (x_r3, x_c7):
-        dot(drawing, (x, out[1]))
-        dot(drawing, (x, y_bias))
+    # R3 closes the DC loop to BIAS; C7 to ground is the low-side pole.
+    x_r3 = out[0] + 2.0
+    x_c7 = out[0] + 3.0
+    dot(drawing, (x_r3, out[1]))
+    dot(drawing, (x_r3, y_bias))
     resistor(drawing, (x_r3, out[1]), (x_r3, out[1] - 1.8), "R3\n1 MΩ", loc="top")
     wire(drawing, (x_r3, out[1] - 1.8), (x_r3, y_bias))
-    capacitor(drawing, (x_c7, out[1]), (x_c7, out[1] - 1.8), "C7\n470 pF", loc="bottom")
-    wire(drawing, (x_c7, out[1] - 1.8), (x_c7, y_bias))
+    dot(drawing, (x_c7, out[1]))
+    capacitor(drawing, (x_c7, out[1]), (x_c7, out[1] - 1.5), "C7\n1.5 nF", loc="bottom")
+    ground(drawing, (x_c7, out[1] - 1.5))
+
+    # Sallen-Key high-pass (C8, C9, R12, R13) buffered by the Q7 follower.
+    hp_in = (x_c7 + 0.4, out[1])
+    wire(drawing, out, hp_in)
+    hp_a = (hp_in[0] + 1.5, out[1])
+    capacitor(drawing, hp_in, hp_a, "C8 1 nF")
+    dot(drawing, hp_a)
+    hp_b = (hp_a[0] + 1.5, out[1])
+    capacitor(drawing, hp_a, hp_b, "C9 1 nF")
+    dot(drawing, hp_b)
+    x_r13 = hp_b[0]
+    resistor(drawing, hp_b, (x_r13, out[1] - 1.8), "R13\n300 kΩ", loc="bottom")
+    wire(drawing, (x_r13, out[1] - 1.8), (x_r13, y_bias))
+    dot(drawing, (x_r13, y_bias))
+    base7 = (hp_b[0] + 0.7, out[1])
+    wire(drawing, hp_b, base7)
+    q7_col, q7_emit = npn(drawing, base7, "Q7\n2N3904")
+    rail(drawing, q7_col)
+    ain0 = (q7_emit[0], q7_emit[1] - 0.5)
+    wire(drawing, q7_emit, ain0)
+    dot(drawing, ain0)
+    resistor(drawing, ain0, (ain0[0], ain0[1] - 1.4), "R14\n100 kΩ", loc="bottom")
+    ground(drawing, (ain0[0], ain0[1] - 1.4))
+    r12_y = out[1] + 1.9
+    wire(drawing, hp_a, (hp_a[0], r12_y))
+    resistor(drawing, (hp_a[0], r12_y), (ain0[0] + 1.0, r12_y), "R12 68 kΩ")
+    x_end = ain0[0] + 1.6
+    wire(drawing, (ain0[0] + 1.0, r12_y), (ain0[0] + 1.0, ain0[1]))
+    wire(drawing, ain0, (x_end, ain0[1]))
+    dot(drawing, (ain0[0] + 1.0, ain0[1]))
     wire(drawing, bias, (x_end, y_bias))
-    label(drawing, (x_end + 0.1, out[1]), "ADS1256 AIN0", color=BLUE,
+    label(drawing, (x_end + 0.1, ain0[1]), "ADS1256 AIN0", color=BLUE,
           halign="left", valign="center")
     label(drawing, (x_end + 0.1, y_bias), "ADS1256 AIN1\n(BIAS ≈ 1.7 V)", color=BLUE,
           halign="left", valign="center")
     label(drawing, (0.0, y_bias - 1.5),
-          "Stage 1 gain 1 + R7/R8 = 26.5 (Q1 ≈ 32 µA). Stage 2 gain ≈ (VA − VOUT)/VT ≈ 95. "
-          "R3 closes the DC loop that sets every bias point; C2 bootstraps R1.",
+          "Stage 1 gain 1 + R7/R8 = 35 (Q1 ≈ 32 µA). Stage 2 gain ≈ (VA − VOUT)/VT. "
+          "R3 closes the DC loop that sets every bias point; C2 bootstraps R1.\n"
+          "Band-pass: C8/C9/R12/R13 Sallen-Key high-pass (1.1 kHz, Q 1.05) buffered by Q7; "
+          "C7 with R10 is the 5.3 kHz low-pass pole.",
           fontsize=8, color=GREY, halign="left", valign="top")
 
     # Power and module wiring.

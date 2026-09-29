@@ -20,6 +20,8 @@ def test_construction_schematic_is_rendered(tmp_path: Path) -> None:
     assert "J1 signal" in svg_text
     assert "C1 100 nF" in svg_text
     assert "R7 5.1 kΩ" in svg_text
+    assert "C8 1 nF" in svg_text
+    assert "Q7" in svg_text
     assert "No level translation" in svg_text
     assert "J4" not in svg_text
     assert "tuning capacitor, and damping resistor are external" in svg_text

@@ -6,6 +6,7 @@ from .report import (
     NoiseResult,
     ReportResult,
     build_spice_report,
+    measure_gain,
     measure_input_impedance,
     measure_noise,
 )
@@ -16,6 +17,7 @@ __all__ = [
     "ReportResult",
     "build_spice_report",
     "emit_netlist",
+    "measure_gain",
     "measure_input_impedance",
     "measure_noise",
     "from_json",

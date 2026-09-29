@@ -31,20 +31,20 @@ The nominal pair is 99.94 ohm and 152.6 mH, series-aiding. The coil assembly's t
 
 Measure the assembled receiver with a calibrated source and analyzer:
 
-- complex transfer from 100 Hz to 50 kHz with a calibrated signal at J1; verify at least 2000 V/V from J1 to AIN0−AIN1 everywhere in 1.5–2.5 kHz (about 2400–2500 simulated), without attributing an external LC peak to the receiver
-- input impedance at J1 across 1.5–2.5 kHz, for example by the amplitude change with a known series resistor; require at least 1 MΩ (2.1–2.2 MΩ simulated)
-- DC operating points at TP3–TP7 (AIN0 ≈ 2.1 V, BIAS ≈ 1.7 V), and a scope check of AIN0 for oscillation, including with the sensor connected
-- input-referred noise spectrum with J1 shorted, with a 30 kΩ resistor at J1, and with the coil connected; compare with the simulated 3.35, 25.8, and 3.59 nV/√Hz at 1.94 kHz
+- complex transfer from 20 Hz to 50 kHz with a calibrated signal at J1; verify at least 2000 V/V from J1 to AIN0−AIN1 everywhere in 1.6–2.2 kHz (about 2700 simulated, peaking near 1.9 kHz, −3 dB near 1.0 and 6.4 kHz), without attributing an external LC peak to the receiver
+- input impedance at J1 across 1.5–2.5 kHz, for example by the amplitude change with a known series resistor; require at least 1 MΩ (1.8–2.3 MΩ simulated)
+- DC operating points at TP3–TP8 (AIN0 ≈ 1.1 V, BIAS ≈ 1.7 V, Q4 collector ≈ 2.3 V), and a scope check of AIN0 and TP8 for oscillation, including with the sensor connected
+- input-referred noise spectrum with J1 shorted, with a 30 kΩ resistor at J1, and with the coil connected; compare with the simulated 3.2, 25.7, and 3.5 nV/√Hz at 1.88 kHz; require at most 5 nV/√Hz with the coil
 - the actual 30 kSPS ADS1256 noise with its buffer on and PGA 1
-- 60 Hz gain and the largest mains pickup at J1 that keeps AIN0 within 0–3 V (about 9 mV peak simulated)
+- 60 Hz gain (about 0.5 V/V simulated at AIN0) and the largest mains pickup at J1 before Q4's collector clips (about 22 mV peak at 60 Hz and 4 mV at 180 Hz simulated)
 - Q5/Q6 clamp current and settling through the real polarizer turnoff; keep the sensor disconnected until its pulse magnitude is known
-- recovery after the acquisition blank and a short SYNC/PDWN pulse; confirm the first subsequent DRDY marks settled data, and extend the blank toward 300 ms if the baseline has not settled
+- recovery after the acquisition blank and a short SYNC/PDWN pulse; confirm the first subsequent DRDY marks settled data, and confirm the baseline has settled (within 1 mV by about 95 ms simulated)
 - loaded USB 5 V and VA (≈4.8 V) at the lowest expected USB input
 - the purchased module's DRDY high level (expect about 3.3 V) before wiring its SPI directly to the XIAO, then scope all six SPI lines at the chosen clock
 - PSRR versus frequency, including the 2 kHz converter-ripple case
 - CMRR with the installed sensor pair
 
-Export measured transfer and noise data in a text format that tests can load. Compare ngspice and measured curves using explicit tolerances. Include the ADS1256's converter noise separately because the SPICE deck models its input loading and ideal PGA but not its specified converter noise or digital filter. Transistor 1/f noise and realistic base resistance are also absent from the models.
+Export measured transfer and noise data in a text format that tests can load, and compare them with the limits in `receiver_design/requirements.py`. Compare ngspice and measured curves using explicit tolerances. Include the ADS1256's converter noise separately because the SPICE deck models its input loading and ideal PGA but not its specified converter noise or digital filter. Transistor 1/f noise and realistic base resistance are also absent from the models.
 
 ## Frequency estimator
 
