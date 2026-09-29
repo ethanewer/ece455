@@ -13,14 +13,15 @@ def test_construction_schematic_is_rendered(tmp_path: Path) -> None:
     assert svg.stat().st_size > 10_000
     assert png.stat().st_size > 10_000
     svg_text = svg.read_text()
-    assert "Minimal discrete" in svg_text
+    assert "Discrete band-pass" in svg_text
     assert "Gain ≥ 2000 V/V" in svg_text
     assert "ADS1256 AIN0" in svg_text
     assert "ADS1256 AIN1" in svg_text
     assert "J1 signal" in svg_text
     assert "C1 100 nF" in svg_text
     assert "R7 5.1 kΩ" in svg_text
-    assert "C8 1 nF" in svg_text
+    assert "C8 6.8 nF" in svg_text
+    assert "Q8" in svg_text
     assert "Q7" in svg_text
     assert "No level translation" in svg_text
     assert "J4" not in svg_text

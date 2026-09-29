@@ -11,7 +11,9 @@ from verification_modeling.eda.report import (
     build_spice_report,
     measure_gain,
     measure_input_impedance,
+    measure_node_gains,
     measure_noise,
+    measure_operating_point,
 )
 from verification_modeling.coil import current_coil
 
@@ -172,12 +174,12 @@ def test_active_receiver_meets_requirements_at_nominal():
 @NGSPICE
 def test_active_receiver_band_pass_rejects_out_of_band():
     frequency, gain = measure_gain(
-        RECEIVER, input_node="receiver_in", output_positive="ain0",
+        RECEIVER, input_node="receiver_in", output_positive="out",
         output_negative="bias", band_hz=(60.0, 20000.0), points=3,
     )
     in_band = requirements.GAIN_MIN_V_PER_V
     assert gain[0] < 1e-3 * in_band      # 60 Hz mains
-    assert gain[-1] < 0.5 * in_band      # 20 kHz
+    assert gain[-1] < 0.05 * in_band     # 20 kHz
 
 
 @NGSPICE
@@ -196,6 +198,29 @@ def test_requirement_check_reports_low_input_impedance(tmp_path):
                     "Rsource source receiver_in 30k\nRleak receiver_in 0 680k")
     failures = requirements.evaluate_corner(deck, requirements.CORNERS[0]).failures
     assert any("Z_in" in failure for failure in failures)
+
+
+@NGSPICE
+def test_requirement_check_reports_mains_clipping(tmp_path):
+    # A large Q4 emitter bypass restores full stage-2 gain at mains harmonics.
+    deck = _variant(tmp_path, "C5 q4_emit 0 1u", "C5 q4_emit 0 470u")
+    failures = requirements.evaluate_corner(deck, requirements.CORNERS[0]).failures
+    assert any("clips" in failure and "50-400 Hz" in failure for failure in failures)
+
+
+@NGSPICE
+def test_operating_point_and_node_gain_helpers(tmp_path):
+    netlist = tmp_path / "divider.cir"
+    netlist.write_text(
+        "Divider\nV1 in 0 DC 2 AC 1\nR1 in mid 1k\nR2 mid 0 3k\n.end\n"
+    )
+    assert measure_operating_point(netlist, ["mid"])["mid"] == pytest.approx(1.5)
+    frequency, gains = measure_node_gains(
+        netlist, input_node="in", nodes=["mid"], band_hz=(100.0, 1000.0),
+        points_per_decade=5,
+    )
+    assert frequency[0] == pytest.approx(100.0)
+    assert np.allclose(gains["mid"], 0.75)
 
 
 def test_corner_netlist_scales_beta_supply_and_temperature():

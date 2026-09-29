@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate fixed connectivity for the minimal discrete band-pass receiver.
+"""Generate fixed connectivity for the discrete band-pass receiver.
 
 This is one circuit, not a search or topology generator. It mirrors
 spice/receiver.cir. The purchased module's physical header order and SPI
@@ -76,13 +76,16 @@ q1_emit = Net("Q1_EMITTER_FEEDBACK")
 stage1_ac = Net("STAGE1_AC_RETURN")
 q2_col = Net("Q2_COLLECTOR")
 stage1_out = Net("STAGE1_OUT")
-q4_emit = Net("Q4_EMITTER")
-boot = Net("BOOTSTRAP")
-out = Net("STAGE2_OUT")
 hp_a = Net("HP_A")
 hp_b = Net("HP_B")
-ain0 = Net("ADS1256_AIN0")
-bias = Net("BIAS_AIN1_1V7")
+filt = Net("HP_OUT")
+lp_a = Net("LP_A")
+lp_b = Net("LP_B")
+lpo = Net("LP_OUT")
+q4_emit = Net("Q4_EMITTER")
+out = Net("ADS1256_AIN0_OUT")
+boot = Net("BOOTSTRAP")
+bias = Net("BIAS_AIN1_1V6")
 
 ads_sclk = Net("SPI0_SCLK_D8_GPIO2")
 ads_din = Net("SPI0_MOSI_D10_GPIO3_ADS_DIN")
@@ -105,29 +108,36 @@ bjt("Q6", "2N3904", "2N3904", receiver_in, gnd, gnd)
 # Stage 1: low-noise series-feedback triple, AC gain 1 + R7/R8.
 capacitor("C1", "100n", receiver_in, q1_base)
 bjt("Q1", "2N3904", "2N3904", q1_emit, q1_base, q1_col)
-resistor("R4", "20k", va, q1_col)
+resistor("R4", "24.9k", va, q1_col)
 bjt("Q2", "2N3906", "2N3906", va, q1_col, q2_col)
-resistor("R5", "20k", q2_col, gnd)
+resistor("R5", "47k", q2_col, gnd)
 bjt("Q3", "2N3904", "2N3904", stage1_out, q2_col, va)
-resistor("R6", "4.7k", stage1_out, gnd)
+resistor("R6", "2.2k", stage1_out, gnd)
 resistor("R7", "5.1k", stage1_out, q1_emit)
 resistor("R8", "150", q1_emit, stage1_ac)
-capacitor("C4", "2.2u", stage1_ac, gnd, electrolytic=True)
+capacitor("C4", "1u", stage1_ac, gnd, electrolytic=True)
 
-# Stage 2: common emitter; C7 is the band-pass low-side pole.
-bjt("Q4", "2N3904", "2N3904", q4_emit, stage1_out, out)
-resistor("R9", "1k", q4_emit, gnd)
-capacitor("C5", "2.2u", q4_emit, gnd, electrolytic=True)
+# Fourth-order band-pass between the stages: Sallen-Key high-pass with the
+# Q7 follower, then Sallen-Key low-pass with the Q8 PNP follower.
+capacitor("C8", "6.8n", stage1_out, hp_a)
+capacitor("C9", "6.8n", hp_a, hp_b)
+resistor("R12", "6.8k", hp_a, filt)
+resistor("R13", "47k", hp_b, bias)
+bjt("Q7", "2N3904", "2N3904", filt, hp_b, va)
+resistor("R14", "47k", filt, gnd)
+resistor("R15", "20k", filt, lp_a)
+resistor("R16", "20k", lp_a, lp_b)
+capacitor("C10", "6.8n", lp_a, lpo)
+capacitor("C11", "1n", lp_b, gnd)
+bjt("Q8", "2N3906", "2N3906", lpo, lp_b, gnd)
+resistor("R17", "33k", va, lpo)
+
+# Stage 2: common emitter; its collector drives ADS1256 AIN0 directly.
+bjt("Q4", "2N3904", "2N3904", q4_emit, lpo, out)
+resistor("R9", "8.2k", q4_emit, gnd)
+capacitor("C5", "1u", q4_emit, gnd, electrolytic=True)
 resistor("R10", "20k", va, out)
-capacitor("C7", "1.5n", out, gnd)
-
-# Band-pass high side: Sallen-Key high-pass buffered by Q7, which drives AIN0.
-capacitor("C8", "1n", out, hp_a)
-capacitor("C9", "1n", hp_a, hp_b)
-resistor("R12", "68k", hp_a, ain0)
-resistor("R13", "300k", hp_b, bias)
-bjt("Q7", "2N3904", "2N3904", ain0, hp_b, va)
-resistor("R14", "100k", ain0, gnd)
+capacitor("C7", "2.2n", out, gnd)
 
 # Bootstrapped bias and DC loop. BIAS is also ADS1256 AIN1.
 resistor("R1", "470k", q1_base, boot)
@@ -164,12 +174,12 @@ for pin, net in enumerate((vbus5, gnd, ads_sclk, ads_din, ads_dout,
     j2[pin] += net
 j3 = part("Connector_Generic", "Conn_01x02", "J3",
           "HILETGO ADS1256 LOGICAL ANALOG WIRES")
-j3[1] += ain0
+j3[1] += out
 j3[2] += bias
 
 for ref, net in (
-    ("TP1", gnd), ("TP2", receiver_in), ("TP3", ain0), ("TP4", bias),
-    ("TP5", va), ("TP6", stage1_out), ("TP7", q1_emit), ("TP8", out),
+    ("TP1", gnd), ("TP2", receiver_in), ("TP3", out), ("TP4", bias),
+    ("TP5", va), ("TP6", stage1_out), ("TP7", q1_emit), ("TP8", lpo),
 ):
     testpoint(ref, net)
 

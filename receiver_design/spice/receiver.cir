@@ -1,7 +1,8 @@
-* Minimal discrete low-noise bandpass receiver for the HiLetgo ADS1256.
+* Minimal discrete low-noise band-pass receiver for the HiLetgo ADS1256.
 * Requirements (receiver_design/requirements.py, enforced by make verify):
 * gain >= 2000 V/V from J1 to AIN0-AIN1 across 1.6-2.2 kHz, |Zin| >= 1
-* Megohm across 1.5-2.5 kHz, and input noise <= 5 nV/rtHz with the coil.
+* Megohm across 1.5-2.5 kHz, input noise <= 5 nV/rtHz with the coil, and
+* no stage clipping for 10 mV tones at 50-400 Hz or 2 mV at 8-50 kHz.
 * Every fitted part except the ADC module and XIAO RP2350 is a Thomson kit
 * part listed in new_allowed_components.json. No op-amp is used.
 * The coil, tuning capacitor, and damping resistor are external to J1.
@@ -22,55 +23,63 @@ Rsource source receiver_in 30k
 Q5 receiver_in receiver_in 0 Q2N3904
 Q6 0 0 receiver_in Q2N3904
 
-* Stage 1, AC gain 1+R7/R8 = 35. Q1 (about 32 uA, set by Q2's VBE across
+* Stage 1, AC gain 1+R7/R8 = 35. Q1 (about 26 uA, set by Q2's VBE across
 * R4) is the only noise-critical device. Q2 is a second gain stage and Q3
-* a follower that drives the feedback network. Stage-1 loop gain is about
-* 30, which raises Q1's base impedance to megohms. C4 sets unity DC gain
-* and a 480 Hz high-pass corner.
+* a follower that drives the feedback network and the filter. The loop
+* gain raises Q1's base impedance to megohms. C4 sets unity DC gain and
+* a 1.1 kHz high-pass shelf.
 C1 receiver_in q1_base 100n
 Q1 q1_col q1_base q1_emit Q2N3904
-R4 va q1_col 20k
+R4 va q1_col 24.9k
 Q2 q2_col q1_col va Q2N3906
-R5 q2_col 0 20k
+R5 q2_col 0 47k
 Q3 va q2_col stage1_out Q2N3904
-R6 stage1_out 0 4.7k
+R6 stage1_out 0 2.2k
 R7 stage1_out q1_emit 5.1k
 R8 q1_emit stage1_ac 150
-C4 stage1_ac 0 2.2u
+C4 stage1_ac 0 1u
 
-* Stage 2: common emitter, gain about 95 = (VA - VOUT)/VT with R9
-* bypassed by C5. C7 to ground forms the band-pass filter's 5.3 kHz
-* low-pass pole with R10.
-Q4 out stage1_out q4_emit Q2N3904
-R9 q4_emit 0 1k
-C5 q4_emit 0 2.2u
+* Fourth-order band-pass filter between the stages, so only stage 1's
+* gain precedes it. Sallen-Key high-pass (f0 1.31 kHz, Q 1.3) buffered
+* by Q7, then Sallen-Key low-pass (f0 3.0 kHz, Q 1.3) buffered by the
+* PNP follower Q8, whose VBE shift restores Q4's base bias. R13
+* references the filter to BIAS.
+C8 stage1_out hp_a 6.8n
+C9 hp_a hp_b 6.8n
+R12 hp_a filt 6.8k
+R13 hp_b bias 47k
+Q7 va hp_b filt Q2N3904
+R14 filt 0 47k
+R15 filt lp_a 20k
+R16 lp_a lp_b 20k
+C10 lp_a lpo 6.8n
+C11 lp_b 0 1n
+Q8 0 lp_b lpo Q2N3906
+R17 va lpo 33k
+
+* Stage 2: common emitter, gain about 100 = (VA - VOUT)/VT with R9
+* bypassed by C5 above 800 Hz. Its collector drives ADS1256 AIN0
+* directly. C7 adds a 3.6 kHz pole.
+Q4 out lpo q4_emit Q2N3904
+R9 q4_emit 0 8.2k
+C5 q4_emit 0 1u
 R10 va out 20k
-C7 out 0 1.5n
+C7 out 0 2.2n
 
-* Bias and DC loop. R3 feeds the inverted output back to Q1's base through
-* the low-pass node BIAS (C3). This sets every operating point, placing the
-* output near 2.3 V and BIAS near 1.7 V. C2 bootstraps R1 from Q1's emitter,
-* which follows the input, so R1 presents tens of megohms in band.
-* BIAS is quiet, so it is also ADS1256 AIN1.
+* Bias and DC loop. R3 feeds Q4's inverted collector voltage back to BIAS
+* (C3). BIAS drives Q1's base through R2 and R1, and Q4's base through
+* R13, Q7, and Q8. This single negative loop sets every operating point,
+* placing AIN0 near 2.1 V and BIAS near 1.6 V. C2 bootstraps R1 from Q1's
+* emitter, which follows the input, so R1 presents tens of megohms in
+* band. BIAS is quiet, so it is also ADS1256 AIN1.
 R1 q1_base boot 470k
 C2 boot q1_emit 100n
 R2 boot bias 100k
 C3 bias 0 100n
 R3 out bias 1Meg
 
-* Band-pass filter high side: Sallen-Key high-pass, f0 1.1 kHz and Q 1.05,
-* buffered by the Q7 follower, which drives ADS1256 AIN0. R13 references
-* the section to BIAS, so AIN0 sits near 1.1 V. Q7 runs near 11 uA so its
-* base current barely disturbs the DC loop through R3.
-C8 out hp_a 1n
-C9 hp_a hp_b 1n
-R12 hp_a ain0 68k
-R13 hp_b bias 300k
-Q7 va hp_b ain0 Q2N3904
-R14 ain0 0 100k
-
-* Analog rail: R11/C6 filter the XIAO USB 5 V; VA is about 4.83 V at
-* 0.36 mA.
+* Analog rail: R11/C6 filter the XIAO USB 5 V; VA is about 4.72 V at
+* 0.6 mA.
 Vusb vbus5 0 5
 R11 vbus5 va 470
 C6 va 0 470u
@@ -78,13 +87,13 @@ C6 va 0 470u
 * ADS1256 with BUFEN=1: 10 Megohm effective differential input at 30 kSPS.
 * A noiseless conductance models loading without pretending that a
 * switched input has resistor thermal noise. AIN1 is BIAS.
-Gads ain0 bias ain0 bias 100n
-Cads ain0 bias 5p
+Gads out bias out bias 100n
+Cads out bias 5p
 
 * ADS1256 configuration: AIN0-AIN1, buffer on, PGA=1, 30 kSPS. PGA 1 gives
-* +/-5 V full scale and 10.7 uV rms converter noise, about 4.5 nV rms
+* +/-5 V full scale and 10.7 uV rms converter noise, about 4 nV rms
 * referred to J1. The converter noise and digital filter are not in this deck.
-Epga pga_out 0 ain0 bias {PGA}
+Epga pga_out 0 out bias {PGA}
 Rload pga_out 0 1Meg
 
 * Purchased XIAO RP2350 wired directly to the module (3.3 V SPI):

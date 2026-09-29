@@ -400,3 +400,70 @@ def measure_input_impedance(
     return _ac_magnitude(
         netlist, f"mag(v({node}) / i({source}))", band_hz, points,
     )
+
+
+def measure_operating_point(netlist: Path, nodes: list[str]) -> dict[str, float]:
+    """Return DC node voltages from an ngspice operating-point analysis."""
+    executable = shutil.which("ngspice")
+    if executable is None:
+        raise RuntimeError("ngspice was not found on PATH")
+    with tempfile.TemporaryDirectory(prefix="ece455-op-") as directory:
+        driver = Path(directory) / "op.cir"
+        lines = _without_analysis_cards(netlist.read_text())
+        lines += [".control", "op"]
+        lines += [f"print v({node})" for node in nodes]
+        lines += [".endc", ".end"]
+        driver.write_text("\n".join(lines) + "\n")
+        process = subprocess.run(
+            [executable, "-b", str(driver)], capture_output=True, text=True,
+            timeout=60,
+        )
+    values = dict(re.findall(r"^v\((\S+)\)\s*=\s*([-0-9.eE+]+)",
+                             process.stdout, re.M))
+    missing = [node for node in nodes if node.lower() not in values]
+    if process.returncode != 0 or missing:
+        raise RuntimeError(
+            f"ngspice operating point failed for {missing}:\n"
+            + process.stdout[-2000:] + process.stderr[-2000:]
+        )
+    return {node: float(values[node.lower()]) for node in nodes}
+
+
+def measure_node_gains(
+    netlist: Path,
+    *,
+    input_node: str,
+    nodes: list[str],
+    band_hz: tuple[float, float],
+    points_per_decade: int = 100,
+) -> tuple[np.ndarray, dict[str, np.ndarray]]:
+    """Return |V(node) / V(input_node)| for each node on a log sweep."""
+    if not 0 < band_hz[0] < band_hz[1]:
+        raise ValueError("band_hz must contain increasing positive frequencies")
+    executable = shutil.which("ngspice")
+    if executable is None:
+        raise RuntimeError("ngspice was not found on PATH")
+    names = [f"report_gain{index}" for index in range(len(nodes))]
+    with tempfile.TemporaryDirectory(prefix="ece455-gains-") as directory:
+        work = Path(directory)
+        data = work / "gains.dat"
+        driver = work / "gains.cir"
+        lines = _without_analysis_cards(netlist.read_text())
+        lines += [".control", "set wr_singlescale",
+                  f"ac dec {points_per_decade} {band_hz[0]:g} {band_hz[1]:g}"]
+        lines += [f"let {name} = vm({node}) / vm({input_node})"
+                  for name, node in zip(names, nodes)]
+        lines += [f"wrdata {data} {' '.join(names)}", ".endc", ".end"]
+        driver.write_text("\n".join(lines) + "\n")
+        process = subprocess.run(
+            [executable, "-b", str(driver)], capture_output=True, text=True,
+            timeout=60,
+        )
+        if process.returncode != 0 or not data.exists():
+            raise RuntimeError(
+                "ngspice node-gain analysis failed:\n"
+                + process.stdout[-2000:] + process.stderr[-2000:]
+            )
+        result = np.atleast_2d(np.loadtxt(data))
+    return result[:, 0], {node: result[:, index + 1]
+                          for index, node in enumerate(nodes)}

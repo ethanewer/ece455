@@ -8,7 +8,9 @@ from .report import (
     build_spice_report,
     measure_gain,
     measure_input_impedance,
+    measure_node_gains,
     measure_noise,
+    measure_operating_point,
 )
 
 __all__ = [
@@ -19,6 +21,8 @@ __all__ = [
     "emit_netlist",
     "measure_gain",
     "measure_input_impedance",
+    "measure_node_gains",
+    "measure_operating_point",
     "measure_noise",
     "from_json",
     "parse_tables",

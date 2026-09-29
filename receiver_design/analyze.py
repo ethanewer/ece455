@@ -142,10 +142,18 @@ if __name__ == "__main__":
     summary = result.summary_md.read_text().rstrip()
     summary = re.sub(r"(?m)^- Intended passband:", "- Specified band:", summary)
     summary = re.sub(r"(?m)^(- Settled input peak:)", r"- Settled J1 input peak:", summary)
+    nominal = requirements.evaluate_corner(netlist, requirements.CORNERS[0])
     impedance_line = (
         f"- Simulated |Z_in| at J1 over {requirements.ZIN_BAND_HZ[0]:.0f}–"
         f"{requirements.ZIN_BAND_HZ[1]:.0f} Hz: {impedance.min() / 1e6:.2f} to "
         f"{impedance.max() / 1e6:.2f} MΩ\n"
+        + "".join(
+            f"- Largest tone at J1 without clipping, {low:.0f}–{high:.0f} Hz: "
+            f"{tolerance * 1e3:.1f} mV peak (limited by `{node}`; "
+            f"requirement {required * 1e3:.0f} mV)\n"
+            for ((low, high), required), (tolerance, node)
+            in zip(requirements.INTERFERENCE, nominal.interference)
+        )
     )
     figures = "\n![Input and output waveforms]"
     if summary.count(figures) != 1:

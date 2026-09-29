@@ -161,7 +161,7 @@ def artifact_check() -> None:
         raise SystemExit("KiCad connectivity netlist has unbalanced parentheses")
 
     for token in (".param PGA=1", requirements.FIXTURE, requirements.SUPPLY,
-                  "Epga pga_out 0 ain0 bias {PGA}"):
+                  "Epga pga_out 0 out bias {PGA}"):
         if token not in spice:
             raise SystemExit(f"SPICE artifact is missing {token}")
 
@@ -196,7 +196,7 @@ def artifact_check() -> None:
     # Module and connector interfaces have no SPICE counterpart.
     interface = {
         ("J1", "1"): node_to_net["receiver_in"], ("J1", "2"): "GND",
-        ("J3", "1"): node_to_net["ain0"], ("J3", "2"): node_to_net["bias"],
+        ("J3", "1"): node_to_net["out"], ("J3", "2"): node_to_net["bias"],
         ("U3", "14"): "USB_VBUS_5V", ("J2", "1"): "USB_VBUS_5V",
         ("U3", "13"): "GND", ("J2", "2"): "GND",
         ("U3", "9"): "SPI0_SCLK_D8_GPIO2", ("J2", "3"): "SPI0_SCLK_D8_GPIO2",
@@ -251,7 +251,11 @@ def requirements_check() -> None:
         f"{requirements.GAIN_BAND_HZ[0]:.0f}-{requirements.GAIN_BAND_HZ[1]:.0f} Hz; "
         f"|Z_in| >= {requirements.ZIN_MIN_OHM / 1e6:g} Mohm over "
         f"{requirements.ZIN_BAND_HZ[0]:.0f}-{requirements.ZIN_BAND_HZ[1]:.0f} Hz; "
-        f"noise <= {requirements.NOISE_MAX_V_RT_HZ * 1e9:g} nV/rtHz"
+        f"noise <= {requirements.NOISE_MAX_V_RT_HZ * 1e9:g} nV/rtHz; "
+        + "; ".join(
+            f"no clipping for {amplitude * 1e3:g} mV at {low:g}-{high:g} Hz"
+            for (low, high), amplitude in requirements.INTERFERENCE
+        )
     )
     failures = []
     for result in requirements.check_requirements(SPICE_NETLIST):
@@ -259,7 +263,9 @@ def requirements_check() -> None:
         print(
             f"{status} {result.corner.name:26s} gain {result.gain_min:6.0f} V/V  "
             f"|Z_in| {result.zin_min_ohm / 1e6:5.2f} Mohm  "
-            f"noise {result.noise_max_v_rt_hz * 1e9:5.2f} nV/rtHz"
+            f"noise {result.noise_max_v_rt_hz * 1e9:5.2f} nV/rtHz  "
+            + "  ".join(f"tone {tolerance * 1e3:5.1f} mV"
+                        for tolerance, _node in result.interference)
         )
         failures += [f"{result.corner.name}: {text}" for text in result.failures]
     if failures:

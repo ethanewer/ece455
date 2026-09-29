@@ -1,21 +1,24 @@
 Reference,Qty,Value or part,Package
-R4 R5 R10,3,20 kohm,Thomson kit axial nominal
-R2 R14,2,100 kohm,Thomson kit axial nominal
+R10 R15 R16,3,20 kohm,Thomson kit axial nominal
+R5 R13 R14,3,47 kohm,Thomson kit axial nominal
 R1,1,470 kohm,Thomson kit axial nominal
+R2,1,100 kohm,Thomson kit axial nominal
 R3,1,1 megohm,Thomson kit axial nominal
-R6,1,4.7 kohm,Thomson kit axial nominal
+R6,1,2.2 kohm,Thomson kit axial nominal
 R7,1,5.1 kohm,Thomson kit axial nominal
 R8,1,150 ohm,Thomson kit axial nominal
-R9,1,1 kohm,Thomson kit axial nominal
 R11,1,470 ohm,Thomson kit axial nominal
-R12,1,68 kohm,Thomson kit axial nominal
-R13,1,300 kohm,Thomson kit axial nominal
+R12,1,6.8 kohm,Thomson kit axial nominal
+R17,1,33 kohm,Plexus stock resistor nominal
+R4,1,24.9 kohm,Plexus stock resistor nominal
+R9,1,8.2 kohm,Plexus stock resistor nominal
 C1 C2 C3,3,100 nF,Thomson kit ceramic nominal
-C8 C9,2,1 nF,Thomson kit ceramic nominal
-C7,1,1.5 nF,Thomson kit ceramic nominal
-C4 C5,2,2.2 uF,Thomson kit electrolytic nominal
+C8 C9 C10,3,6.8 nF,Thomson kit ceramic nominal
+C7,1,2.2 nF,Thomson kit ceramic nominal
+C11,1,1 nF,Thomson kit ceramic nominal
+C4 C5,2,1 uF,Thomson kit electrolytic nominal
 C6,1,470 uF,Thomson kit electrolytic nominal
 Q1 Q3 Q4 Q5 Q6 Q7,6,2N3904,Thomson kit TO-92 nominal
-Q2,1,2N3906,Thomson kit TO-92 nominal
+Q2 Q8,2,2N3906,Thomson kit TO-92 nominal
 U3,1,Seeed Studio XIAO RP2350,Already purchased module
 MOD1,1,HiLetgo ADS1256 5V 8-channel 24-bit ADC module,Already purchased module

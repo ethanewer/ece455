@@ -15,7 +15,9 @@ from verification_modeling.coil import current_coil
 from verification_modeling.eda.report import (
     measure_gain,
     measure_input_impedance,
+    measure_node_gains,
     measure_noise,
+    measure_operating_point,
 )
 
 # 1. Gain from J1 to ADS1256 AIN0-AIN1 everywhere in the FID band.
@@ -33,8 +35,31 @@ NOISE_MAX_V_RT_HZ = 5.0e-9
 ADC_NOISE_RMS_V = 10.7e-6
 ADC_NOISE_BANDWIDTH_HZ = 15e3
 
+# 4. Interference: no stage leaves its linear range for a single tone at J1
+# of the given peak amplitude anywhere in each band (mains fundamental and
+# harmonics; switching and audio-band pickup). Tolerance at each node is
+# its DC headroom divided by its small-signal gain from J1.
+INTERFERENCE = (
+    ((50.0, 400.0), 10e-3),
+    ((8000.0, 50000.0), 2e-3),
+)
+# ADS1256 buffered input range is AGND to AVDD - 2 V with AVDD = 5 V.
+ADC_BUFFER_MAX_V = 3.0
+# Linear-range limits for each stage output, from its DC operating point.
+HEADROOM = {
+    # Q3 follower: R6 pulls toward ground; Q2 saturation plus VBE limits the top.
+    "stage1_out": lambda v: min(v["stage1_out"] - 0.1, v["va"] - 0.85 - v["stage1_out"]),
+    # Q7 follower: R14 pulls toward ground; the top is limited as for Q3.
+    "filt": lambda v: min(v["filt"] - 0.1, v["va"] - 0.85 - v["filt"]),
+    # Q8 PNP follower: sits a VBE above its base; R17 needs room to VA.
+    "lpo": lambda v: min(v["lpo"] - 0.8, v["va"] - 0.3 - v["lpo"]),
+    # Q4 collector is AIN0: Q4 saturation below, the ADC buffer range above.
+    "out": lambda v: min(v["out"] - v["q4_emit"] - 0.3,
+                         min(v["va"], ADC_BUFFER_MAX_V) - v["out"]),
+}
+
 INPUT_NODE = "receiver_in"
-OUTPUT_POSITIVE = "ain0"
+OUTPUT_POSITIVE = "out"
 OUTPUT_NEGATIVE = "bias"
 SOURCE = "Vfid"
 FIXTURE = "Rsource source receiver_in 30k"
@@ -68,6 +93,8 @@ class CornerResult:
     gain_min: float
     zin_min_ohm: float
     noise_max_v_rt_hz: float
+    # Per interference band: (largest tolerable tone at J1 [V], limiting node).
+    interference: tuple[tuple[float, str], ...]
 
     @property
     def failures(self) -> list[str]:
@@ -88,6 +115,13 @@ class CornerResult:
                 f"noise {self.noise_max_v_rt_hz * 1e9:.2f} nV/rtHz > "
                 f"{NOISE_MAX_V_RT_HZ * 1e9:.2f} nV/rtHz"
             )
+        for ((low, high), required), (tolerance, node) in zip(
+                INTERFERENCE, self.interference):
+            if tolerance < required:
+                failed.append(
+                    f"{node} clips for a {tolerance * 1e3:.1f} mV tone in "
+                    f"{low:.0f}-{high:.0f} Hz (< {required * 1e3:.0f} mV)"
+                )
         return failed
 
 
@@ -132,6 +166,18 @@ def evaluate_corner(netlist: Path, corner: Corner) -> CornerResult:
         _, zin = measure_input_impedance(
             deck, source=SOURCE, node=INPUT_NODE, band_hz=ZIN_BAND_HZ,
         )
+        levels = measure_operating_point(deck, ["va", "q4_emit", *HEADROOM])
+        interference = []
+        for (low, high), _required in INTERFERENCE:
+            frequency, gains = measure_node_gains(
+                deck, input_node=INPUT_NODE, nodes=list(HEADROOM),
+                band_hz=(low / 1.01, high * 1.01),
+            )
+            in_band = (frequency >= low) & (frequency <= high)
+            interference.append(min(
+                (HEADROOM[node](levels) / float(gains[node][in_band].max()), node)
+                for node in HEADROOM
+            ))
         deck.write_text(untuned_coil_netlist(text))
         noise = measure_noise(
             deck, source=SOURCE, output_positive=OUTPUT_POSITIVE,
@@ -142,7 +188,8 @@ def evaluate_corner(netlist: Path, corner: Corner) -> CornerResult:
     adc_density = ADC_NOISE_RMS_V / math.sqrt(ADC_NOISE_BANDWIDTH_HZ)
     total_noise = math.hypot(noise.max_input_density_v_rt_hz,
                              adc_density / gain_min)
-    return CornerResult(corner, gain_min, float(zin.min()), total_noise)
+    return CornerResult(corner, gain_min, float(zin.min()), total_noise,
+                        tuple(interference))
 
 
 def check_requirements(netlist: Path) -> list[CornerResult]:
