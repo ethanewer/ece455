@@ -131,6 +131,7 @@ Q5/Q6 take the polarizer turnoff current at J1, limited only by the external sen
 - `spice/receiver.cir` is the active ngspice model. It omits ADC converter noise, the digital filter, SPI timing, firmware blanking, and the external sensor's LC response.
 - `analyze.py` generates the committed `analysis/` CSV, PNG, and Markdown artifacts, including |Z_in|, interference tolerance, and the noise/CRB table.
 - `schematic.py` draws the construction schematic used by `make export` and `docs/`.
+- `breadboard.py` holds the fixed placement on a standard 830-point breadboard. `make export` checks its connectivity against `spice/receiver.cir`, then draws it and lists every hole.
 - `bom.csv` lists every fitted part. `digikey_missing_components.csv` records that the only non-lab items, the ADC and XIAO, are already purchased.
 - `assembly.md` gives the perfboard wiring and bring-up sequence.
 - `kicad/generate.py` emits the text connectivity netlist `kicad/receiver.net`. `verify.py` checks that it, the SPICE deck, and the BOM describe the same parts and pins. There is no graphical KiCad schematic or PCB, and `make pcb` intentionally fails.

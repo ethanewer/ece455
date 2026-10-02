@@ -1,6 +1,6 @@
 # Receiver prototype wiring
 
-This guide describes the **logical** wiring for a perfboard prototype using the two purchased modules and the 36 lab parts in [bom.csv](bom.csv). It does not identify the purchased ADS1256 board's physical header positions. Read each signal name from that board's silkscreen before making a permanent connection. The coil, tuning capacitor, and damping resistor are external to this receiver. The construction schematic (`docs/receiver-construction-schematic.png`, also in `make export`) shows the same circuit.
+This guide describes the **logical** wiring for a perfboard prototype using the two purchased modules and the 36 lab parts in [bom.csv](bom.csv). It does not identify the purchased ADS1256 board's physical header positions. Read each signal name from that board's silkscreen before making a permanent connection. The coil, tuning capacitor, and damping resistor are external to this receiver. The construction schematic (`docs/receiver-construction-schematic.png`, also in `make export`) shows the same circuit. For a solderless prototype, `make export` also writes `receiver-breadboard.png` and `receiver-breadboard.md`, a checked placement on a standard 830-point breadboard.
 
 ## Identify parts
 
