@@ -1,24 +1,13 @@
 Reference,Qty,Value or part,Package
-R10 R15 R16,3,20 kohm,Thomson kit axial nominal
-R5 R13 R14,3,47 kohm,Thomson kit axial nominal
-R1,1,470 kohm,Thomson kit axial nominal
-R2,1,100 kohm,Thomson kit axial nominal
-R3,1,1 megohm,Thomson kit axial nominal
-R6,1,2.2 kohm,Thomson kit axial nominal
-R7,1,5.1 kohm,Thomson kit axial nominal
-R8,1,150 ohm,Thomson kit axial nominal
-R11,1,470 ohm,Thomson kit axial nominal
-R12,1,6.8 kohm,Thomson kit axial nominal
-R17,1,33 kohm,Plexus stock resistor nominal
-R4,1,24.9 kohm,Plexus stock resistor nominal
-R9,1,8.2 kohm,Plexus stock resistor nominal
-C1 C2 C3,3,100 nF,Thomson kit ceramic nominal
-C8 C9 C10,3,6.8 nF,Thomson kit ceramic nominal
-C7,1,2.2 nF,Thomson kit ceramic nominal
-C11,1,1 nF,Thomson kit ceramic nominal
-C4 C5,2,1 uF,Thomson kit electrolytic nominal
-C6,1,470 uF,Thomson kit electrolytic nominal
-Q1 Q3 Q4 Q5 Q6 Q7,6,2N3904,Thomson kit TO-92 nominal
-Q2 Q8,2,2N3906,Thomson kit TO-92 nominal
-U3,1,Seeed Studio XIAO RP2350,Already purchased module
+R1,1,100 ohm,Thomson kit axial nominal
+R2,1,1 kohm,Thomson kit axial nominal
+R3,1,10 kohm,Thomson kit axial nominal
+C1,1,22 nF,Thomson kit ceramic nominal
+C2,1,2.2 nF,Thomson kit ceramic nominal
+Q1 Q2,2,2N3904,Thomson kit TO-92 nominal
+MOD2,1,AD8421 instrumentation amplifier module,Amazon purchase
+W1,1,SMA male to Dupont male coaxial test lead,Amazon purchase
+W2 W3,2,9 V battery snap connector,Amazon purchase
+BT1 BT2,2,9 V alkaline battery,Amazon purchase
+U1,1,Seeed Studio XIAO RP2350,Already purchased module
 MOD1,1,HiLetgo ADS1256 5V 8-channel 24-bit ADC module,Already purchased module

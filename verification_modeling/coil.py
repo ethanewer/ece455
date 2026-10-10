@@ -48,9 +48,9 @@ SENSOR = dict(
 # They do not imply an on-board LC network or an accepted external tuning part.
 FID_LOW_HZ = 1765.0
 FID_HIGH_HZ = 2129.0
-# Simulated |Z_in| at J1 across 1.5-2.5 kHz (receiver_design/analysis).
-# R1 is bootstrapped, so the input is set mainly by Q1's base.
-R_IN_OHM = 2.1e6
+# Minimum simulated |Z_in| at J1 across 1.5-2.5 kHz (receiver_design/analysis).
+# The AD8421's 3 pF inputs and the clamp junctions set it.
+R_IN_OHM = 4.2e6
 
 
 def pair_inductance_h() -> float:
@@ -74,7 +74,7 @@ def current_coil():
     The workbook counts both windings in the open-circuit EMF and treats
     mutual inductance as negligible, so L and R are twice one coil. The
     equal-area radius is the 56 mm square aperture. The receiver's
-    simulated 2.1 megohm input impedance is supplied for interface
+    minimum simulated 4.2 megohm input impedance is supplied for interface
     calculations.
     """
     inductance_h = pair_inductance_h()

@@ -77,6 +77,8 @@ def build_spice_report(
     transient_stop_s: float = 0.020,
     transient_start_s: float = 0.0,
     max_step_s: float = 5e-6,
+    ac_stop_hz: float = 100e3,
+    ac_points_per_decade: int = 1000,
     transient_title: str = "Nominal receiver transient response",
     response_title: str = "Nominal receiver frequency response",
 ) -> ReportResult:
@@ -127,7 +129,7 @@ def build_spice_report(
             "set wr_vecnames",
             f"tran {max_step_s:g} {transient_stop_s:g} {transient_start_s:g} {max_step_s:g}",
             f"wrdata {tran_raw} {transient_vectors}",
-            "ac dec 1000 100 100k",
+            f"ac dec {ac_points_per_decade} 100 {ac_stop_hz:g}",
             *ac_lets,
             f"wrdata {ac_raw} {ac_vectors}",
             ".endc",

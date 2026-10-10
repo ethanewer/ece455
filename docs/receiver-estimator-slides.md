@@ -2,23 +2,25 @@
 
 ```mermaid
 flowchart LR
-  ext["External sensor assembly<br/>coil, tuning, damping"] --> amp["Discrete band-pass amplifier<br/>≥ 2000 V/V at 1.6–2.2 kHz, |Z_in| ≥ 1 MΩ"]
-  amp --> adc["Purchased ADS1256<br/>buffer on, PGA 1<br/>30 kSPS"]
+  ext["External sensor assembly<br/>coil, tuning, damping"] --> amp["AD8421 module, G = 100<br/>|Z_in| ≥ 1 MΩ, ≤ 5 nV/√Hz"]
+  amp --> aaf["RC anti-aliasing filter<br/>≥ 90 dB at 1.92 MHz"]
+  aaf --> adc["Purchased ADS1256<br/>buffer off, PGA 1<br/>30 kSPS"]
   adc -->|direct SPI| xiao["Purchased XIAO RP2350<br/>filter and frequency estimator"]
 ```
 
 - The receiver starts at J1; coil tuning and damping remain external.
-- 36 lab parts: six gain and filter transistors, two transistor clamps, 17 resistors, and 11 capacitors.
-- `make verify` fails if gain, input impedance, noise, or interference requirements are missed at any of nine corners.
+- Amazon parts ($48.95, `amazon_purchases.json`): AD8421 module, SMA cable, two 9 V batteries and clips.
+- Seven lab parts: two transistor clamps, the 100 Ω gain resistor, and two RC sections.
+- `make verify` fails if input impedance, noise, interference, or alias-rejection requirements are missed at any of ten corners.
 
 ---
 
-# Lab parts
+# Signal chain
 
-- Stage 1 ×35 with a 26 µA 2N3904 input; stage 2 is one common-emitter stage, ×100
-- Fourth-order band-pass between the stages, so interference is filtered before the high-gain stage
-- A single DC loop sets every bias point; its filtered node doubles as ADS1256 AIN1
-- R11/C6 filter USB 5 V into the 4.7 V analog rail; total draw is 0.6 mA
+- AD8421 module, G = 100, powered from ±9 V batteries; BIAS trimmer sets OUT to 2.5 V
+- The module's input RFI parts are removed so they cannot load the coil
+- R2/C1 (1 kΩ, 22 nF) and R3/C2 (10 kΩ, 2.2 nF): −0.8 dB at 2.2 kHz, −14 dB at 15 kHz, about −96 dB at 1.92 MHz
+- The firmware band-pass does the narrow filtering; the analog low-pass stops modulator-rate aliases that the ADS1256's digital filter cannot reject
 - No level translators: the XIAO drives the ADS1256 SPI directly
 
 ![Analog construction schematic](receiver-construction-schematic.png)
@@ -27,17 +29,17 @@ flowchart LR
 
 # Sensitivity and blanking
 
-- Simulated input noise: 4.1 nV/√Hz with the untuned coil, 25.4 nV/√Hz with a 30 kΩ source
-- Frequency CRB with the untuned coil: 0.02 nT for the 3.59 µV FID, 0.20 nT for 0.41 µV; target 1 nT
+- Simulated input noise: 3.9 nV/√Hz with the untuned coil (ADC included), 23.4 nV/√Hz with a 30 kΩ source
+- Frequency CRB with the untuned coil: 0.02 nT for the 3.59 µV FID, 0.19 nT for 0.41 µV; target 1 nT
 - XIAO discards the blank, then briefly pulses SYNC/PDWN to restart the digital filter
-- Simulated recovery from a ±10 V input pulse reaches 10 mV within about 75 ms
+- The AD8421's overload recovery after the polarizer pulse must be measured; the model does not clip
 
 ---
 
 # Simulated analog transfer
 
 - Example 10 µV source through provisional 30 kΩ external source impedance
-- 3034–3155 V/V across 1.6–2.2 kHz; −3 dB at 1.15 and 3.1 kHz; |Z_in| 1.8–2.5 MΩ
+- 83–87 V/V across 1.6–2.2 kHz; −3 dB at 4.6 kHz; |Z_in| 4.25–7.08 MΩ
 - The model excludes ADC noise, digital filtering, and external coil resonance
 
 ![External test source and AIN0−AIN1](../receiver_design/analysis/receiver-waveforms.png)

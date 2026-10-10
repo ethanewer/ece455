@@ -167,45 +167,55 @@ def test_active_receiver_meets_requirements_at_nominal():
     result = requirements.evaluate_corner(RECEIVER, requirements.CORNERS[0])
     assert result.failures == []
     # Keep margin for the corners that make verify checks.
-    assert result.gain_min > 1.2 * requirements.GAIN_MIN_V_PER_V
-    assert result.zin_min_ohm > 1.5 * requirements.ZIN_MIN_OHM
+    assert result.noise_max_v_rt_hz < 0.85 * requirements.NOISE_MAX_V_RT_HZ
+    assert result.zin_min_ohm > 2 * requirements.ZIN_MIN_OHM
+    assert result.alias_rejection_db > requirements.ALIAS_REJECTION_MIN_DB + 5
+    for (_band, required), (tolerance, _node) in zip(
+            requirements.INTERFERENCE, result.interference):
+        assert tolerance > 2 * required
 
 
 @NGSPICE
-def test_active_receiver_band_pass_rejects_out_of_band():
+def test_active_receiver_low_pass_attenuates_above_the_band():
     frequency, gain = measure_gain(
-        RECEIVER, input_node="receiver_in", output_positive="out",
-        output_negative="bias", band_hz=(60.0, 20000.0), points=3,
+        RECEIVER, input_node="receiver_in", output_positive="ain0",
+        output_negative="0", band_hz=(2200.0, 15000.0), points=3,
     )
-    in_band = requirements.GAIN_MIN_V_PER_V
-    assert gain[0] < 1e-3 * in_band      # 60 Hz mains
-    assert gain[-1] < 0.05 * in_band     # 20 kHz
+    assert 80 < gain[0] < 90           # G = 100 less filter and ADC loading
+    assert gain[-1] < 0.25 * gain[0]   # 15 kHz Nyquist at 30 kSPS
 
 
 @NGSPICE
-def test_requirement_check_reports_low_gain_and_high_noise(tmp_path):
-    deck = _variant(tmp_path, "R8 q1_emit stage1_ac 150",
-                    "R8 q1_emit stage1_ac 2.2k")
-    failures = " ".join(requirements.evaluate_corner(
-        deck, requirements.CORNERS[0]).failures)
-    assert "gain" in failures
-    assert "noise" in failures
+def test_requirement_check_reports_low_gain_noise(tmp_path):
+    # G = 2 refers the ADS1256 converter noise to J1 nearly unattenuated.
+    deck = _variant(tmp_path, "R1 rg_a rg_b 100", "R1 rg_a rg_b 9.9k")
+    failures = requirements.evaluate_corner(deck, requirements.CORNERS[0]).failures
+    assert any("noise" in failure for failure in failures)
 
 
 @NGSPICE
-def test_requirement_check_reports_low_input_impedance(tmp_path):
-    deck = _variant(tmp_path, "Rsource source receiver_in 30k",
-                    "Rsource source receiver_in 30k\nRleak receiver_in 0 680k")
+def test_requirement_check_reports_fitted_module_input_filter(tmp_path):
+    # The datasheet RFI network (1 nF common mode, 10 nF differential)
+    # left on the module loads J1.
+    deck = _variant(tmp_path, "R1 rg_a rg_b 100",
+                    "R1 rg_a rg_b 100\nCrfi receiver_in 0 11n")
     failures = requirements.evaluate_corner(deck, requirements.CORNERS[0]).failures
     assert any("Z_in" in failure for failure in failures)
 
 
 @NGSPICE
 def test_requirement_check_reports_mains_clipping(tmp_path):
-    # A large Q4 emitter bypass restores full stage-2 gain at mains harmonics.
-    deck = _variant(tmp_path, "C5 q4_emit 0 1u", "C5 q4_emit 0 470u")
+    deck = _variant(tmp_path, "R1 rg_a rg_b 100", "R1 rg_a rg_b 10")
     failures = requirements.evaluate_corner(deck, requirements.CORNERS[0]).failures
     assert any("clips" in failure and "50-400 Hz" in failure for failure in failures)
+
+
+@NGSPICE
+def test_requirement_check_reports_aliasing(tmp_path):
+    # One RC section is not enough at the 1.92 MHz modulator rate.
+    deck = _variant(tmp_path, "C2 ain0 0 2.2n", "C2 ain0 0 2.2p")
+    failures = requirements.evaluate_corner(deck, requirements.CORNERS[0]).failures
+    assert any("alias" in failure for failure in failures)
 
 
 @NGSPICE
@@ -223,13 +233,19 @@ def test_operating_point_and_node_gain_helpers(tmp_path):
     assert np.allclose(gains["mid"], 0.75)
 
 
-def test_corner_netlist_scales_beta_supply_and_temperature():
+def test_corner_netlist_applies_supply_trim_tolerance_and_temperature():
     text = RECEIVER.read_text()
-    corner = requirements.Corner("test", beta_scale=0.5, temp_c=50.0, usb_v=4.75)
+    corner = requirements.Corner("test", temp_c=50.0, usb_v=4.75, battery_v=6.0,
+                                 bias_v=2.75, filter_c_scale=1.1, rg_scale=0.95)
     changed = requirements.corner_netlist(text, corner)
-    assert "Bf=208.2" in changed and "Bf=416.4" not in changed
     assert "Vusb vbus5 0 4.75" in changed
+    assert "Vbat1 vpos 0 6" in changed and "Vbat2 0 vneg 6" in changed
+    assert "Vbias amp_ref 0 2.75" in changed
+    assert "R1 rg_a rg_b 95\n" in changed
+    assert "C1 aaf_mid 0 2.42e-08\n" in changed
+    assert "C2 ain0 0 2.42e-09\n" in changed
     assert ".options temp=50" in changed
+    assert requirements.corner_netlist(text, requirements.CORNERS[0]) == text
 
 
 @pytest.mark.skipif(shutil.which("ngspice") is None, reason="ngspice not installed")

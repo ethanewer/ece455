@@ -9,6 +9,7 @@ Put uncommitted logs, scratch files, renders, reports, build products, and other
 ## Sources of truth
 
 - Active receiver artifacts: `receiver_design/`
+- Items to buy, with Amazon links and the budget: `amazon_purchases.json`
 - Active coil assumptions: `verification_modeling/coil.py`
 - Physics constants and signal model: `verification_modeling/physics.py`
 - Bench acceptance work: `docs/verification-plan.md`

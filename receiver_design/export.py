@@ -17,7 +17,7 @@ LOCAL = ROOT / "local"
 sys.path.insert(0, str(ROOT))
 
 from receiver_design import requirements
-from receiver_design.breadboard import build_receiver_breadboard
+from receiver_design.analyze import AC_POINTS_PER_DECADE, AC_STOP_HZ
 from receiver_design.schematic import build_receiver_schematic
 from verification_modeling.coil import current_coil
 from verification_modeling.eda.report import build_spice_report
@@ -188,9 +188,11 @@ def export_frequency_case(
         output_negative=requirements.OUTPUT_NEGATIVE,
         marker_hz=frequency_hz,
         gain_input_node="receiver_in",
-        passband_hz=requirements.GAIN_BAND_HZ,
+        passband_hz=requirements.SIGNAL_BAND_HZ,
         transient_start_s=0.200,
         transient_stop_s=0.220,
+        ac_stop_hz=AC_STOP_HZ,
+        ac_points_per_decade=AC_POINTS_PER_DECADE,
         transient_title=f"Receiver transient, {label}",
         response_title=f"Receiver frequency response, {label}",
     )
@@ -201,12 +203,11 @@ def export_frequency_case(
     result.summary_md.write_text(
         heading + "\n"
         + f"This directory uses a 10 µV, {label} with 30 kohm source "
-        + "impedance. Gain is from J1 to AIN0−AIN1 through the minimal "
-        + "discrete band-pass receiver (at least 2000 V/V across "
-        + "1.6–2.2 kHz). Coil "
-        + "tuning and damping are "
-        + "external; converter noise and digital filtering are absent from "
-        + "these plots.\n"
+        + "impedance. Gain is from J1 to AIN0−AIN1 through the AD8421 "
+        + "module (G = 100) and the RC anti-aliasing filter, about 85 V/V "
+        + "across 1.6–2.2 kHz. Coil tuning and damping are external; "
+        + "converter noise and digital filtering are absent from these "
+        + "plots.\n"
         + text[len(heading):]
     )
 
@@ -230,11 +231,11 @@ def main() -> None:
             name="2.1kHz", frequency_hz=coil["f_test_high_hz"],
         )
         build_receiver_schematic(output_dir)
-        build_receiver_breadboard(output_dir)
 
         bom_csv = output_dir / "bill-of-materials.csv"
         shutil.copy2(RECEIVER / "bom.csv", bom_csv)
         write_bom_markdown(bom_csv, output_dir / "bill-of-materials.md")
+        shutil.copy2(ROOT / "amazon_purchases.json", output_dir / "amazon_purchases.json")
         shutil.copy2(RECEIVER / "assembly.md", output_dir / "assembly.md")
         shutil.copy2(RECEIVER / "spice" / "receiver.cir", output_dir / "receiver.cir")
         shutil.copy2(KICAD_DIR / "receiver.net", output_dir / "receiver.net")
@@ -249,16 +250,14 @@ def main() -> None:
             f"- Tracked working tree: {'modified' if dirty else 'clean'}\n"
             "- Simulation: ngspice transient and AC analyses completed for two input frequencies\n"
             "- Connectivity: receiver validation passed\n"
-            "- Breadboard: layout connectivity matches the SPICE deck node for node\n"
             f"- PCB: {pcb_status}\n\n"
             "The two frequency directories exercise the same receiver from "
             "its input connector. Coil tuning and damping remain external.\n\n"
             "## Shared contents\n\n"
-            "- `receiver-construction-schematic.svg` and `.png`: transistor-level receiver and module wiring\n"
-            "- `receiver-breadboard.svg` and `.png`: parts and jumpers on a standard 830-point breadboard\n"
-            "- `receiver-breadboard.md`: hole-by-hole breadboard placement\n"
-            "- `bill-of-materials.csv` and `.md`: receiver parts only\n"
-            "- `assembly.md`: provisional perfboard wiring and power-up checks\n"
+            "- `receiver-construction-schematic.svg` and `.png`: receiver and module wiring\n"
+            "- `bill-of-materials.csv` and `.md`: every fitted and purchased receiver part\n"
+            "- `amazon_purchases.json`: items to buy, with Amazon links and prices\n"
+            "- `assembly.md`: module preparation, wiring, and power-up checks\n"
             "- `receiver.cir`: canonical receiver deck\n"
             "- `receiver.net`: receiver connectivity\n"
             "- `verification.log`: commands and validation output\n"

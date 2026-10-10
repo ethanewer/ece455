@@ -1,0 +1,91 @@
+{
+  "description": "Items to buy from Amazon for the active receiver. `items` is the required list and must fit the budget; `recommended_extras` reduce build risk but are not fitted parts. Lab parts come from new_allowed_components.json, which also lists the already purchased XIAO RP2350 and HiLetgo ADS1256 modules. receiver_design/verify.py checks that every required item is used in receiver_design/bom.csv and that the totals match.",
+  "budget_usd": 50.0,
+  "prices_checked": "2026-10-10",
+  "items": [
+    {
+      "part": "AD8421 instrumentation amplifier module",
+      "role": "Receiver gain stage (MOD2): 3.2 nV/rtHz maximum input noise, gain set to 100 by R1",
+      "references": [
+        "MOD2"
+      ],
+      "listing_title": "AD8421 Precision Instrument Amplifier, Micro-Signal Millivolt/Microvolt Voltage Amplifier Module, Single-Ended/Differential",
+      "asin": "B0G19JM3MK",
+      "url": "https://www.amazon.com/dp/B0G19JM3MK",
+      "quantity": 1,
+      "units_per_pack": 1,
+      "unit_price_usd": 28.68,
+      "notes": "Ships from a third-party seller; delivery to the US was quoted as Oct 21-26 on 2026-10-09. Needs a +/-4 V to +/-16 V dual supply. Remove its input RFI parts before use (receiver_design/assembly.md)."
+    },
+    {
+      "part": "SMA male to Dupont male coaxial test lead",
+      "role": "Cable W1 from the module's OUT SMA jack to the anti-aliasing filter",
+      "references": [
+        "W1"
+      ],
+      "listing_title": "XMSJSIY SMA Male to Dupont Wire Coaxial Coax Test Leads Cable Connector Adapter Extension Wire (Red+Black)",
+      "asin": "B09TBDB98J",
+      "url": "https://www.amazon.com/dp/B09TBDB98J",
+      "quantity": 1,
+      "units_per_pack": 1,
+      "unit_price_usd": 9.98,
+      "notes": "Two Dupont leads (red and black). Confirm with a meter which one reaches the SMA center pin (signal); the other is the shield (GND)."
+    },
+    {
+      "part": "9 V battery snap connector",
+      "role": "Battery leads W2 and W3 to the module's V+ / GND / V- screw terminal",
+      "references": [
+        "W2",
+        "W3"
+      ],
+      "listing_title": "SDTC Tech 6 Pcs 9V Battery Snap Connector",
+      "asin": "B07T2XBRYW",
+      "url": "https://www.amazon.com/dp/B07T2XBRYW",
+      "quantity": 1,
+      "units_per_pack": 6,
+      "unit_price_usd": 5.3,
+      "notes": "Two of the six are used."
+    },
+    {
+      "part": "9 V alkaline battery",
+      "role": "Module supply BT1 (+9 V) and BT2 (-9 V)",
+      "references": [
+        "BT1",
+        "BT2"
+      ],
+      "listing_title": "EBL 9V Batteries 2-Pack, Reliable Long Lasting Alkaline 9V Battery",
+      "asin": "B07WLLDNRF",
+      "url": "https://www.amazon.com/dp/B07WLLDNRF",
+      "quantity": 1,
+      "units_per_pack": 2,
+      "unit_price_usd": 4.99,
+      "notes": "Requirements are checked down to 6.0 V per battery."
+    }
+  ],
+  "total_usd": 48.95,
+  "recommended_extras": [
+    {
+      "part": "AD8421 instrumentation amplifier module (spare)",
+      "role": "Spare MOD2, in case removing the input RFI parts damages the first board or the chip proves not to be a genuine AD8421",
+      "listing_title": "AD8421 Precision Instrument Amplifier, Micro-Signal Millivolt/Microvolt Voltage Amplifier Module, Single-Ended/Differential",
+      "asin": "B0G19JM3MK",
+      "url": "https://www.amazon.com/dp/B0G19JM3MK",
+      "quantity": 1,
+      "units_per_pack": 1,
+      "unit_price_usd": 28.68,
+      "notes": "Same listing as MOD2. Order both at once; the third-party seller's delivery takes about two weeks."
+    },
+    {
+      "part": "Clip-on ferrite core assortment",
+      "role": "Common-mode RF suppression on the J1 pair and on W1, replacing the module's removed RFI network at tens of MHz and above",
+      "listing_title": "Mateda Ferrite Ring Core Ferrite Beads Clip RFI EMI Noise Suppressor Anti-Interference Cable Clip for 3.5mm/ 5mm/ 7mm/ 9mm/ 13mm Diameter Cable, Black (20)",
+      "asin": "B095BLZJQT",
+      "url": "https://www.amazon.com/dp/B095BLZJQT",
+      "quantity": 1,
+      "units_per_pack": 20,
+      "unit_price_usd": 8.99,
+      "notes": "Use the 5 mm cores. They do little near 1.92 MHz, where the RC filter provides the alias rejection."
+    }
+  ],
+  "total_with_extras_usd": 86.62
+}

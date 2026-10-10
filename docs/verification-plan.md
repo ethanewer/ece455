@@ -31,20 +31,24 @@ The nominal pair is 99.94 ohm and 152.6 mH, series-aiding. The coil assembly's t
 
 Measure the assembled receiver with a calibrated source and analyzer:
 
-- complex transfer from 20 Hz to 50 kHz with a calibrated signal at J1; verify at least 2000 V/V from J1 to AIN0−AIN1 everywhere in 1.6–2.2 kHz (about 3000–3150 simulated, −3 dB near 1.15 and 3.1 kHz), without attributing an external LC peak to the receiver
-- input impedance at J1 across 1.5–2.5 kHz, for example by the amplitude change with a known series resistor; require at least 1 MΩ (1.8–2.5 MΩ simulated)
-- DC operating points at TP3–TP8 (AIN0 ≈ 2.1 V, BIAS ≈ 1.6 V, LP_OUT ≈ 1.7 V), and a scope check of AIN0, TP6, and TP8 for oscillation, including with the sensor connected
-- input-referred noise spectrum with J1 shorted, with a 30 kΩ resistor at J1, and with the coil connected; compare with the simulated 3.9, 25.4, and 4.1 nV/√Hz at 1.88 kHz; require at most 5 nV/√Hz with the coil
-- the actual 30 kSPS ADS1256 noise with its buffer on and PGA 1
-- out-of-band gain (about 1.3 V/V at 60 Hz and 80 V/V at 10 kHz simulated) and the largest tone at J1 before any stage clips; require at least 10 mV peak at 50–400 Hz and 2 mV at 8–50 kHz (at least 12.9 and 4.3 mV simulated)
-- Q5/Q6 clamp current and settling through the real polarizer turnoff; keep the sensor disconnected until its pulse magnitude is known
-- recovery after the acquisition blank and a short SYNC/PDWN pulse; confirm the first subsequent DRDY marks settled data, and confirm the baseline has settled (within 10 mV by about 75 ms and 1 mV by about 230 ms simulated)
-- loaded USB 5 V and VA (≈4.8 V) at the lowest expected USB input
+- the AD8421 module as received: chip marking, the input RFI parts and their removal (series input resistance under 50 Ω, under 50 pF from +IN to GND), the fitted RG (gain 100), and the REF jumper on BIAS
+- module supply current and both battery voltages under load
+- DC levels with J1 shorted: OUT trimmed to 2.50 V, AIN0 ≈ 2.39 V, and a scope check of OUT and AIN0 for oscillation, including with the sensor connected
+- complex transfer from 20 Hz to 50 kHz with a calibrated signal at J1; expect about 85 V/V from J1 to AIN0 across 1.6–2.2 kHz (83–87 simulated) and a −3 dB corner near 4.6 kHz, without attributing an external LC peak to the receiver
+- attenuation near the ADS1256's 1.92 MHz modulator rate, for example with a 1.918 MHz tone at J1 and the ADC samples inspected for an alias near 2 kHz; require at least 90 dB below in-band gain (about 98 dB simulated)
+- input impedance at J1 across 1.5–2.5 kHz, for example by the amplitude change with a known series resistor; require at least 1 MΩ (4.25–7.08 MΩ simulated)
+- input-referred noise spectrum with J1 shorted, with a 30 kΩ resistor at J1, and with the coil connected; compare with the simulated 3.6, 23.4, and 3.9 nV/√Hz at 1.88 kHz (ADC included); require at most 5 nV/√Hz with the coil
+- the actual 30 kSPS ADS1256 noise with its buffer off and PGA 1
+- the largest tone at J1 before OUT or AIN0 clips; require at least 10 mV peak at 50–400 Hz and 2 mV at 8–50 kHz (27.2 and 49.0 mV simulated nominally, 15.7 mV at the worst corner)
+- Q1/Q2 clamp current and settling through the real polarizer turnoff; keep the sensor disconnected until its pulse magnitude is known
+- the AD8421's recovery after overload, then recovery after the acquisition blank and a short SYNC/PDWN pulse; confirm the first subsequent DRDY marks settled data
+- loaded USB 5 V at the lowest expected USB input
 - the purchased module's DRDY high level (expect about 3.3 V) before wiring its SPI directly to the XIAO, then scope all six SPI lines at the chosen clock
-- PSRR versus frequency, including the 2 kHz converter-ripple case
+- noise coupled from the module's BIAS/REF path, which the model omits
+- RF rectification with the module's RFI network removed: watch OUT's DC level while a phone or handheld radio transmits nearby, with and without the clip-on ferrites
 - CMRR with the installed sensor pair
 
-Export measured transfer and noise data in a text format that tests can load, and compare them with the limits in `receiver_design/requirements.py`. Compare ngspice and measured curves using explicit tolerances. Include the ADS1256's converter noise separately because the SPICE deck models its input loading and ideal PGA but not its specified converter noise or digital filter. Transistor 1/f noise and realistic base resistance are also absent from the models.
+Export measured transfer and noise data in a text format that tests can load, and compare them with the limits in `receiver_design/requirements.py`. Compare ngspice and measured curves using explicit tolerances. Include the ADS1256's converter noise separately because the SPICE deck models its input loading but not its specified converter noise or digital filter. The AD8421 model uses datasheet noise densities and does not clip or model 1/f noise.
 
 ## Frequency estimator
 

@@ -5,6 +5,7 @@ This repository tracks one receiver design. It does not contain automated design
 ## Repository layout
 
 - `receiver_design/` contains the active ngspice model, generated analysis outputs, KiCad connectivity source, BOM, and design documentation.
+- `amazon_purchases.json` lists everything to buy for the receiver, with Amazon links, prices, and the budget. `new_allowed_components.json` lists the lab inventory and the already purchased modules.
 - `verification_modeling/` contains reusable physics, coil, CRB, circuit, ngspice, and plotting adapters. These modules do not select or optimize a design.
 - `frequency_estimator_firmware/` contains the portable C frequency estimator and host tests.
 - `tests/` checks physics, coil assumptions, circuit serialization, ngspice parsing, and report generation.
@@ -36,6 +37,6 @@ make verify     # all applicable tests and EDA checks
 
 ## Current status
 
-The active receiver is a discrete low-noise band-pass amplifier: 36 lab parts between J1 and the already purchased HiLetgo ADS1256, with the XIAO RP2350 wired directly to the ADC's SPI. Its requirements live in `receiver_design/requirements.py`: at least 2000 V/V from J1 to the ADC across 1.6–2.2 kHz, |Z_in| of at least 1 MΩ across 1.5–2.5 kHz, input noise of at most 5 nV/√Hz with the coil, and no stage clipping for 10 mV interference tones at 50–400 Hz or 2 mV at 8–50 kHz. `make verify` simulates them at nine beta, temperature, and USB-voltage corners and fails if any is missed. Allowed parts, including the two modules, are listed in `new_allowed_components.json`. Gain, input impedance, noise, and interference tolerance remain to be measured on hardware.
+The active receiver is a purchased AD8421 instrumentation-amplifier module (gain 100) followed by a two-section RC anti-aliasing filter. It sits between J1 and the already purchased HiLetgo ADS1256, with the XIAO RP2350 wired directly to the ADC's SPI. The module, its cable, and two 9 V batteries cost $48.95 from Amazon (`amazon_purchases.json`), or $86.62 with a recommended spare module and clip-on ferrites; the clamps, gain resistor, and filter are seven lab parts. Its requirements live in `receiver_design/requirements.py`: |Z_in| of at least 1 MΩ across 1.5–2.5 kHz, input noise of at most 5 nV/√Hz with the coil including ADC noise, no clipping for 10 mV interference tones at 50–400 Hz or 2 mV at 8–50 kHz, and at least 90 dB of alias rejection near the ADS1256's 1.92 MHz modulator rate. `make verify` simulates them at ten temperature, supply, battery, trim, and tolerance corners and fails if any is missed. Input impedance, noise, interference tolerance, and alias rejection remain to be measured on hardware.
 
 There is not yet a reviewed graphical KiCad schematic or physical PCB. `make pcb` therefore fails intentionally. A connectivity netlist and simulated figures do not establish fabrication readiness or measured hardware performance. See `receiver_design/README.md` and `docs/verification-plan.md`.

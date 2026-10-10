@@ -154,7 +154,7 @@ def front_end_noise_density(f, r_coil=99.9358, l_coil=152.5682e-3,
 
     Set c_tune explicitly to model an external coil capacitor. Its default
     is zero because the receiver has no tuning capacitor. The other
-    defaults describe an earlier op-amp input network. The active discrete
+    defaults describe an earlier op-amp input network. The active
     receiver's noise comes from ngspice in receiver_design/analyze.py.
     This is the input network only, not the later bandpass gain.
     """

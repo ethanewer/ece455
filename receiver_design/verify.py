@@ -21,6 +21,44 @@ SPICE_NETLIST = ROOT / "receiver_design/spice/receiver.cir"
 KICAD_NETLIST = ROOT / "receiver_design/kicad/receiver.net"
 BOM = ROOT / "receiver_design/bom.csv"
 ALLOWED = ROOT / "new_allowed_components.json"
+PURCHASES = ROOT / "amazon_purchases.json"
+
+
+def purchases_check() -> dict[str, dict]:
+    """Check amazon_purchases.json and return its required items by part name.
+
+    `items` must fit the budget and be used in the BOM. `recommended_extras`
+    (spares and accessories) only need valid links and a matching total.
+    """
+    purchases = json.loads(PURCHASES.read_text())
+    totals = {}
+    for key in ("items", "recommended_extras"):
+        listed = purchases[key]
+        if len({item["part"] for item in listed}) != len(listed):
+            raise SystemExit(f"amazon_purchases.json {key} lists a part twice")
+        if len({item["asin"] for item in listed}) != len(listed):
+            raise SystemExit(f"amazon_purchases.json {key} lists an ASIN twice")
+        for item in listed:
+            if item["url"] != f"https://www.amazon.com/dp/{item['asin']}":
+                raise SystemExit(f"Amazon link does not match its ASIN: {item['part']}")
+        totals[key] = sum(item["quantity"] * item["unit_price_usd"] for item in listed)
+    total = totals["items"]
+    for key, expected in (("total_usd", total),
+                          ("total_with_extras_usd", total + totals["recommended_extras"])):
+        if abs(purchases[key] - expected) > 0.005:
+            raise SystemExit(
+                f"amazon_purchases.json {key} {purchases[key]:.2f} USD "
+                f"does not match its items ({expected:.2f} USD)"
+            )
+    if total > purchases["budget_usd"]:
+        raise SystemExit(
+            f"Amazon purchases cost {total:.2f} USD, over the "
+            f"{purchases['budget_usd']:.2f} USD budget"
+        )
+    print(f"PASS Amazon purchases total {total:.2f} USD within "
+          f"the {purchases['budget_usd']:.2f} USD budget "
+          f"({purchases['total_with_extras_usd']:.2f} USD with recommended extras)")
+    return {item["part"]: item for item in purchases["items"]}
 
 
 def allowed_components_check() -> None:
@@ -28,6 +66,7 @@ def allowed_components_check() -> None:
     kit = inventory["thomson"]
     plexus = inventory["plexus"]
     modules = {module["part"]: module for module in inventory["purchased_modules"]}
+    purchases = purchases_check()
     allowed_values = {
         ("thomson", "resistors"): kit["resistors"],
         ("thomson", "ceramic"): kit["ceramic_capacitors"],
@@ -47,9 +86,10 @@ def allowed_components_check() -> None:
     }
     with BOM.open(newline="") as stream:
         rows = list(csv.DictReader(stream))
-    forbidden_receiver_refs = {"J4", "SENSOR", "FB1", "FB2"}
+    forbidden_receiver_refs = {"SENSOR", "FB1", "FB2"}
     transistor_totals: dict[str, int] = {}
     seen_modules = set()
+    seen_purchases = set()
     for row in rows:
         refs = row["Reference"].split()
         if forbidden_receiver_refs.intersection(refs):
@@ -59,6 +99,16 @@ def allowed_components_check() -> None:
         if int(row["Qty"]) != len(refs):
             raise SystemExit(f"BOM quantity does not match references: {row['Reference']}")
         part = row["Value or part"]
+        if row["Package"] == "Amazon purchase":
+            item = purchases.get(part)
+            if item is None:
+                raise SystemExit(f"BOM part is not in amazon_purchases.json: {part}")
+            if refs != item["references"]:
+                raise SystemExit(f"BOM and amazon_purchases.json references differ: {part}")
+            if int(row["Qty"]) > item["quantity"] * item["units_per_pack"]:
+                raise SystemExit(f"BOM count exceeds the Amazon order: {part}")
+            seen_purchases.add(part)
+            continue
         if part in modules:
             if int(row["Qty"]) > modules[part]["quantity"]:
                 raise SystemExit(f"module count exceeds purchased quantity: {part}")
@@ -102,7 +152,11 @@ def allowed_components_check() -> None:
             raise SystemExit(f"BOM count exceeds Thomson kit: {row['Reference']}")
     if seen_modules != set(modules):
         raise SystemExit(f"BOM is missing purchased modules: {sorted(set(modules) - seen_modules)}")
-    print("PASS BOM parts are in new_allowed_components.json with available counts")
+    if seen_purchases != set(purchases):
+        raise SystemExit(
+            f"Amazon purchases are unused in the BOM: {sorted(set(purchases) - seen_purchases)}"
+        )
+    print("PASS BOM parts are lab inventory, purchased modules, or Amazon purchases")
 
 
 def run(command: list[str], cwd: Path | None = None) -> None:
@@ -110,7 +164,7 @@ def run(command: list[str], cwd: Path | None = None) -> None:
     subprocess.run(command, cwd=cwd, check=True)
 
 
-SPICE_MODELS = {"Q2N3904": "2N3904", "Q2N3906": "2N3906"}
+SPICE_MODELS = {"Q2N3904": "2N3904"}
 UNIT_SUFFIX = {"ohm": "", "kohm": "k", "megohm": "Meg",
                "pF": "p", "nF": "n", "uF": "u"}
 
@@ -160,8 +214,8 @@ def artifact_check() -> None:
     if connectivity.count("(") != connectivity.count(")"):
         raise SystemExit("KiCad connectivity netlist has unbalanced parentheses")
 
-    for token in (".param PGA=1", requirements.FIXTURE, requirements.SUPPLY,
-                  "Epga pga_out 0 out bias {PGA}"):
+    for token in (requirements.FIXTURE, requirements.SUPPLY, *requirements.BATTERIES,
+                  requirements.BIAS, requirements.MODULE):
         if token not in spice:
             raise SystemExit(f"SPICE artifact is missing {token}")
 
@@ -193,21 +247,28 @@ def artifact_check() -> None:
     if node_to_net.get("0") != "GND":
         raise SystemExit("SPICE ground is not the KiCad GND net")
 
-    # Module and connector interfaces have no SPICE counterpart.
+    # Module, battery, and connector interfaces have no SPICE counterpart.
+    # J4 follows the XMOD2 card: IN+, IN- (GND), RG, RG, OUT, V+, GND, V-.
     interface = {
         ("J1", "1"): node_to_net["receiver_in"], ("J1", "2"): "GND",
-        ("J3", "1"): node_to_net["out"], ("J3", "2"): node_to_net["bias"],
-        ("U3", "14"): "USB_VBUS_5V", ("J2", "1"): "USB_VBUS_5V",
-        ("U3", "13"): "GND", ("J2", "2"): "GND",
-        ("U3", "9"): "SPI0_SCLK_D8_GPIO2", ("J2", "3"): "SPI0_SCLK_D8_GPIO2",
-        ("U3", "11"): "SPI0_MOSI_D10_GPIO3_ADS_DIN",
+        ("J4", "1"): node_to_net["receiver_in"], ("J4", "2"): "GND",
+        ("J4", "3"): node_to_net["rg_a"], ("J4", "4"): node_to_net["rg_b"],
+        ("J4", "5"): node_to_net["amp_out"], ("J4", "6"): "BAT_POS_9V",
+        ("J4", "7"): "GND", ("J4", "8"): "BAT_NEG_9V",
+        ("BT1", "1"): "BAT_POS_9V", ("BT1", "2"): "GND",
+        ("BT2", "1"): "GND", ("BT2", "2"): "BAT_NEG_9V",
+        ("J5", "1"): node_to_net["amp_out"], ("J5", "2"): "GND",
+        ("J3", "1"): node_to_net["ain0"], ("J3", "2"): "GND",
+        ("U1", "14"): "USB_VBUS_5V", ("J2", "1"): "USB_VBUS_5V",
+        ("U1", "13"): "GND", ("J2", "2"): "GND",
+        ("U1", "9"): "SPI0_SCLK_D8_GPIO2", ("J2", "3"): "SPI0_SCLK_D8_GPIO2",
+        ("U1", "11"): "SPI0_MOSI_D10_GPIO3_ADS_DIN",
         ("J2", "4"): "SPI0_MOSI_D10_GPIO3_ADS_DIN",
-        ("U3", "10"): "SPI0_MISO_D9_GPIO4_ADS_DOUT",
+        ("U1", "10"): "SPI0_MISO_D9_GPIO4_ADS_DOUT",
         ("J2", "5"): "SPI0_MISO_D9_GPIO4_ADS_DOUT",
-        ("U3", "4"): "ADS_CS_D3_GPIO5", ("J2", "6"): "ADS_CS_D3_GPIO5",
-        ("U3", "3"): "ADS_DRDY_D2_GPIO28", ("J2", "7"): "ADS_DRDY_D2_GPIO28",
-        ("U3", "5"): "ADS_PDWN_D4_GPIO6", ("J2", "8"): "ADS_PDWN_D4_GPIO6",
-        ("R11", "1"): "USB_VBUS_5V",
+        ("U1", "4"): "ADS_CS_D3_GPIO5", ("J2", "6"): "ADS_CS_D3_GPIO5",
+        ("U1", "3"): "ADS_DRDY_D2_GPIO28", ("J2", "7"): "ADS_DRDY_D2_GPIO28",
+        ("U1", "5"): "ADS_PDWN_D4_GPIO6", ("J2", "8"): "ADS_PDWN_D4_GPIO6",
     }
     for (ref, pin), net in interface.items():
         if pins.get((ref, pin)) != net:
@@ -246,26 +307,29 @@ def requirements_check() -> None:
     if shutil.which("ngspice") is None:
         raise SystemExit("ngspice is required to check the receiver requirements")
     print(
-        "REQUIREMENTS gain >= "
-        f"{requirements.GAIN_MIN_V_PER_V:.0f} V/V over "
-        f"{requirements.GAIN_BAND_HZ[0]:.0f}-{requirements.GAIN_BAND_HZ[1]:.0f} Hz; "
-        f"|Z_in| >= {requirements.ZIN_MIN_OHM / 1e6:g} Mohm over "
+        f"REQUIREMENTS |Z_in| >= {requirements.ZIN_MIN_OHM / 1e6:g} Mohm over "
         f"{requirements.ZIN_BAND_HZ[0]:.0f}-{requirements.ZIN_BAND_HZ[1]:.0f} Hz; "
-        f"noise <= {requirements.NOISE_MAX_V_RT_HZ * 1e9:g} nV/rtHz; "
+        f"noise <= {requirements.NOISE_MAX_V_RT_HZ * 1e9:g} nV/rtHz over "
+        f"{requirements.SIGNAL_BAND_HZ[0]:.0f}-{requirements.SIGNAL_BAND_HZ[1]:.0f} Hz "
+        "including ADC noise; "
         + "; ".join(
             f"no clipping for {amplitude * 1e3:g} mV at {low:g}-{high:g} Hz"
             for (low, high), amplitude in requirements.INTERFERENCE
         )
+        + f"; alias rejection >= {requirements.ALIAS_REJECTION_MIN_DB:g} dB within "
+        f"{requirements.SIGNAL_BAND_HZ[1] / 1e3:g} kHz of "
+        f"{requirements.ADC_MODULATOR_HZ / 1e6:g} MHz"
     )
     failures = []
     for result in requirements.check_requirements(SPICE_NETLIST):
         status = "PASS" if not result.failures else "FAIL"
         print(
-            f"{status} {result.corner.name:26s} gain {result.gain_min:6.0f} V/V  "
+            f"{status} {result.corner.name:47s} gain {result.gain_min:5.1f} V/V  "
             f"|Z_in| {result.zin_min_ohm / 1e6:5.2f} Mohm  "
             f"noise {result.noise_max_v_rt_hz * 1e9:5.2f} nV/rtHz  "
             + "  ".join(f"tone {tolerance * 1e3:5.1f} mV"
                         for tolerance, _node in result.interference)
+            + f"  alias {result.alias_rejection_db:5.1f} dB"
         )
         failures += [f"{result.corner.name}: {text}" for text in result.failures]
     if failures:
