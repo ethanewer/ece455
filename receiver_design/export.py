@@ -18,6 +18,7 @@ sys.path.insert(0, str(ROOT))
 
 from receiver_design import requirements
 from receiver_design.analyze import AC_POINTS_PER_DECADE, AC_STOP_HZ
+from receiver_design.breadboard import build_receiver_breadboard
 from receiver_design.schematic import build_receiver_schematic
 from verification_modeling.coil import current_coil
 from verification_modeling.eda.report import build_spice_report
@@ -231,6 +232,7 @@ def main() -> None:
             name="2.1kHz", frequency_hz=coil["f_test_high_hz"],
         )
         build_receiver_schematic(output_dir)
+        build_receiver_breadboard(output_dir)
 
         bom_csv = output_dir / "bill-of-materials.csv"
         shutil.copy2(RECEIVER / "bom.csv", bom_csv)
@@ -250,11 +252,14 @@ def main() -> None:
             f"- Tracked working tree: {'modified' if dirty else 'clean'}\n"
             "- Simulation: ngspice transient and AC analyses completed for two input frequencies\n"
             "- Connectivity: receiver validation passed\n"
+            "- Breadboard: layout matches the SPICE deck node for node and the XIAO wiring matches the connectivity netlist\n"
             f"- PCB: {pcb_status}\n\n"
             "The two frequency directories exercise the same receiver from "
             "its input connector. Coil tuning and damping remain external.\n\n"
             "## Shared contents\n\n"
             "- `receiver-construction-schematic.svg` and `.png`: receiver and module wiring\n"
+            "- `receiver-breadboard.svg` and `.png`: breadboard assembly with both modules, the XIAO, and the test divider\n"
+            "- `receiver-breadboard.md`: hole-by-hole breadboard placement\n"
             "- `bill-of-materials.csv` and `.md`: every fitted and purchased receiver part\n"
             "- `amazon_purchases.json`: items to buy, with Amazon links and prices\n"
             "- `assembly.md`: module preparation, wiring, and power-up checks\n"

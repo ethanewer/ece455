@@ -108,6 +108,7 @@ Q1/Q2 take the polarizer turnoff current at J1, limited only by the external sen
 - `spice/receiver.cir` is the active ngspice model. It contains the AD8421 behavioral model, which uses datasheet values (Rev. 0) for input impedance, noise, gain, and bandwidth. It omits the module's BIAS/REF path noise, ADC converter noise, the digital filter, SPI timing, firmware blanking, and the external sensor's LC response.
 - `analyze.py` generates the committed `analysis/` CSV, PNG, and Markdown artifacts, including |Z_in|, interference tolerance, alias rejection, and the noise/CRB table.
 - `schematic.py` draws the construction schematic used by `make export` and `docs/`.
+- `breadboard.py` holds the fixed placement on a standard 830-point breadboard, laid out as the board was built, and draws it with the AD8421 module, batteries, cable, ADS1256 module, and XIAO (`docs/receiver-breadboard.png`). It includes a 1000:1 divider so a function generator can stand in for the coil. `make export` checks the receiver against `spice/receiver.cir` and the XIAO-to-ADS1256 wires against `kicad/receiver.net`, then draws the board and lists every hole.
 - `bom.csv` lists every fitted and purchased part. Lab parts come from `new_allowed_components.json`.
 - `assembly.md` covers module preparation, wiring, and the bring-up sequence.
 - `kicad/generate.py` emits the text connectivity netlist `kicad/receiver.net`. `verify.py` checks that it, the SPICE deck, and the BOM describe the same parts and pins. There is no graphical KiCad schematic or PCB, and `make pcb` intentionally fails.
