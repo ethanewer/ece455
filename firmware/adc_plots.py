@@ -27,6 +27,7 @@ FOCUS_START_MS = 100.0  # Relative to first ADC sample, NOT MOSFET turn-off
 FOCUS_END_MS = 150.0
 MAX_CAPTURE_SAMPLES = 100_000
 PACKET_TIMEOUT_S = 20.0
+FONT_SIZE = 15  # base text size for the plots and results panel
 
 
 # ============================================================
@@ -184,11 +185,11 @@ def update_graph(fig, axes, codes, metadata, capture_number, history):
         old_panel.remove()
     fig._mag_measure_text = fig.text(
         0.705, 0.91, measurement_text(metadata, history),
-        ha="left", va="top", family="monospace", fontsize=9.5
+        ha="left", va="top", family="monospace", fontsize=FONT_SIZE - 2
     )
-    fig.suptitle("ADS1256 Magnetometer", fontsize=14)
-    fig.subplots_adjust(left=0.08, right=0.68, top=0.89,
-                        bottom=0.09, hspace=0.47)
+    fig.suptitle("ADS1256 Magnetometer", fontsize=FONT_SIZE + 6)
+    fig.subplots_adjust(left=0.08, right=0.66, top=0.88,
+                        bottom=0.1, hspace=0.55)
     fig.canvas.draw_idle()
     fig.canvas.flush_events()
     plt.pause(0.05)
@@ -198,6 +199,13 @@ def update_graph(fig, axes, codes, metadata, capture_number, history):
 # Main loop
 # ============================================================
 def main():
+    plt.rcParams.update({
+        "font.size": FONT_SIZE,
+        "axes.titlesize": FONT_SIZE + 2,
+        "axes.labelsize": FONT_SIZE + 1,
+        "xtick.labelsize": FONT_SIZE - 1,
+        "ytick.labelsize": FONT_SIZE - 1,
+    })
     plt.ion()
     fig, axes = plt.subplots(2, 1, figsize=(14.8, 8.2))
     plt.show(block=False)

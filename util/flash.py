@@ -33,7 +33,7 @@ def flash(image: Path) -> Path:
         except serial.SerialException as error:
             raise SystemExit(f"Cannot open {port} ({error}). Close the plotter or serial "
                              "monitor using it, then run again.") from None
-        deadline = time.time() + 10
+        deadline = time.time() + 30
         while drive() is None and time.time() < deadline:
             time.sleep(0.25)
     target = drive()

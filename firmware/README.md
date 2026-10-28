@@ -1,6 +1,6 @@
 # Pico 2 firmware
 
-Copied from [hjvania10-rgb/PicoProgramECE455](https://github.com/hjvania10-rgb/PicoProgramECE455) at commit `3450aba` (2026-10-28), without that repository's superseded variants (`PicoProgramECE455_WIthoutButtons.c`, `PicoProgramECE455_WIthButtonsWithoutBetterPlots.c`, `adc_plots_old.py`). Two local changes: the ready prompt prints the start button's actual pin, and `adc_plots.py` finds the Pico's serial port by itself. Keep this folder in step with that repository. Its ADS1256 datasheet is in [`../docs/datasheets/`](../docs/datasheets/).
+Copied from [hjvania10-rgb/PicoProgramECE455](https://github.com/hjvania10-rgb/PicoProgramECE455) at commit `3450aba` (2026-10-28), without that repository's superseded variants (`PicoProgramECE455_WIthoutButtons.c`, `PicoProgramECE455_WIthButtonsWithoutBetterPlots.c`, `adc_plots_old.py`). Local changes: the ready prompt prints the start button's actual pin, and `adc_plots.py` finds the Pico's serial port by itself and uses larger text (`FONT_SIZE`). Keep this folder in step with that repository. Its ADS1256 datasheet is in [`../docs/datasheets/`](../docs/datasheets/).
 
 `PicoProgramECE455.c` configures the ADS1256 over SPI0 (GP16 DOUT, GP17 CS, GP18 SCLK, GP19 DIN, GP20 DRDY), then waits for the start button (SW3, GP27). Each press:
 
