@@ -34,9 +34,29 @@ ADC input, tank C +5% | 3,155.1 (70.0 dB) | 10,677.5 (80.6 dB) | 15,908.4 (84.0 
 
 ![Frequency response and noise](frequency-response.png)
 
+## FID amplitude
+
+[`spreadsheets/CoilDesign.xlsx`](../../spreadsheets/CoilDesign.xlsx) plans the coils, and the print files in [`3d_models/`](../../3d_models/) give their forms (`util/printfile.py` measures them from the G-code):
+
+- Sensing form: 60 × 60 mm core, 56 × 56 mm opening for the water, 100 mm winding length, 70 × 70 mm flanges, 106 mm tall. Planned winding: 1477 turns of 0.462 mm wire.
+- Polarizing form: 76 × 146.4 mm core, 71 × 140.7 mm opening, 100 mm winding length. Planned winding: 331 turns, 3 A, 8.63 mT at the center, 9.84 mH, 7.91 Ω.
+- Two sensing forms fit side by side in the polarizing form's opening, with their windings over the same 100 mm, so the forms appear made to nest, the sensing coils sharing the polarizing coil's axis.
+
+Curie-law FID for the two sensing coils in series, each around water that fills its opening, fully polarized at 8.63 mT, with the polarizing axis perpendicular to Earth's field, at 2268 Hz and 20 °C. "At the ADC" applies the simulated gain at that frequency (20,114 V/V); the last column is the open-circuit voltage the polarizer's turn-off induces in the pair (below).
+
+Sensing coil | Turns per coil | L per coil | R per coil | FID at the pair | At the ADC | Peak / wideband noise | Turn-off pickup
+--- | --- | --- | --- | --- | --- | --- | ---
+planned (CoilDesign.xlsx) | 1477 | 76.3 mH | 50.0 Ω | 4.71 µV | 95 mV | 98 | 317 V
+from the measured inductance (TuningCapacitors.xlsx) | 628 | 13.3 mH | 20.6 Ω | 2.00 µV | 40 mV | 42 | 127 V
+from the coil resistance (AmplificationSim.asc) | 594 | 11.9 mH | 19.5 Ω | 1.89 µV | 38 mV | 40 | 120 V
+
+The measured inductances (13.45 and 13.13 mH) and the drawing's 39 Ω coil resistance both imply about 594–628 turns per coil, not 1477. The drawing's 10 µV is 2.1 times the planned estimate and 5.0 times the as-built one; the workbook's 72 µV "illustrative series-pair peak" is scaled from an assumed baseline, not a physical prediction. Each assumption above is a best case: a partly filled opening, incomplete polarization (water's T1 is about 2–3 s), a polarizing axis not perpendicular to Earth's field, and the coils' finite length all lower the FID.
+
+Turn-off pickup: when the polarizer's current falls into its TVS (the workbook assumes 68 V), it starts falling at 9,325 A/s and reaches zero in about 0.37 ms. For nested coils the induced EMF is about turns × field per amp × mean turn area × that rate, using the polarizer's center field. The sensing coils sit off center, where the field is weaker, so the real voltage is lower but of the same order. The sensing circuit, the damping switch, and the amplifier input must survive it.
+
 ## ADC headroom
 
-The firmware sets PGA 64 with VREF = 2.05 V, a differential full scale of ±64.1 mV. The simulated FID reaches 202.0 mV peak at the ADC in its first 100 ms, 3.2 times full scale. It would clip. PGA 16 or lower keeps this FID within full scale. The ADS1256 input buffer is on (BUFEN = 1), so each input must also stay within 0 to AVDD − 2 V. The firmware measures AIN1 − AIN0, while the drawing biases AIN3; confirm which ADS1256 inputs the J4 socket reaches.
+The firmware sets PGA 64 with VREF = 2.05 V, a differential full scale of ±64.1 mV. The drawing's FID reaches 202.0 mV peak at the ADC in its first 100 ms, 3.2 times full scale. It would clip. PGA 16 or lower keeps it within full scale. The Curie-law estimates above reach 95 mV (planned, clips), 40 mV (from the measured inductance, fits), 38 mV (from the coil resistance, fits). The ADS1256 input buffer is on (BUFEN = 1), so each input must also stay within 0 to AVDD − 2 V. The firmware measures AIN1 − AIN0, while the drawing biases AIN3; confirm which ADS1256 inputs the J4 socket reaches.
 
 The transient runs to 2 s as the drawing's `.tran` does, but with a 4.4 µs step. At the drawing's 34 µs maximum step, about 13 points per cycle, trapezoidal integration detunes the tank and the same FID peaks at 176.1 mV, 13% low. Use a maximum step near 4 µs in LTspice too.
 
@@ -46,7 +66,7 @@ The transient runs to 2 s as the drawing's `.tran` does, but with a 4.4 µs step
 
 - Referred to the coil EMF at 2268 Hz: 0.96 nV/√Hz. At the ADC input: 18.97 µV/√Hz.
 - ADC-input RMS noise over 1500–2500 Hz: 421 µV; over 100 Hz to 7500 Hz (Nyquist at the firmware's nominal 15 kSPS): 964 µV. The zero-crossing estimator does not filter, so the wider figure applies to it. Noise above Nyquist also aliases into the record; the ADS1256's digital filter is not modeled.
-- Peak FID to wideband RMS noise at the ADC: 210.
+- Peak FID to wideband RMS noise at the ADC: 210 for the drawing's FID; the FID amplitude table gives it for the Curie-law estimates.
 - Frequency Cramér–Rao bound: 0.0012 nT, for a white floor at the EMF-referred density, 15 kSPS, and a 2.19 s record (the firmware stops when the signal falls to 10% of its initial amplitude, at most 4 s). It bounds an ideal estimator, not the zero-crossing fit.
 
 ## Tuning bank

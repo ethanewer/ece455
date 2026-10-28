@@ -18,8 +18,9 @@ Review the current directories according to their roles:
 | `kicad/` | The team's KiCad 10 projects: polarization board and signal-processing/control board, with Gerbers and the BOM export |
 | `ltspice/AmplificationSim.asc` | The off-board amplifier, coil, and tank model |
 | `firmware/` | Pico 2 firmware (ADS1256 capture, zero-crossing frequency fit) and the serial plotter |
-| `spreadsheets/` | LC tuning workbook |
-| `util/` | Readers for KiCad, LTspice, and xlsx files; the ngspice translation and simulation report; the breadboard layout; the firmware host harness; tests |
+| `3d_models/` | Coil forms: SolidWorks parts and sliced print files |
+| `spreadsheets/` | Coil design and LC tuning workbooks |
+| `util/` | Readers for KiCad, LTspice, xlsx, and print files; coil math; the ngspice translation and simulation report; the breadboard layout; the firmware host harness; tests |
 | `docs/simulation/`, `docs/breadboard/` | Generated reports; regenerate rather than edit |
 | `docs/design.md`, `docs/verification-plan.md` | Design description, open issues, and bench plan |
 | `.github/workflows/ci.yml` | Automated tests and report generation |
@@ -90,7 +91,7 @@ Use this when a change affects physical models, constants, units, signal generat
    3. Check coil source impedance, Johnson noise, amplifier voltage and current noise, bandwidth, sample rate, aliasing, quantization, clipping, and noise integration.
    4. Identify nominal or injected values that still require measurement, including FID amplitude, T2 star, mutual inductance, polarizer field, ring-down, PSRR, and recovery.
    5. Re-derive CRBs or compare them with a valid closed form. Confirm simulation or Monte Carlo results do not beat a valid bound beyond numerical and confidence-interval tolerance. Check that SNR definitions are explicit and consistent.
-   6. Compare util, ltspice/AmplificationSim.asc, firmware, spreadsheets/TuningCapacitors.xlsx, docs/design.md, and docs/verification-plan.md. Flag conflicting formulas, constants, component values, and claims.
+   6. Compare util, ltspice/AmplificationSim.asc, firmware, spreadsheets/CoilDesign.xlsx, spreadsheets/TuningCapacitors.xlsx, docs/design.md, and docs/verification-plan.md. Flag conflicting formulas, constants, component values, and claims.
    7. Run cheap calculations and tests without modifying the repository. Use /tmp for scratch files.
    Do not edit or create repository files.
    Return a verdict, a Severity | file:line | Finding table sorted by severity, and checks run with numeric results."
@@ -105,7 +106,7 @@ Use this after KiCad, LTspice, or component-value changes.
   --workspace /Users/ethanewer/ece455 \
   "Perform a read-only consistency review of the design in kicad/, ltspice/, firmware/, and spreadsheets/.
    Review the uncommitted changes. If there are none, review the latest commit and say so.
-   1. Compare component values, net names, signal stages, assumptions, and interfaces across the KiCad schematics and boards, ltspice/AmplificationSim.asc, the firmware constants and pins, spreadsheets/TuningCapacitors.xlsx, generated reports in docs/, and docs/design.md.
+   1. Compare component values, net names, signal stages, assumptions, and interfaces across the KiCad schematics and boards, ltspice/AmplificationSim.asc, the firmware constants and pins, the spreadsheets, the coil forms in 3d_models/, generated reports in docs/, and docs/design.md.
    2. Run make test, and make docs when ngspice is installed. Report skipped tools rather than claiming a pass.
    3. Treat DRC as a connectivity and geometry check only. Identify missing active devices, protection, switching, ADC, clock, power, connectors, footprints, and layout review where applicable.
    4. Separate simulated behavior, DRC results, nominal assumptions, and measured evidence.

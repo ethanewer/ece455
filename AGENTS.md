@@ -13,14 +13,14 @@ Each design-file type has one top-level folder. These files are the design; edit
 - `kicad/`: polarization board and signal-processing & control board (KiCad 10), with Gerbers and the signal board's BOM export
 - `ltspice/AmplificationSim.asc`: coil, tuning tank, and the off-board amplifier
 - `firmware/`: Pico 2 firmware, a copy of `hjvania10-rgb/PicoProgramECE455` (the commit is in `firmware/README.md`)
-- `spreadsheets/TuningCapacitors.xlsx`: coil inductances and LC tuning
-- `3d_models/`: coil forms
+- `spreadsheets/CoilDesign.xlsx`: planned coil windings and polarizing field; `spreadsheets/TuningCapacitors.xlsx`: measured coil inductances and LC tuning
+- `3d_models/`: coil forms (SolidWorks parts and the sliced print files `util/printfile.py` measures)
 
 Everything that reads, simulates, lays out, or tests them lives in `util/`. `docs/design.md` describes the design and its open issues; `docs/verification-plan.md` holds the bench work.
 
 ## Utilities
 
-- `util/design.py` is the only module that knows file locations, LTspice part roles, and how drawing nodes map to board nets. The readers (`kicad.py`, `ltspice.py`, `xlsx.py`, `spice.py`) take paths and values and must stay independent of this design.
+- `util/design.py` is the only module that knows file locations, LTspice part roles, and how drawing nodes map to board nets. The readers (`kicad.py`, `ltspice.py`, `xlsx.py`, `printfile.py`, `spice.py`) take paths and values and must stay independent of this design.
 - Simulate from the LTspice drawing through `util/ltspice.py`. Do not hand-copy its netlist into a parallel deck. If the drawing uses a new symbol or model, extend the translator and its tests.
 - `util/breadboard.py` holds one fixed layout for the off-board amplifier. Keep it data, not a placer, and keep `check_layout` reproducing the LTspice netlist and the board nets.
 - The firmware must keep compiling unchanged against `util/firmware_host/`. Do not edit firmware to suit the tests.

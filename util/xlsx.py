@@ -46,12 +46,29 @@ def read_workbook(path: Path | str) -> dict[str, dict[str, str | float]]:
     return sheets
 
 
-def value_beside(cells: dict[str, str | float], label: str) -> str | float:
-    """The cell to the right of the only cell whose text is label."""
+def _split(ref: str) -> tuple[int, int]:
+    """Cell reference -> (column number from 1, row number)."""
+    letters, row = re.fullmatch(r"([A-Z]+)(\d+)", ref).groups()
+    column = 0
+    for letter in letters:
+        column = column * 26 + ord(letter) - ord("A") + 1
+    return column, int(row)
+
+
+def row_beside(cells: dict[str, str | float], label: str) -> list[str | float]:
+    """Values to the right of the only cell whose text is label, left to right."""
     found = [ref for ref, value in cells.items() if value == label]
     if len(found) != 1:
         raise KeyError(f"{len(found)} cells are labelled {label!r}")
-    column, row = re.fullmatch(r"([A-Z]+)(\d+)", found[0]).groups()
-    if len(column) != 1 or column == "Z":
-        raise KeyError(f"no column beside {found[0]}")
-    return cells[f"{chr(ord(column) + 1)}{row}"]
+    column, row = _split(found[0])
+    beside = sorted((_split(ref)[0], value) for ref, value in cells.items()
+                    if _split(ref)[1] == row and _split(ref)[0] > column)
+    return [value for _, value in beside]
+
+
+def value_beside(cells: dict[str, str | float], label: str) -> str | float:
+    """The value to the right of the only cell whose text is label."""
+    values = row_beside(cells, label)
+    if not values:
+        raise KeyError(f"nothing beside {label!r}")
+    return values[0]

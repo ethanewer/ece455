@@ -30,10 +30,14 @@ def test_clean_fid_across_the_band(estimator, frequency_hz, sample_rate):
     assert result["rejected"] == 0
 
 
-def test_noisy_fid_within_a_tenth_of_a_nanotesla(estimator):
-    """1 mV RMS noise on a 40 mV FID: the record ends near 4 mV."""
-    errors = [firmware.estimate(estimator, record(2268.0, 0.04, 1e-3, 15000.0, seed), 15000.0)
-              ["frequency_hz"] - 2268.0 for seed in range(5)]
+# The as-built Curie-law FID (about 2 uV at the coils) is 30-40 mV at the ADC,
+# with about 1 mV RMS of wideband noise (docs/simulation/README.md).
+AS_BUILT_V, NOISE_V = 0.030, 1e-3
+
+
+def test_as_built_fid_near_the_tuned_frequency(estimator):
+    errors = [firmware.estimate(estimator, record(2268.0, AS_BUILT_V, NOISE_V, 15000.0, seed),
+                                15000.0)["frequency_hz"] - 2268.0 for seed in range(5)]
     assert np.max(np.abs(errors)) * physics.NT_PER_HZ < 0.1
 
 
@@ -60,7 +64,7 @@ def test_field_conversion_uses_the_free_proton_ratio(estimator):
     "Known firmware limitation: a missed crossing is converted to whole cycles with "
     "EXPECTED_FREQ_CENTER_HZ, so near 1.5 kHz two periods count as three and the fit is "
     "biased high once noise approaches the decayed amplitude."))
-def test_low_snr_fid_near_the_band_edge(estimator):
-    errors = [firmware.estimate(estimator, record(1500.0, 0.04, 3e-3, 15000.0, seed), 15000.0)
-              ["frequency_hz"] - 1500.0 for seed in range(5)]
-    assert np.max(np.abs(errors)) < 1.0
+def test_as_built_fid_at_the_band_edge(estimator):
+    errors = [firmware.estimate(estimator, record(1500.0, AS_BUILT_V, NOISE_V, 15000.0, seed),
+                                15000.0)["frequency_hz"] - 1500.0 for seed in range(5)]
+    assert np.max(np.abs(errors)) < 0.1

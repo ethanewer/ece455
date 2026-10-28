@@ -4,10 +4,11 @@ These bench measurements replace modeled values with evidence. Save raw captures
 
 ## Coils and tank
 
-1. Measure each sensing coil's DC resistance and inductance, then the series pair as installed. This settles the workbook's 26.58 mH against the drawing's 28.11 mH, and the drawing's 39 Ω.
+1. Measure each sensing coil's DC resistance and inductance, then the series pair as installed. This settles the tuning workbook's 26.58 mH against the drawing's 28.11 mH and 39 Ω. Count or confirm the turns: those values imply about 600 per coil, not the 1477 that CoilDesign.xlsx plans, and the FID scales with turns.
 2. With the pair on J1, set the bank for a target frequency from [`simulation/README.md`](simulation/README.md). Measure the tank's resonance, −3 dB bandwidth, and Q at J5 with a small signal injected in series with the coil. Expect Q near 10.
 3. Find the damping setting: with GPIO15 high, adjust RV1 for the fastest ring-down without overshoot after a step, and record the time constant.
-4. Measure the polarizing coil's resistance and inductance, then its current, turn-off transient, and TVS clamp voltage on the polarization board at the chosen battery voltage.
+4. Measure the polarizing coil's resistance and inductance (planned 7.9 Ω, 9.8 mH), then its current, turn-off transient, and TVS clamp voltage on the polarization board at the chosen battery voltage.
+5. With the sensing pair nested in the polarizing coil and disconnected from the signal board, measure the voltage the polarizer's turn-off induces across it, through a probe rated for at least 300 V. The estimate is on the order of 100 V. Choose clamping or switching for J1 from that measurement before connecting the board or the amplifier.
 
 ## Signal board bring-up
 

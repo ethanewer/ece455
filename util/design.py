@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
 
-from util import kicad, ltspice, xlsx
+from util import coil, kicad, ltspice, printfile, xlsx
 
 ROOT = Path(__file__).resolve().parents[1]
 AMPLIFIER = ROOT / "ltspice/AmplificationSim.asc"
@@ -23,6 +23,9 @@ POLARIZATION_SCHEMATIC = POLARIZATION_BOARD / "PolarizationBoard.kicad_sch"
 POLARIZATION_PCB = POLARIZATION_BOARD / "PolarizationBoard.kicad_pcb"
 FIRMWARE = ROOT / "firmware/PicoProgramECE455.c"
 TUNING_WORKBOOK = ROOT / "spreadsheets/TuningCapacitors.xlsx"
+COIL_WORKBOOK = ROOT / "spreadsheets/CoilDesign.xlsx"
+SENSING_FORM = ROOT / "3d_models/Sensor coil V1.gcode.3mf"
+POLARIZING_FORM = ROOT / "3d_models/Polarization Coil V2.gcode.3mf"
 
 # Roles of the elements in ltspice/AmplificationSim.asc.
 FID_SOURCE = "V1"            # coil EMF
@@ -144,3 +147,100 @@ def simulated_coil() -> tuple[float, float]:
     elements = amplifier().elements
     return (ltspice.spice_number(elements[COIL[0]].value),
             ltspice.spice_number(elements[COIL[1]].value))
+
+
+@dataclass(frozen=True)
+class CoilPlan:
+    """CoilDesign.xlsx: the planned windings and the polarizer's predicted operation."""
+
+    sensing: coil.Bobbin
+    sensing_turns: int
+    sensing_inductance_h: float
+    polarizing: coil.Bobbin
+    polarizing_turns: int
+    polarizing_current_a: float
+    polarizing_field_t: float          # center field at that current
+    polarizing_inductance_h: float
+    polarizing_resistance_ohm: float
+    clamp_v: float                     # assumed TVS voltage across the polarizer at turn-off
+    turnoff_s: float                   # time for the polarizer current to fall to zero
+    temperature_k: float
+
+
+@cache
+def coil_plan() -> CoilPlan:
+    sheets = xlsx.read_workbook(COIL_WORKBOOK)
+    inputs, summary = sheets["Inputs and method"], sheets["Coil summary"]
+
+    def both(cells, label):
+        return [float(v) for v in xlsx.row_beside(cells, label)[:2]]
+
+    long_mm, short_mm = both(inputs, "Bobbin outer long dimension"), both(inputs, "Bobbin outer short dimension")
+    width_mm, od_mm = both(inputs, "Winding width"), both(inputs, "Design insulated wire outside diameter")
+    ohms = both(inputs, "Copper resistance at 20 °C")
+    bobbins = [coil.Bobbin(long_mm[i] * 1e-3, short_mm[i] * 1e-3, width_mm[i] * 1e-3,
+                           od_mm[i] * 1e-3, ohms[i]) for i in (0, 1)]
+    turns = both(summary, "Estimated total turns")
+    return CoilPlan(
+        sensing=bobbins[1], sensing_turns=int(turns[1]),
+        sensing_inductance_h=float(xlsx.row_beside(summary, "Estimated inductance per coil")[0]) * 1e-3,
+        polarizing=bobbins[0], polarizing_turns=int(turns[0]),
+        polarizing_current_a=float(xlsx.value_beside(summary, "Operating current")),
+        polarizing_field_t=float(xlsx.value_beside(summary, "Estimated center field")) * 1e-3,
+        polarizing_inductance_h=float(xlsx.value_beside(summary, "Estimated inductance")) * 1e-3,
+        polarizing_resistance_ohm=both(summary, "Estimated DC resistance at 20 °C")[0],
+        clamp_v=float(xlsx.value_beside(inputs, "Assumed TVS voltage across coil during turn-off")),
+        turnoff_s=float(xlsx.value_beside(summary, "Approximate TVS turn-off time")) * 1e-3,
+        temperature_k=float(xlsx.value_beside(inputs, "Noise temperature")),
+    )
+
+
+@dataclass(frozen=True)
+class CoilForm:
+    """A printed coil form, in mm: the winding core, its opening, and the flanges."""
+
+    core: tuple[float, float]
+    opening: tuple[float, float]
+    winding_length: float
+    flange: tuple[float, float]
+    height: float
+
+
+@cache
+def coil_form(path: Path) -> CoilForm:
+    """The tallest open section is the winding core; the widest section is a flange."""
+    sections = printfile.sections(path)
+    core = max((s for s in sections if s.holes), key=lambda s: s.height)
+    flange = max(sections, key=lambda s: s.outline[0] * s.outline[1])
+    return CoilForm(core.outline, core.holes[0], core.height, flange.outline,
+                    sections[-1].z_top)
+
+
+@dataclass(frozen=True)
+class SensingCoil:
+    label: str
+    turns: int
+    inductance_h: float      # per coil
+    resistance_ohm: float    # per coil
+
+
+def sensing_coils() -> tuple[SensingCoil, ...]:
+    """The planned sensing coil, and the turn counts the as-built values imply.
+
+    The workbook's method is inverted for the inductances in
+    TuningCapacitors.xlsx and for the coil resistance in the LTspice drawing.
+    """
+    plan = coil_plan()
+    bobbin = plan.sensing
+    measured = sum(workbook_coil_inductances_h()) / 2
+    resistance = simulated_coil()[0] / 2
+
+    def entry(label, turns):
+        return SensingCoil(label, turns, coil.inductance_h(bobbin, turns),
+                           coil.resistance_ohm(bobbin, turns))
+
+    return (entry("planned (CoilDesign.xlsx)", plan.sensing_turns),
+            entry("from the measured inductance (TuningCapacitors.xlsx)",
+                  coil.turns_for(coil.inductance_h, bobbin, measured)),
+            entry("from the coil resistance (AmplificationSim.asc)",
+                  coil.turns_for(coil.resistance_ohm, bobbin, resistance)))

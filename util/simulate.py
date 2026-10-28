@@ -16,7 +16,7 @@ from pathlib import Path
 
 import numpy as np
 
-from util import crb, design, physics, spice
+from util import coil, crb, design, physics, spice
 from util.ltspice import Schematic, ngspice_deck, spice_number
 
 OUTPUT = design.ROOT / "docs/simulation"
@@ -208,6 +208,25 @@ def main(output: Path = OUTPUT) -> None:
     bank_total = sum(c.farads for c in bank)
     tank_c = tank_capacitance(schematic)
 
+    # FID amplitude and polarizer turn-off pickup from the coil design.
+    plan = design.coil_plan()
+    sensing_form = design.coil_form(design.SENSING_FORM)
+    polarizing_form = design.coil_form(design.POLARIZING_FORM)
+    sample_area = sensing_form.opening[0] * sensing_form.opening[1] * 1e-6
+    gain_at_source = float(point_gain[0.0]["adc"][report_hz.index(source.frequency_hz)])
+    field_per_amp = plan.polarizing_field_t / plan.polarizing_current_a
+    current_slope = ((plan.clamp_v + plan.polarizing_current_a * plan.polarizing_resistance_ohm)
+                     / plan.polarizing_inductance_h)
+    fid_rows = []
+    for sensing in design.sensing_coils():
+        emf = 2 * physics.fid_emf(plan.polarizing_field_t, sensing.turns, sample_area,
+                                  source.frequency_hz, plan.temperature_k)
+        pickup = (2 * sensing.turns * field_per_amp
+                  * coil.mean_turn_area_m2(plan.sensing, sensing.turns) * current_slope)
+        fid_rows.append((sensing, emf, emf * gain_at_source, pickup))
+    nest_fits = (sensing_form.flange[0] <= min(polarizing_form.opening)
+                 and 2 * sensing_form.flange[1] <= max(polarizing_form.opening))
+
     # CSV outputs.
     write_csv(output / "frequency-response.csv",
               ["frequency_hz", "tank_db", "stage1_db", "stage2_db", "adc_db",
@@ -337,16 +356,73 @@ def main(output: Path = OUTPUT) -> None:
         "",
         "![Frequency response and noise](frequency-response.png)",
         "",
+        "## FID amplitude",
+        "",
+        "[`spreadsheets/CoilDesign.xlsx`](../../spreadsheets/CoilDesign.xlsx) plans the coils, and "
+        "the print files in [`3d_models/`](../../3d_models/) give their forms "
+        "(`util/printfile.py` measures them from the G-code):",
+        "",
+        f"- Sensing form: {sensing_form.core[0]:g} × {sensing_form.core[1]:g} mm core, "
+        f"{sensing_form.opening[0]:g} × {sensing_form.opening[1]:g} mm opening for the water, "
+        f"{sensing_form.winding_length:g} mm winding length, {sensing_form.flange[0]:g} × "
+        f"{sensing_form.flange[1]:g} mm flanges, {sensing_form.height:g} mm tall. Planned winding: "
+        f"{plan.sensing_turns} turns of {plan.sensing.wire_od_m * 1e3:g} mm wire.",
+        f"- Polarizing form: {polarizing_form.core[0]:g} × {polarizing_form.core[1]:g} mm core, "
+        f"{polarizing_form.opening[0]:g} × {polarizing_form.opening[1]:g} mm opening, "
+        f"{polarizing_form.winding_length:g} mm winding length. Planned winding: "
+        f"{plan.polarizing_turns} turns, {plan.polarizing_current_a:g} A, "
+        f"{plan.polarizing_field_t * 1e3:.2f} mT at the center, "
+        f"{plan.polarizing_inductance_h * 1e3:.2f} mH, {plan.polarizing_resistance_ohm:.2f} Ω.",
+        (f"- Two sensing forms fit side by side in the polarizing form's opening, with their "
+         f"windings over the same {polarizing_form.winding_length:g} mm, so the forms appear made "
+         "to nest, the sensing coils sharing the polarizing coil's axis." if nest_fits else
+         "- The sensing forms do not fit inside the polarizing form."),
+        "",
+        f"Curie-law FID for the two sensing coils in series, each around water that fills its "
+        f"opening, fully polarized at {plan.polarizing_field_t * 1e3:.2f} mT, with the polarizing "
+        f"axis perpendicular to Earth's field, at {source.frequency_hz:g} Hz and "
+        f"{plan.temperature_k - 273.15:.0f} °C. \"At the ADC\" applies the simulated gain at that "
+        f"frequency ({gain_at_source:,.0f} V/V); the last column is the open-circuit voltage the "
+        "polarizer's turn-off induces in the pair (below).",
+        "",
+        "Sensing coil | Turns per coil | L per coil | R per coil | FID at the pair | At the ADC "
+        "| Peak / wideband noise | Turn-off pickup",
+        "--- | --- | --- | --- | --- | --- | --- | ---",
+        *(f"{s.label} | {s.turns} | {s.inductance_h * 1e3:.1f} mH | {s.resistance_ohm:.1f} Ω "
+          f"| {emf * 1e6:.2f} µV | {adc_peak * 1e3:.0f} mV | {adc_peak / wide_rms:.0f} "
+          f"| {pickup:.0f} V" for s, emf, adc_peak, pickup in fid_rows),
+        "",
+        f"The measured inductances ({l1 * 1e3:g} and {l2 * 1e3:g} mH) and the drawing's "
+        f"{coil_r:g} Ω coil resistance both imply about {fid_rows[2][0].turns}–"
+        f"{fid_rows[1][0].turns} turns per coil, not {plan.sensing_turns}. The drawing's "
+        f"{source.amplitude_v * 1e6:g} µV is {source.amplitude_v / fid_rows[0][1]:.1f} times the "
+        f"planned estimate and {source.amplitude_v / fid_rows[1][1]:.1f} times the as-built one; "
+        "the workbook's 72 µV \"illustrative series-pair peak\" is scaled from an assumed "
+        "baseline, not a physical prediction. Each assumption above is a best case: a partly "
+        "filled opening, incomplete polarization (water's T1 is about 2–3 s), a polarizing axis "
+        "not perpendicular to Earth's field, and the coils' finite length all lower the FID.",
+        "",
+        f"Turn-off pickup: when the polarizer's current falls into its TVS (the workbook assumes "
+        f"{plan.clamp_v:g} V), it starts falling at {current_slope:,.0f} A/s and reaches zero in "
+        f"about {plan.turnoff_s * 1e3:.2f} ms. For nested coils the induced EMF is about turns × "
+        "field per amp × mean turn area × that rate, using the polarizer's center field. The sensing coils "
+        "sit off center, where the field is weaker, so the real voltage is lower but of the same "
+        "order. The sensing circuit, the damping switch, and the amplifier input must survive it.",
+        "",
         "## ADC headroom",
         "",
         f"The firmware sets PGA {constants['ADS_PGA']:.0f} with VREF = {constants['ADS_VREF']:g} V, "
-        f"a differential full scale of ±{full_scale * 1e3:.1f} mV. The simulated FID reaches "
+        f"a differential full scale of ±{full_scale * 1e3:.1f} mV. The drawing's FID reaches "
         f"{initial_peak * 1e3:.1f} mV peak at the ADC in its first 100 ms, "
         f"{initial_peak / full_scale:.1f} times full scale"
         + (". It would clip." if initial_peak > full_scale else ", which fits.")
-        + (f" PGA {max(fitting)} or lower keeps this FID within full scale."
+        + (f" PGA {max(fitting)} or lower keeps it within full scale."
            if fitting else " No PGA setting keeps it within full scale.")
-        + " The ADS1256 input buffer is on (BUFEN = 1), so each input must also stay within "
+        + " The Curie-law estimates above reach "
+        + ", ".join(f"{adc_peak * 1e3:.0f} mV ({s.label.split(' (')[0]}, "
+                    f"{'clips' if adc_peak > full_scale else 'fits'})"
+                    for s, _emf, adc_peak, _pickup in fid_rows)
+        + "." + " The ADS1256 input buffer is on (BUFEN = 1), so each input must also stay within "
         "0 to AVDD − 2 V. The firmware measures AIN1 − AIN0, while the drawing biases AIN3; "
         "confirm which ADS1256 inputs the J4 socket reaches.",
         "",
@@ -368,7 +444,8 @@ def main(output: Path = OUTPUT) -> None:
         f"{fs / 1e3:g} kSPS): {wide_rms * 1e6:.0f} µV. The zero-crossing estimator does not filter, "
         "so the wider figure applies to it. Noise above Nyquist also aliases into the record; "
         "the ADS1256's digital filter is not modeled.",
-        f"- Peak FID to wideband RMS noise at the ADC: {initial_peak / wide_rms:,.0f}.",
+        f"- Peak FID to wideband RMS noise at the ADC: {initial_peak / wide_rms:,.0f} for the "
+        "drawing's FID; the FID amplitude table gives it for the Curie-law estimates.",
         f"- Frequency Cramér–Rao bound: {bound_nt:.4f} nT, for a white floor at the EMF-referred "
         f"density, {fs / 1e3:g} kSPS, and a {record_s:.2f} s record (the firmware stops when the "
         f"signal falls to {constants['DECAY_STOP_FRACTION']:.0%} of its initial amplitude, at most "
