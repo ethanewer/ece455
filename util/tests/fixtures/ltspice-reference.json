@@ -1,0 +1,19 @@
+{
+  "description": "LTspice 17.2.4 (macOS) results for ltspice-reference.asc, a frozen copy of ltspice/AmplificationSim.asc from 2026-10-28, with tol = 0 and V1 as the AC source. Gains are dB from V1; noise is V/rtHz for V(AIN1, 25P) referred to V1. Nodes are named by role: tank is C1's ungrounded node.",
+  "gain_db": {
+    "1000": {"tank": 1.92182, "stage1": 36.0706, "adc": 63.2697},
+    "2000": {"tank": 13.1644, "stage1": 47.3094, "adc": 79.124},
+    "2268": {"tank": 19.649, "stage1": 53.7925, "adc": 86.0704},
+    "2500": {"tank": 11.3095, "stage1": 45.4517, "adc": 78.029},
+    "5000": {"tank": -12.041, "stage1": 22.0772, "adc": 55.7701},
+    "20000": {"tank": -37.9422, "stage1": -4.27701, "adc": 29.3482}
+  },
+  "noise": {
+    "1000": {"input": 4.12983e-09, "output": 6.01752e-06},
+    "2000": {"input": 1.35277e-09, "output": 1.22299e-05},
+    "2268": {"input": 9.55729e-10, "output": 1.92246e-05},
+    "2500": {"input": 1.56418e-09, "output": 1.24663e-05},
+    "5000": {"input": 1.95758e-08, "output": 1.20289e-05}
+  },
+  "operating_point_v": {"stage1": 2.5255, "adc": 2.4975, "stage1_inverting": 2.5005}
+}

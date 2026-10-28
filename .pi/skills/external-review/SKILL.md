@@ -15,16 +15,16 @@ Review the current directories according to their roles:
 
 | Path | Role |
 |---|---|
-| `receiver_design/` | Active ngspice model, generated analysis reports, KiCad connectivity, and EDA verification scripts |
-| `verification_modeling/` | Python physics, noise, CRB, coil, circuit-format, and ngspice code |
-| `frequency_estimator_firmware/` | Portable C estimator, host binding, mirror implementation, and golden vectors |
-| `tests/` | Python regression tests |
-| `docs/coil-design.md` | Current coil assumptions and provenance |
-| `docs/verification-plan.md` | Bench and acceptance plan |
-| `docs/reference/` | Background reports, not active specifications |
-| `.github/workflows/ci.yml` | Automated software, firmware, and ngspice checks |
+| `kicad/` | The team's KiCad 10 projects: polarization board and signal-processing/control board, with Gerbers and the BOM export |
+| `ltspice/AmplificationSim.asc` | The off-board amplifier, coil, and tank model |
+| `firmware/` | Pico 2 firmware (ADS1256 capture, zero-crossing frequency fit) and the serial plotter |
+| `spreadsheets/` | LC tuning workbook |
+| `util/` | Readers for KiCad, LTspice, and xlsx files; the ngspice translation and simulation report; the breadboard layout; the firmware host harness; tests |
+| `docs/simulation/`, `docs/breadboard/` | Generated reports; regenerate rather than edit |
+| `docs/design.md`, `docs/verification-plan.md` | Design description, open issues, and bench plan |
+| `.github/workflows/ci.yml` | Automated tests and report generation |
 
-Treat `docs/current_work/`, `docs/past_work/`, `docs/resources/`, and `docs/week_2/` as source or historical material. Do not treat historical values as active requirements unless an active document or implementation cites them.
+Treat `docs/references/` as background material, not active requirements.
 
 ## Choose a review
 
@@ -60,7 +60,7 @@ By default, review uncommitted changes. If the working tree is clean, review the
 
 ## Software-quality review
 
-Use this for changes to `verification_modeling/`, `frequency_estimator_firmware/`, receiver Python scripts, `tests/`, the Makefile, or CI.
+Use this for changes to `util/`, `firmware/`, the Makefile, or CI.
 
 ```bash
 ~/.local/bin/cursor-agent -p -f --trust \
@@ -70,7 +70,7 @@ Use this for changes to `verification_modeling/`, `frequency_estimator_firmware/
    Scope: uncommitted changes. If there are none, review the latest commit and say so.
    This is a single-design proton magnetometer repository. Do not recommend automated search or research-loop infrastructure.
    Review correctness, error handling, determinism, subprocess safety, numerical edge cases, portability, stale paths, and missing regression tests.
-   Check interfaces among verification_modeling, frequency_estimator_firmware, receiver_design Python scripts, tests, Makefile, and CI.
+   Check interfaces among util (kicad, ltspice, spice, simulate, breadboard, firmware harness), firmware, tests, Makefile, and CI.
    Run cheap tests when useful. Use /tmp for scratch files.
    Do not edit or create repository files.
    Return either 'No findings' or a Severity | file:line | Finding table sorted by severity, followed by commands run."
@@ -90,7 +90,7 @@ Use this when a change affects physical models, constants, units, signal generat
    3. Check coil source impedance, Johnson noise, amplifier voltage and current noise, bandwidth, sample rate, aliasing, quantization, clipping, and noise integration.
    4. Identify nominal or injected values that still require measurement, including FID amplitude, T2 star, mutual inductance, polarizer field, ring-down, PSRR, and recovery.
    5. Re-derive CRBs or compare them with a valid closed form. Confirm simulation or Monte Carlo results do not beat a valid bound beyond numerical and confidence-interval tolerance. Check that SNR definitions are explicit and consistent.
-   6. Compare verification_modeling, receiver_design, frequency_estimator_firmware, docs/coil-design.md, and docs/verification-plan.md. Flag conflicting formulas, constants, component values, and claims.
+   6. Compare util, ltspice/AmplificationSim.asc, firmware, spreadsheets/TuningCapacitors.xlsx, docs/design.md, and docs/verification-plan.md. Flag conflicting formulas, constants, component values, and claims.
    7. Run cheap calculations and tests without modifying the repository. Use /tmp for scratch files.
    Do not edit or create repository files.
    Return a verdict, a Severity | file:line | Finding table sorted by severity, and checks run with numeric results."
@@ -98,15 +98,15 @@ Use this when a change affects physical models, constants, units, signal generat
 
 ## Design-consistency review
 
-Use this after ngspice, KiCad, or component-value changes.
+Use this after KiCad, LTspice, or component-value changes.
 
 ```bash
 ~/.local/bin/cursor-agent -p -f --trust \
   --workspace /Users/ethanewer/ece455 \
-  "Perform a read-only consistency review of the active design under receiver_design.
+  "Perform a read-only consistency review of the design in kicad/, ltspice/, firmware/, and spreadsheets/.
    Review the uncommitted changes. If there are none, review the latest commit and say so.
-   1. Compare component values, net names, signal stages, assumptions, and interfaces across receiver_design/spice/receiver.cir, generated analysis reports, KiCad files, verification_modeling/coil.py, and active documentation.
-   2. Run python3 receiver_design/verify.py when ngspice or KiCad is installed. Report skipped tools rather than claiming a pass.
+   1. Compare component values, net names, signal stages, assumptions, and interfaces across the KiCad schematics and boards, ltspice/AmplificationSim.asc, the firmware constants and pins, spreadsheets/TuningCapacitors.xlsx, generated reports in docs/, and docs/design.md.
+   2. Run make test, and make docs when ngspice is installed. Report skipped tools rather than claiming a pass.
    3. Treat DRC as a connectivity and geometry check only. Identify missing active devices, protection, switching, ADC, clock, power, connectors, footprints, and layout review where applicable.
    4. Separate simulated behavior, DRC results, nominal assumptions, and measured evidence.
    5. Check that committed reports correspond to the exact committed source artifact and are not stale.
@@ -123,10 +123,10 @@ Use only for an explicit repository-wide audit or a change spanning modeling, de
   --workspace /Users/ethanewer/ece455 \
   "Perform a full read-only verification audit of /Users/ethanewer/ece455.
    This repository develops one proton magnetometer design. Do not propose automated search, candidate ranking, mutation, or unattended research workflows.
-   1. Read README.md, docs/README.md, docs/coil-design.md, docs/verification-plan.md, verification_modeling, frequency_estimator_firmware, receiver_design, tests, Makefile, and CI.
-   2. Run make test and make firmware. Run python3 receiver_design/verify.py --require-tools only when both external tools are installed; otherwise run it without --require-tools and report skips.
-   3. Independently check key constants, units, coil calculations, noise calculations, resonance, ring-down, ADC behavior, estimator bounds, and golden-vector provenance.
-   4. Trace active values across documentation, Python models, ngspice, generated reports, KiCad, firmware, and tests. Identify stale or conflicting copies.
+   1. Read README.md, docs/design.md, docs/verification-plan.md, util, firmware, the KiCad projects, ltspice/AmplificationSim.asc, Makefile, and CI.
+   2. Run make test and, when ngspice is installed, make docs. Report skipped tools.
+   3. Independently check key constants, units, tuning calculations, noise calculations, resonance, ADC range and gain settings, and estimator behavior.
+   4. Trace active values across documentation, Python utilities, the LTspice drawing, generated reports, KiCad, firmware, and tests. Identify stale or conflicting copies.
    5. Separate verified software behavior, simulated behavior, nominal hardware assumptions, and measured hardware evidence.
    6. Identify missing tests, weak failure checks, incomplete hardware, stale reports, and claims unsupported by measurement.
    Do not edit, create, or commit repository files. Use /tmp for scratch files.

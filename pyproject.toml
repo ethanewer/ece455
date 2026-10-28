@@ -4,23 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ece455-proton-magnetometer"
-version = "0.1.0"
-description = "Analysis and verification tools for one proton magnetometer design"
+version = "0.2.0"
+description = "Simulation, breadboard, and consistency utilities for one proton magnetometer design"
 requires-python = ">=3.10"
 dependencies = [
-  "numpy>=1.26,<3",
+  "numpy>=2.0,<3",
   "matplotlib>=3.8,<4",
-  "skidl>=2.3,<3",
-  "schemdraw>=0.23,<1",
 ]
 
 [project.optional-dependencies]
 test = ["pytest>=8"]
 
 [tool.setuptools.packages.find]
-include = ["verification_modeling*"]
+include = ["util*"]
 
 [tool.pytest.ini_options]
 addopts = "-q"
-testpaths = ["tests"]
+testpaths = ["util/tests"]
 pythonpath = ["."]

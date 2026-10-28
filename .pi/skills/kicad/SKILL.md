@@ -16,14 +16,13 @@ Treat the board file and KiCad DRC as the source of truth. A visually plausible 
 - For automated GUI screenshots, grant the host process Accessibility, Automation, and Screen & System Audio Recording permissions.
 - Use the CLI for deterministic DRC, exports, and renders. Use the GUI when KiCad exposes no equivalent CLI operation.
 
-## Receiver artifact workflow
+## Projects in this repository
 
-- `receiver_design/kicad/generate.py` and `receiver.net` describe connectivity only. They are not a graphical schematic or PCB.
-- Regenerate `receiver.net` with `make kicad`; do not hand-edit it. Keep timestamp, source-path, line-ending, and trailing-whitespace normalization in the generator.
-- Before drawing an ADS1256 module footprint or placing headers, measure or verify the exact purchased module's header order, pitch, spacing, and board outline. Do not derive physical order from logical connector numbering.
-- Audit every safety-critical pin and net in a new graphical schematic against `receiver_design/verify.py` and `generate.py`, then pass KiCad ERC. Reject generated schematics with off-grid endpoints, unjoined wires, missing power drivers, or unintended net merges even if the file opens.
-- Do not restore the deleted passive-only PCB. Start the physical board from the accepted complete receiver connectivity.
-- `make pcb` is the fabrication gate. Its failure is expected while `receiver.kicad_pcb` is absent.
+- `kicad/polarization_board/` and `kicad/signal_control_board/` are the team's KiCad 10 projects. Edit them in KiCad and keep their file names: the root sheet refers to `MCU.kicad_sch` and `SignalProcessing.kicad_sch` by name.
+- `make test` reads every schematic, board, and the BOM export with `util/kicad.py`. It fails if a board's pad nets differ from its schematic, if the BOM export is stale, or if the boards disagree with the firmware pins, the LTspice drawing, or the breadboard leads. It is not ERC or DRC.
+- Run KiCad ERC and DRC before ordering boards, and save the reports under `local/kicad/`.
+- After a board change, re-export the Gerbers into the project's `gerbers/` folder and the signal board's BOM CSV, then run `make test`.
+- Before trusting J3 and J4, check the purchased HiLetgo ADS1256 module's header order and spacing on the module itself. Logical connector numbering is not physical pinout evidence.
 
 ## Board workflow
 

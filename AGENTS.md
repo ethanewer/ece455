@@ -6,27 +6,32 @@ Delete obsolete tracked files instead of retaining them as historical context. G
 
 Put uncommitted logs, scratch files, renders, reports, build products, and other pipeline output under `local/`, grouped in task-specific subdirectories. Do not write pipeline output at the repository root. Git tracks `local/.gitkeep` and ignores the rest of `local/`. Keep intentional, reviewable generated artifacts in their documented committed locations.
 
-## Sources of truth
+## Layout and sources of truth
 
-- Active receiver artifacts: `receiver_design/`
-- Items to buy, with Amazon links and the budget: `amazon_purchases.json`
-- Active coil assumptions: `verification_modeling/coil.py`
-- Physics constants and signal model: `verification_modeling/physics.py`
-- Bench acceptance work: `docs/verification-plan.md`
+Each design-file type has one top-level folder. These files are the design; edit them with their own tools, not by script:
 
-Keep analysis modules independent of the active design where possible. Pass values into reusable functions rather than importing design files into EDA adapters. Keep ngspice and circuit serialization under `verification_modeling.eda`; do not couple them to KiCad or LTspice GUI automation.
+- `kicad/`: polarization board and signal-processing & control board (KiCad 10), with Gerbers and the signal board's BOM export
+- `ltspice/AmplificationSim.asc`: coil, tuning tank, and the off-board amplifier
+- `firmware/`: Pico 2 firmware, a copy of `hjvania10-rgb/PicoProgramECE455` (the commit is in `firmware/README.md`)
+- `spreadsheets/TuningCapacitors.xlsx`: coil inductances and LC tuning
+- `3d_models/`: coil forms
 
-Run `make test` for analysis changes, `make firmware` for estimator changes, and `make eda` for receiver artifact changes. Run `make verify` when a change spans these areas. A clean DRC report proves rule compliance and connectivity only. It does not prove that the receiver is complete or works in hardware.
+Everything that reads, simulates, lays out, or tests them lives in `util/`. `docs/design.md` describes the design and its open issues; `docs/verification-plan.md` holds the bench work.
 
-## Receiver workflow
+## Utilities
 
-- The active simulator is ngspice. `receiver_design/spice/receiver.cir` is the circuit source. Do not restore the retired LTspice files as active artifacts.
-- `receiver_design/kicad/generate.py` defines fixed-topology connectivity. It generates `receiver.net`; do not hand-edit the netlist.
-- `receiver_design/analyze.py` generates the committed CSV, PNG, and Markdown files in `receiver_design/analysis/`. Regenerate them after changing the SPICE model or report adapter.
-- `make export` tests the active receiver and creates a timestamped review package under `local/`. Never create PCB images when the physical board is absent; the export must record that status explicitly.
-- There is no accepted graphical schematic or PCB yet. `make pcb` must fail until `receiver.kicad_pcb` exists and passes strict DRC.
-- Before creating the PCB footprint or adapter layout, verify the exact purchased HiLetgo ADS1256 module header order and dimensions. Logical connector numbering is not physical pinout evidence.
-- Keep generated text deterministic. Remove timestamps, working-directory-dependent paths, CRLF endings, and trailing whitespace in generators rather than patching generated files.
+- `util/design.py` is the only module that knows file locations, LTspice part roles, and how drawing nodes map to board nets. The readers (`kicad.py`, `ltspice.py`, `xlsx.py`, `spice.py`) take paths and values and must stay independent of this design.
+- Simulate from the LTspice drawing through `util/ltspice.py`. Do not hand-copy its netlist into a parallel deck. If the drawing uses a new symbol or model, extend the translator and its tests.
+- `util/breadboard.py` holds one fixed layout for the off-board amplifier. Keep it data, not a placer, and keep `check_layout` reproducing the LTspice netlist and the board nets.
+- The firmware must keep compiling unchanged against `util/firmware_host/`. Do not edit firmware to suit the tests.
+- `make sim` and `make breadboard` regenerate `docs/simulation/` and `docs/breadboard/`. Regenerate them after changing the drawing, the boards, the layout, or the generators. Keep generated text deterministic: no timestamps, absolute paths, or trailing whitespace.
+
+Run `make test` for any change, `make firmware` for estimator changes, and `make verify` when a change touches the design files or the generators. Tests that parse KiCad files check connectivity only. They are not KiCad ERC or DRC, and none of this proves the hardware works.
+
+## Hardware cautions
+
+- Before relying on J3 and J4, verify the purchased HiLetgo ADS1256 module's header order and spacing on the module. Logical connector numbering is not physical pinout evidence.
+- No op-amp part is chosen. Check the breadboard's assumed DIP-8 pinout against the chosen part.
 
 The `.pi/skills/` files are the shared skill source. `.claude/skills/` and `.codex/skills/` contain relative symlinks. Do not duplicate skill content.
 

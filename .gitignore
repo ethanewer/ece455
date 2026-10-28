@@ -8,9 +8,17 @@ __pycache__/
 build/
 dist/
 
-# KiCad editor state that remains beside source designs.
+# KiCad editor state and local history beside the projects.
 *-backups/
 *.kicad_prl
+.history/
+fp-info-cache
+~*.lck
+
+# LTspice run output beside the drawing.
+ltspice/*.raw
+ltspice/*.log
+ltspice/*.net
 
 # Uncommitted pipeline output. Keep the directory itself in Git.
 local/*
