@@ -8,6 +8,7 @@ C compiler.)
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -53,3 +54,9 @@ def estimate(executable: Path, codes: np.ndarray, sample_rate: float) -> dict[st
                              check=True)
     return {name: float(value) for name, value in
             (line.split() for line in process.stdout.splitlines())}
+
+
+def frequency_offset_hz() -> float:
+    """The empirical correction the firmware adds to every valid frequency."""
+    match = re.search(r"\*frequency\s*\+=\s*([-+0-9.eE]+)\s*;", design.FIRMWARE.read_text())
+    return float(match.group(1)) if match else 0.0

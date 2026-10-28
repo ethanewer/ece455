@@ -22,6 +22,7 @@ POLARIZATION_BOARD = ROOT / "kicad/polarization_board"
 POLARIZATION_SCHEMATIC = POLARIZATION_BOARD / "PolarizationBoard.kicad_sch"
 POLARIZATION_PCB = POLARIZATION_BOARD / "PolarizationBoard.kicad_pcb"
 FIRMWARE = ROOT / "firmware/PicoProgramECE455.c"
+PLOTTER = ROOT / "firmware/adc_plots.py"
 TUNING_WORKBOOK = ROOT / "spreadsheets/TuningCapacitors.xlsx"
 COIL_WORKBOOK = ROOT / "spreadsheets/CoilDesign.xlsx"
 SENSING_FORM = ROOT / "3d_models/Sensor coil V1.gcode.3mf"
@@ -78,6 +79,14 @@ def firmware_constants() -> dict[str, float | str]:
         number = re.fullmatch(r"([-+]?[0-9.]+(?:[eE][-+]?\d+)?)(?:U?L{0,2}|f)?", value)
         constants[name] = float(number.group(1)) if number else value
     return constants
+
+
+def plotter_window_s() -> tuple[float, float]:
+    """The capture window adc_plots.py zooms to, in seconds from the first sample."""
+    text = PLOTTER.read_text()
+    start, end = (float(re.search(rf"^FOCUS_{name}_MS\s*=\s*([\d.]+)", text, re.M).group(1))
+                  for name in ("START", "END"))
+    return start * 1e-3, end * 1e-3
 
 
 def adc_full_scale_v() -> float:

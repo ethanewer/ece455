@@ -237,8 +237,10 @@ def main(output: Path = OUTPUT) -> None:
     write_csv(output / "noise.csv", ["frequency_hz", "emf_referred_nv_rt_hz", "adc_uv_rt_hz"],
               ([f"{f:.6g}", f"{i * 1e9:.5f}", f"{o * 1e6:.5f}"]
                for f, i, o in zip(noise.frequency_hz, noise.input_v_rt_hz, noise.output_v_rt_hz)))
-    window = time_s <= constants["PYTHON_PLOT_WINDOW_MS"] * 1e-3
-    write_csv(output / "transient-first-10ms.csv", ["time_s", "adc_differential_mv"],
+    zoom_start, zoom_end = design.plotter_window_s()
+    window = (time_s >= zoom_start) & (time_s <= zoom_end)
+    zoom_name = f"transient-{zoom_start * 1e3:.0f}-{zoom_end * 1e3:.0f}ms.csv"
+    write_csv(output / zoom_name, ["time_s", "adc_differential_mv"],
               ([f"{s:.6f}", f"{v * 1e3:.5f}"] for s, v in zip(time_s[window], differential[window])))
     write_csv(output / "tuning-bank.csv", list(rows[0]),
               ([f"{v:.4f}" if isinstance(v, float) else v for v in row.values()] for row in rows))
@@ -291,8 +293,8 @@ def main(output: Path = OUTPUT) -> None:
     ax.set_title(f"ADC input for a {source.amplitude_v * 1e6:g} µV, {source.frequency_hz:g} Hz FID "
                  f"(τ = {source.tau_s:.2f} s), C1 = {tank_c * 1e9:g} nF", color=INK, fontsize=11,
                  loc="left")
-    bx.set_title(f"First {constants['PYTHON_PLOT_WINDOW_MS']:g} ms, the window the firmware "
-                 "sends for plotting", color=INK, fontsize=11, loc="left")
+    bx.set_title(f"{zoom_start * 1e3:.0f}–{zoom_end * 1e3:.0f} ms, the window adc_plots.py zooms to",
+                 color=INK, fontsize=11, loc="left")
     _save(fig, output / "transient.png")
     plt.close(fig)
 
@@ -483,7 +485,7 @@ def main(output: Path = OUTPUT) -> None:
         "the free-proton ratio, 25.7 ppm higher (`util/physics.py`).",
         "",
         "Files: [`frequency-response.csv`](frequency-response.csv), [`noise.csv`](noise.csv), "
-        "[`transient-first-10ms.csv`](transient-first-10ms.csv), "
+        f"[`{zoom_name}`]({zoom_name}), "
         "[`tuning-bank.csv`](tuning-bank.csv).",
     ]
     (output / "README.md").write_text("\n".join(line for line in lines if line is not None) + "\n")

@@ -15,6 +15,7 @@ Python tools that read the design files, simulate, lay out, and test them. Run f
 | `simulate.py` | `make sim`: writes `docs/simulation/` from the LTspice drawing, the tuning bank, the coil workbook and forms, and the firmware's ADC settings |
 | `breadboard.py` | `make breadboard`: checks the fixed breadboard layout against the LTspice netlist and board nets, then writes `docs/breadboard/` |
 | `firmware.py`, `firmware_host/` | Compile the Pico firmware on the host with stub SDK headers and run its estimator |
+| `flash.py` | `make flash`: reboot a Pico into BOOTSEL over USB and copy a UF2 image onto it |
 | `tests/` | `make test` |
 
 The readers (`kicad`, `ltspice`, `xlsx`, `printfile`, `spice`) take paths and values and know nothing about this design. `tests/fixtures/` holds a frozen copy of the LTspice drawing with LTspice 17.2.4's results for it, so the translation is tested against LTspice even after the live drawing changes.

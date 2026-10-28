@@ -23,7 +23,8 @@ Everything that reads, simulates, lays out, or tests them lives in `util/`. `doc
 - `util/design.py` is the only module that knows file locations, LTspice part roles, and how drawing nodes map to board nets. The readers (`kicad.py`, `ltspice.py`, `xlsx.py`, `printfile.py`, `spice.py`) take paths and values and must stay independent of this design.
 - Simulate from the LTspice drawing through `util/ltspice.py`. Do not hand-copy its netlist into a parallel deck. If the drawing uses a new symbol or model, extend the translator and its tests.
 - `util/breadboard.py` holds one fixed layout for the off-board amplifier. Keep it data, not a placer, and keep `check_layout` reproducing the LTspice netlist and the board nets.
-- The firmware must keep compiling unchanged against `util/firmware_host/`. Do not edit firmware to suit the tests.
+- The firmware must keep compiling unchanged against `util/firmware_host/`. Do not edit firmware to suit the tests. When syncing from the upstream repository, record the commit in `firmware/README.md`, copy only the active files, and keep the local changes listed there.
+- `make pico` and `make flash` build and flash the Pico; build output goes to `local/firmware-build/`.
 - `make sim` and `make breadboard` regenerate `docs/simulation/` and `docs/breadboard/`. Regenerate them after changing the drawing, the boards, the layout, or the generators. Keep generated text deterministic: no timestamps, absolute paths, or trailing whitespace.
 
 Run `make test` for any change, `make firmware` for estimator changes, and `make verify` when a change touches the design files or the generators. Tests that parse KiCad files check connectivity only. They are not KiCad ERC or DRC, and none of this proves the hardware works.

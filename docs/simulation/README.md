@@ -56,7 +56,7 @@ Turn-off pickup: when the polarizer's current falls into its TVS (the workbook a
 
 ## ADC headroom
 
-The firmware sets PGA 64 with VREF = 2.05 V, a differential full scale of ±64.1 mV. The drawing's FID reaches 202.0 mV peak at the ADC in its first 100 ms, 3.2 times full scale. It would clip. PGA 16 or lower keeps it within full scale. The Curie-law estimates above reach 95 mV (planned, clips), 40 mV (from the measured inductance, fits), 38 mV (from the coil resistance, fits). The ADS1256 input buffer is on (BUFEN = 1), so each input must also stay within 0 to AVDD − 2 V. The firmware measures AIN1 − AIN0, while the drawing biases AIN3; confirm which ADS1256 inputs the J4 socket reaches.
+The firmware sets PGA 64 with VREF = 2.08 V, a differential full scale of ±65.0 mV. The drawing's FID reaches 202.0 mV peak at the ADC in its first 100 ms, 3.1 times full scale. It would clip. PGA 16 or lower keeps it within full scale. The Curie-law estimates above reach 95 mV (planned, clips), 40 mV (from the measured inductance, fits), 38 mV (from the coil resistance, fits). The ADS1256 input buffer is on (BUFEN = 1), so each input must also stay within 0 to AVDD − 2 V. The firmware measures AIN1 − AIN0, while the drawing biases AIN3; confirm which ADS1256 inputs the J4 socket reaches.
 
 The transient runs to 2 s as the drawing's `.tran` does, but with a 4.4 µs step. At the drawing's 34 µs maximum step, about 13 points per cycle, trapezoidal integration detunes the tank and the same FID peaks at 176.1 mV, 13% low. Use a maximum step near 4 µs in LTspice too.
 
@@ -67,7 +67,7 @@ The transient runs to 2 s as the drawing's `.tran` does, but with a 4.4 µs step
 - Referred to the coil EMF at 2268 Hz: 0.96 nV/√Hz. At the ADC input: 18.97 µV/√Hz.
 - ADC-input RMS noise over 1500–2500 Hz: 421 µV; over 100 Hz to 7500 Hz (Nyquist at the firmware's nominal 15 kSPS): 964 µV. The zero-crossing estimator does not filter, so the wider figure applies to it. Noise above Nyquist also aliases into the record; the ADS1256's digital filter is not modeled.
 - Peak FID to wideband RMS noise at the ADC: 210 for the drawing's FID; the FID amplitude table gives it for the Curie-law estimates.
-- Frequency Cramér–Rao bound: 0.0012 nT, for a white floor at the EMF-referred density, 15 kSPS, and a 2.19 s record (the firmware stops when the signal falls to 10% of its initial amplitude, at most 4 s). It bounds an ideal estimator, not the zero-crossing fit.
+- Frequency Cramér–Rao bound: 0.0012 nT, for a white floor at the EMF-referred density, 15 kSPS, and a 2.19 s record (the firmware stops when the signal falls to 10% of its initial amplitude, at most 3 s). It bounds an ideal estimator, not the zero-crossing fit.
 
 ## Tuning bank
 
@@ -92,4 +92,4 @@ Target | Field | Coil | Needed | Bank | Tuned | Capacitors on | Switches on
 
 Fields use the shielded-proton ratio, 0.0425764 Hz/nT. The firmware and the workbook use the free-proton ratio, 25.7 ppm higher (`util/physics.py`).
 
-Files: [`frequency-response.csv`](frequency-response.csv), [`noise.csv`](noise.csv), [`transient-first-10ms.csv`](transient-first-10ms.csv), [`tuning-bank.csv`](tuning-bank.csv).
+Files: [`frequency-response.csv`](frequency-response.csv), [`noise.csv`](noise.csv), [`transient-100-150ms.csv`](transient-100-150ms.csv), [`tuning-bank.csv`](tuning-bank.csv).

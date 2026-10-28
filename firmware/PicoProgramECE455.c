@@ -1,8 +1,17 @@
+// ADS1256 / Raspberry Pi Pico 2W — reliable 15 kSPS version.
+// Restores single-conversion RDATA reads, not RDATAC.
+// Keeps DATA_META fields, transfers complete waveform as compact binary.
+// Hardware validation required: check the reported sample rate.
+// Fix: report frequency even if a long DRDY interval triggers a timing warning.
+// Button-triggered magnetometer sequence: polarize, 50 ms settle, capture.
+// Enforce 10 s minimum between accepted button presses (start-to-start).
+
 #include <stdio.h>
 #include <stdint.h>
 #include <stdbool.h>
 
 #include "pico/stdlib.h"
+#include "pico/stdio.h"
 #include "hardware/spi.h"
 
 
@@ -12,11 +21,29 @@
 
 #define ADS_SPI  spi0
 
+// Use conservative SPI timing as in the earlier working 15 kSPS build.
+#define ADS_SPI_HZ 1000000
+
 #define PIN_MISO 16     // ADS1256 DOUT
 #define PIN_CS   17
 #define PIN_SCLK 18
 #define PIN_MOSI 19     // ADS1256 DIN
 #define PIN_DRDY 20
+
+// ============================================================
+// Polarization coil output and trigger button
+// ============================================================
+// Physical pins on Pico 2W: GP0 = pin 1, GP1 = pin 2.
+// Button (SW3 on the signal board) connects GP27 to GND; use the internal pull-up.
+// GPIO0 HIGH enables the external MOSFET gate driver; LOW disables it.
+#define PIN_POLARIZER      0
+#define PIN_START_BUTTON   27
+
+#define POLARIZE_MS        8000U
+#define SETTLE_MS          50U
+#define BUTTON_DEBOUNCE_MS 30U
+// 10 seconds from one ACCEPTED button press to the next.
+#define MIN_PRESS_INTERVAL_US 10000000ULL
 
 
 // ============================================================
@@ -90,8 +117,7 @@
 
 // DRATE:
 //
-// 0xE0 = nominal 15,000 samples/sec
-// assuming the ADS1256 has the expected clock.
+// 0xE0 = nominal 15,000 conversions/second at 7.68 MHz ADC clock.
 #define ADS_DRATE_CONFIG   0xE0
 
 
@@ -107,7 +133,7 @@
 //
 // Change this if you later determine a more accurate
 // VREFP - VREFN value.
-#define ADS_VREF           2.05
+#define ADS_VREF           2.08
 
 #define ADS_PGA            64.0
 
@@ -168,33 +194,27 @@
 
 // Stop the capture when EITHER:
 //
-// 1. Four seconds have elapsed, OR
+// 1. Three seconds have elapsed, OR
 // 2. The measured AC signal amplitude has fallen to 10%
 //    of the amplitude measured during the first window.
 //
 // The amplitude check uses 100 ms windows.  For a sinusoid,
 // AC RMS falls by the same ratio as peak amplitude, but RMS
 // is less sensitive to single-sample noise spikes.
-#define MAX_CAPTURE_US           4000000ULL
+#define MAX_CAPTURE_US           3000000ULL
 #define AMPLITUDE_WINDOW_US      100000ULL
 #define DECAY_STOP_FRACTION      0.10
 
 
-// Your board is currently delivering about 20 kSPS in practice.
-// 85,000 samples gives enough room for a full four-second capture
-// at that measured rate.  The Pico 2 has enough SRAM for this
-// int32_t buffer.
-//
-// We intentionally store only ADC codes, not one 64-bit timestamp
-// per sample. Timing is measured with the first and last DRDY
-// timestamps.
-#define MAX_SAMPLES              85000
+// 48,000 x 4 bytes = 192,000 bytes SRAM. Allows 3 s at 15 kSPS.
+// Leaves plenty of space for USB, stack, and other firmware allocations.
+#define MAX_SAMPLES              48000
 
 
-// Only this much of each completed capture is sent to Python
-// for plotting.  The Pico still uses the ENTIRE capture for
-// frequency, Vpp, DC offset, and zero-crossing calculations.
-#define PYTHON_PLOT_WINDOW_MS     10.0
+// The entire ADC capture is sent to Python as native little-endian int32_t codes.
+// This is ~180 kB for a 3-second capture at 15 kSPS (vs much more as text).
+// The PC converts codes to mV and plots both the complete waveform
+// and the 100-150 ms section. The frequency fit uses the same full buffer.
 
 
 // ============================================================
@@ -212,6 +232,54 @@ typedef enum
     CAPTURE_STOP_BUFFER_LIMIT
 } capture_stop_reason_t;
 
+
+// ============================================================
+// Polarizer GPIO initialization and debounced start-button handling
+// ============================================================
+static void init_polarization_controls(void)
+{
+    // First set the output latch LOW, then enable output drive.
+    // Add an EXTERNAL gate pull-down: GPIOs float while resetting.
+    gpio_init(PIN_POLARIZER);
+    gpio_put(PIN_POLARIZER, 0);
+    gpio_set_dir(PIN_POLARIZER, GPIO_OUT);
+
+    gpio_init(PIN_START_BUTTON);
+    gpio_set_dir(PIN_START_BUTTON, GPIO_IN);
+    gpio_pull_up(PIN_START_BUTTON);
+}
+
+// Do not accept buttons during the lockout. Require the button to be
+// released and stable HIGH before accepting a new, stable LOW press.
+// This prevents one long hold from starting repeated measurements.
+static void wait_for_new_button_press(uint64_t next_allowed_us)
+{
+    while (time_us_64() < next_allowed_us) {
+        sleep_ms(10);
+    }
+
+    uint64_t release_since_us = 0;
+    while (true) {
+        uint64_t now = time_us_64();
+        if (gpio_get(PIN_START_BUTTON)) {  // HIGH = released
+            if (release_since_us == 0) release_since_us = now;
+            if (now - release_since_us >=
+                (uint64_t)BUTTON_DEBOUNCE_MS * 1000ULL) break;
+        } else {
+            release_since_us = 0;
+        }
+        sleep_ms(5);
+    }
+
+    printf("Ready: press GP%d button to polarize and capture.\n", PIN_START_BUTTON);
+    while (true) {
+        if (!gpio_get(PIN_START_BUTTON)) { // LOW = pressed
+            sleep_ms(BUTTON_DEBOUNCE_MS);
+            if (!gpio_get(PIN_START_BUTTON)) return;
+        }
+        sleep_ms(5);
+    }
+}
 
 // ============================================================
 // Chip select
@@ -544,88 +612,46 @@ static bool ads_calibrate(void)
 
 
 // ============================================================
-// Read conversion data
-//
-// IMPORTANT:
-//
-// This function assumes DRDY is ALREADY LOW.
-//
-// That lets the capture routine timestamp DRDY first,
-// then immediately retrieve the corresponding ADC value.
+// Read one ADS1256 conversion using the proven RDATA command.
+// The ADC raises DRDY after all 24 data bits have been read.
+// At 15 kSPS the 66.7 us conversion period is long enough for
+// 1 MHz SPI + command + the minimum t6 delay.
 // ============================================================
-
-static void ads_read_data_ready(
-    int32_t *signed_code,
-    uint32_t *raw_code
-)
+static void ads_read_data_ready(int32_t *signed_code)
 {
-    uint8_t command =
-        CMD_RDATA;
-
+    const uint8_t cmd = CMD_RDATA;
     uint8_t rx[3];
-
-
     ads_select();
-
-
-    // Request current conversion
-    spi_write_blocking(
-        ADS_SPI,
-        &command,
-        1
-    );
-
-
-    // ADS1256 t6 delay
-    sleep_us(10);
-
-
-    // Read 24-bit ADC result
-    spi_read_blocking(
-        ADS_SPI,
-        0xFF,
-        rx,
-        3
-    );
-
-
+    spi_write_blocking(ADS_SPI, &cmd, 1);
+    // t6 >= 50 master clocks = 6.51 us at 7.68 MHz.
+    sleep_us(8);
+    spi_read_blocking(ADS_SPI, 0xFF, rx, 3);
+    // t10 >= 8 master clocks before deasserting CS.
+    sleep_us(2);
     ads_deselect();
 
+    uint32_t raw = ((uint32_t)rx[0] << 16) |
+                   ((uint32_t)rx[1] << 8)  |
+                   ((uint32_t)rx[2]);
+    *signed_code = (raw & 0x800000U)
+        ? (int32_t)(raw | 0xFF000000U)
+        : (int32_t)raw;
+}
 
-    // Combine three bytes:
-    //
-    // MSB, middle, LSB
-    uint32_t raw =
-        ((uint32_t)rx[0] << 16) |
-        ((uint32_t)rx[1] << 8)  |
-        ((uint32_t)rx[2]);
-
-
-    // Convert 24-bit two's complement
-    // into signed 32-bit integer.
-    int32_t code;
-
-
-    if (raw & 0x800000)
-    {
-        code =
-            (int32_t)(
-                raw |
-                0xFF000000
-            );
+// Ensure a fresh LOW event, not a repeated read of the same sample.
+static bool ads_wait_next_drdy(uint32_t timeout_ms)
+{
+    uint64_t deadline = time_us_64() + (uint64_t)timeout_ms * 1000ULL;
+    // Reading 24 bits sets DRDY high. Require it before taking another.
+    while (!gpio_get(PIN_DRDY)) {
+        if (time_us_64() >= deadline) return false;
+        tight_loop_contents();
     }
-    else
-    {
-        code =
-            (int32_t)raw;
+    while (gpio_get(PIN_DRDY)) {
+        if (time_us_64() >= deadline) return false;
+        tight_loop_contents();
     }
-
-
-    *raw_code =
-        raw;
-
-    *signed_code =
-        code;
+    return true;
 }
 
 
@@ -665,24 +691,20 @@ static double frequency_to_bfield_nt(
 
 
 // ============================================================
-// Send measurement results + first 10 ms of waveform to Python
-// over USB serial.
+// Transfer measurement metadata + FULL waveform to Python.
 //
-// The Pico still analyzes the FULL captured record.  Only the
-// first PYTHON_PLOT_WINDOW_MS milliseconds are transferred for
-// plotting so the Python display stays responsive.
+// DATA_META, captured_samples, transmitted_samples, capture_time_ms,
+//            sample_rate, vpp_mV, dc_offset_mV, zero_crossings,
+//            frequency_Hz, bfield_nT
+// DATA_START_BIN (followed by a newline)
+// [exactly transmitted_samples * 4 RAW BYTES: signed little-endian int32]
+// DATA_END (followed by a newline)
 //
-// Packet format:
-//
-// DATA_META,captured_samples,plot_samples,capture_time_ms,
-//           sample_rate,vpp_mV,dc_offset_mV,zero_crossings,
-//           frequency_Hz,bfield_nT
-// DATA_START
-// time_seconds,voltage_mV
-// ...
-// DATA_END
+// Binary transfer is MUCH faster than printf-ing ~45,000 decimal values.
+// stdio_put_string(..., false, false) disables newline translation: ADC
+// bytes may themselves contain 0x0A and must NOT be changed to CR-LF.
+// Use the matching new adc_plots_full_and_100to150ms.py on the PC.
 // ============================================================
-
 static void send_waveform_to_python(
     const int32_t *samples,
     uint32_t number_of_samples,
@@ -695,320 +717,119 @@ static void send_waveform_to_python(
     bool frequency_valid
 )
 {
-    if (
-        (number_of_samples == 0) ||
-        (measured_sample_rate <= 0.0)
-    )
-    {
-        return;
-    }
+    if (number_of_samples == 0 || measured_sample_rate <= 0.0) return;
 
+    const double frequency_to_send = frequency_valid ? frequency : -1.0;
+    const double bfield_to_send = frequency_valid
+        ? frequency_to_bfield_nt(frequency) : -1.0;
 
-    double frequency_to_send =
-        frequency_valid ? frequency : -1.0;
-
-
-    double bfield_nt_to_send =
-        frequency_valid
-        ? frequency_to_bfield_nt(frequency)
-        : -1.0;
-
-
-    // Number of samples needed to represent the first 10 ms.
-    uint32_t plot_samples =
-        (uint32_t)(
-            measured_sample_rate *
-            (PYTHON_PLOT_WINDOW_MS / 1000.0)
-        ) + 1;
-
-
-    if (plot_samples > number_of_samples)
-    {
-        plot_samples =
-            number_of_samples;
-    }
-
-
-    printf(
-        "DATA_META,%lu,%lu,%.6f,%.6f,%.6f,%.6f,%lu,%.6f,%.3f\n",
+    // Retain all 9 metadata fields so the Python results panel stays intact.
+    printf("DATA_META,%lu,%lu,%.6f,%.6f,%.6f,%.6f,%lu,%.6f,%.3f\n",
         (unsigned long)number_of_samples,
-        (unsigned long)plot_samples,
+        (unsigned long)number_of_samples,
         capture_time_ms,
         measured_sample_rate,
         vpp * 1000.0,
         dc_offset * 1000.0,
         (unsigned long)crossings,
         frequency_to_send,
-        bfield_nt_to_send
+        bfield_to_send
     );
+    printf("DATA_START_BIN\n");
+    fflush(stdout);
 
+    // RP2040/RP2350 use little-endian 32-bit int32_t samples.
+    // Disable CR-LF translation to preserve all 4 bytes per sample.
+    const int byte_count = (int)(number_of_samples * sizeof(samples[0]));
+    stdio_put_string((const char *)samples, byte_count, false, false);
+    stdio_flush();
 
-    printf("DATA_START\n");
-
-
-    for (
-        uint32_t i = 0;
-        i < plot_samples;
-        i++
-    )
-    {
-        double time_seconds =
-            (double)i /
-            measured_sample_rate;
-
-
-        double voltage_mv =
-            ads_code_to_voltage(samples[i]) *
-            1000.0;
-
-
-        printf(
-            "%.9f,%.6f\n",
-            time_seconds,
-            voltage_mv
-        );
-    }
-
-
+    // Exact byte count is known from DATA_META, so no separator is needed.
     printf("DATA_END\n");
     fflush(stdout);
 }
 
 
 // ============================================================
-// Capture consecutive samples
-//
-// Capture stops when EITHER:
-//
-// 1. Four seconds have elapsed, OR
-// 2. The AC RMS signal has fallen to 10% of the RMS measured
-//    during the first 100 ms amplitude window.
-//
-// We compare AC POWER instead of taking square roots:
-//
-//      RMS <= 0.10 * initial RMS
-//
-// is equivalent to:
-//
-//      variance <= 0.01 * initial variance
-//
-// There is NO printf() and NO long delay inside this loop.
+// Capture fresh RDATA conversions for up to 3 seconds (or until
+// the AC RMS signal falls below 10% of the first 100 ms window).
+// No USB output during acquisition. Uses integer sums in the loop.
 // ============================================================
-
 static bool ads_capture_samples(
     int32_t *samples,
     uint32_t max_samples,
     uint32_t *samples_captured,
     uint64_t *first_sample_time_us,
     uint64_t *last_sample_time_us,
-    capture_stop_reason_t *stop_reason
-)
+    uint32_t *long_sample_intervals,
+    capture_stop_reason_t *stop_reason)
 {
-    *samples_captured =
-        0;
+    *samples_captured = 0;
+    *first_sample_time_us = 0;
+    *last_sample_time_us = 0;
+    *long_sample_intervals = 0;
+    bool initial_amplitude_ready = false;
+    double initial_ac_power = 0.0;
+    int64_t window_sum = 0;
+    uint64_t window_sum_squares = 0;
+    uint32_t window_samples = 0;
+    uint64_t window_start_us = 0;
+    uint64_t capture_start_us = 0;
 
-    *first_sample_time_us =
-        0;
+    // Prime DRDY and discard one result. This establishes a known
+    // high->low transition even when DRDY was already low after
+    // startup, calibration, or a previous capture.
+    if (!ads_wait_drdy(100)) return false;
+    int32_t discarded;
+    ads_read_data_ready(&discarded);
 
-    *last_sample_time_us =
-        0;
-
-
-    bool initial_amplitude_ready =
-        false;
-
-    double initial_ac_power =
-        0.0;
-
-
-    // Running statistics for the current 100 ms window.
-    //
-    // AC power = variance = E[x^2] - E[x]^2
-    double window_sum =
-        0.0;
-
-    double window_sum_squares =
-        0.0;
-
-    uint32_t window_samples =
-        0;
-
-
-    uint64_t capture_start_us =
-        0;
-
-    uint64_t window_start_us =
-        0;
-
-
-    for (
-        uint32_t i = 0;
-        i < max_samples;
-        i++
-    )
-    {
-        // Wait for the next ADC conversion.
-        if (!ads_wait_drdy(100))
-        {
-            return false;
+    for (uint32_t i = 0; i < max_samples; ++i) {
+        if (!ads_wait_next_drdy(100)) return false;
+        uint64_t sample_time_us = time_us_64();
+        if (i == 0) {
+            capture_start_us = sample_time_us;
+            window_start_us = sample_time_us;
+            *first_sample_time_us = sample_time_us;
+        } else if (sample_time_us - *last_sample_time_us > 105ULL) {
+            // 15 kSPS = 66.67 us per conversion; >105 us may
+            // indicate a missed sample (or timing problem).
+            ++(*long_sample_intervals);
         }
-
-
-        // Timestamp immediately when DRDY is observed LOW.
-        uint64_t sample_time_us =
-            time_us_64();
-
-
-        if (i == 0)
-        {
-            capture_start_us =
-                sample_time_us;
-
-            window_start_us =
-                sample_time_us;
-
-            *first_sample_time_us =
-                sample_time_us;
-        }
-
-
         int32_t code;
-        uint32_t raw;
+        ads_read_data_ready(&code);
+        samples[i] = code;
+        *samples_captured = i + 1;
+        *last_sample_time_us = sample_time_us;
 
+        window_sum += (int64_t)code;
+        window_sum_squares += (uint64_t)((int64_t)code * (int64_t)code);
+        ++window_samples;
 
-        // Read the conversion associated with this DRDY.
-        ads_read_data_ready(
-            &code,
-            &raw
-        );
-
-
-        samples[i] =
-            code;
-
-        *samples_captured =
-            i + 1;
-
-        *last_sample_time_us =
-            sample_time_us;
-
-
-        // ----------------------------------------------------
-        // Add this sample to the current amplitude window.
-        // ----------------------------------------------------
-
-        double value =
-            (double)code;
-
-        window_sum +=
-            value;
-
-        window_sum_squares +=
-            value * value;
-
-        window_samples++;
-
-
-        // ----------------------------------------------------
-        // Every 100 ms, estimate the AC signal amplitude.
-        // ----------------------------------------------------
-
-        if (
-            (sample_time_us - window_start_us) >=
-            AMPLITUDE_WINDOW_US
-        )
-        {
-            double count =
-                (double)window_samples;
-
-            double mean =
-                window_sum /
-                count;
-
-            double mean_square =
-                window_sum_squares /
-                count;
-
-            double ac_power =
-                mean_square -
-                (mean * mean);
-
-
-            // Numerical roundoff can produce a tiny
-            // negative value very close to zero.
-            if (ac_power < 0.0)
-            {
-                ac_power =
-                    0.0;
+        if (sample_time_us - window_start_us >= AMPLITUDE_WINDOW_US) {
+            double n = (double)window_samples;
+            double mean = (double)window_sum / n;
+            double ac_power = (double)window_sum_squares / n - mean * mean;
+            if (ac_power < 0.0) ac_power = 0.0;
+            if (!initial_amplitude_ready) {
+                initial_ac_power = ac_power;
+                initial_amplitude_ready = true;
+            } else if (initial_ac_power > 0.0 &&
+                       ac_power <= initial_ac_power *
+                         DECAY_STOP_FRACTION * DECAY_STOP_FRACTION) {
+                *stop_reason = CAPTURE_STOP_DECAY_LIMIT;
+                return true;
             }
-
-
-            if (!initial_amplitude_ready)
-            {
-                // The first complete 100 ms window defines
-                // "100% original signal."
-                initial_ac_power =
-                    ac_power;
-
-                initial_amplitude_ready =
-                    true;
-            }
-            else if (initial_ac_power > 0.0)
-            {
-                // 10% RMS amplitude = 1% AC power.
-                double stop_power =
-                    initial_ac_power *
-                    DECAY_STOP_FRACTION *
-                    DECAY_STOP_FRACTION;
-
-
-                if (ac_power <= stop_power)
-                {
-                    *stop_reason =
-                        CAPTURE_STOP_DECAY_LIMIT;
-
-                    return true;
-                }
-            }
-
-
-            // Start a new 100 ms amplitude window.
-            window_start_us =
-                sample_time_us;
-
-            window_sum =
-                0.0;
-
-            window_sum_squares =
-                0.0;
-
-            window_samples =
-                0;
+            window_start_us = sample_time_us;
+            window_sum = 0;
+            window_sum_squares = 0;
+            window_samples = 0;
         }
-
-
-        // ----------------------------------------------------
-        // Hard four-second capture limit.
-        // ----------------------------------------------------
-
-        if (
-            (sample_time_us - capture_start_us) >=
-            MAX_CAPTURE_US
-        )
-        {
-            *stop_reason =
-                CAPTURE_STOP_TIME_LIMIT;
-
+        if (sample_time_us - capture_start_us >= MAX_CAPTURE_US) {
+            *stop_reason = CAPTURE_STOP_TIME_LIMIT;
             return true;
         }
     }
-
-
-    // At nominal 15 kSPS the 60,000-sample buffer reaches
-    // essentially the same point as the four-second limit.
-    *stop_reason =
-        CAPTURE_STOP_BUFFER_LIMIT;
-
+    *stop_reason = CAPTURE_STOP_BUFFER_LIMIT;
     return true;
 }
 
@@ -1074,8 +895,7 @@ static double calculate_vpp(
 // The ADS1256 conversion timing is uniform, so we only need
 // the timestamp of the first and last DRDY events.
 //
-// This avoids storing a 64-bit timestamp for every sample,
-// which would not fit in Pico RAM for a four-second capture.
+// This avoids storing a 64-bit timestamp for every sample.
 // ============================================================
 
 static double calculate_measured_sample_rate(
@@ -1559,6 +1379,11 @@ static bool calculate_frequency(
     }
 
 
+    // Empirical calibration offset for the 1500-2500 Hz measurement range.
+    // Apply only to valid measurements; downstream field and Python values
+    // use the corrected frequency automatically.
+    *frequency += 0.05;
+
     return true;
 }
 
@@ -1569,11 +1394,13 @@ static bool calculate_frequency(
 
 int main()
 {
+    // Initialize GP0 LOW before USB initialization or calibration.
+    init_polarization_controls();
     stdio_init_all();
 
 
-    // Allow USB serial connection to enumerate
-    sleep_ms(2000);
+    // Allow USB serial connection to enumerate at startup only.
+    sleep_ms(1000);
 
 
     printf("\n");
@@ -1588,7 +1415,7 @@ int main()
 
     spi_init(
         ADS_SPI,
-        1000 * 1000
+        ADS_SPI_HZ
     );
 
 
@@ -1672,6 +1499,21 @@ int main()
     // Allow ADC/reference to settle
     sleep_ms(100);
 
+    // Previous 30 kSPS firmware used RDATAC. If the ADS1256 stayed
+    // powered while the Pico was reset, it might still be in that mode.
+    // Exit continuous-read first, then reset to known defaults.
+    if (!ads_wait_drdy(200)) {
+        printf("ERROR: ADS1256 DRDY never went low at startup.\n");
+        while (true) sleep_ms(1000);
+    }
+    ads_send_command(CMD_SDATAC);
+    sleep_us(5);
+    ads_send_command(CMD_RESET);
+    sleep_ms(5);
+    if (!ads_wait_drdy(200)) {
+        printf("ERROR: ADS1256 not ready after reset.\n");
+        while (true) sleep_ms(1000);
+    }
 
     // ========================================================
     // Read initial STATUS
@@ -1803,22 +1645,41 @@ int main()
     );
 
 
-    // ========================================================
-    // Repeated waveform capture
-    // ========================================================
+    // ============================================================
+    // Button-triggered polarization and waveform capture
+    // ============================================================
+    // The 10-second lockout starts when an accepted press is detected,
+    // NOT after finishing sample processing / Python output.
+    uint64_t next_allowed_press_us = 0;
 
     while (true)
     {
-        printf(
-            "Capturing waveform...\n"
-        );
+        // Idle safely until a NEW debounced press occurs.
+        gpio_put(PIN_POLARIZER, 0);
+        wait_for_new_button_press(next_allowed_press_us);
+
+        const uint64_t accepted_press_us = time_us_64();
+        next_allowed_press_us = accepted_press_us + MIN_PRESS_INTERVAL_US;
+
+        printf("Button accepted. Polarizing for %u ms...\n",
+               (unsigned)POLARIZE_MS);
+        printf("Then MOSFET OFF, settle %u ms, capture ADC.\n",
+               (unsigned)SETTLE_MS);
+
+        // No serial I/O while the coil is energized, or between coil
+        // turn-off and ADC acquisition. The on-time is bounded normally
+        // by sleep_ms(), but a hardware fail-safe is still recommended.
+        gpio_put(PIN_POLARIZER, 1);
+        sleep_ms(POLARIZE_MS);
+        gpio_put(PIN_POLARIZER, 0);
+        sleep_ms(SETTLE_MS);
 
 
         // ----------------------------------------------------
         // Acquire samples
         //
         // Capture ends automatically at:
-        //   - 4 seconds, OR
+        //   - 3 seconds, OR
         //   - 10% of the initial AC signal amplitude.
         // ----------------------------------------------------
 
@@ -1831,6 +1692,8 @@ int main()
         uint64_t last_sample_time_us =
             0;
 
+        uint32_t long_sample_intervals = 0;
+
         capture_stop_reason_t stop_reason =
             CAPTURE_STOP_BUFFER_LIMIT;
 
@@ -1841,6 +1704,7 @@ int main()
                 &samples_captured,
                 &first_sample_time_us,
                 &last_sample_time_us,
+                &long_sample_intervals,
                 &stop_reason))
         {
             printf(
@@ -1854,6 +1718,12 @@ int main()
             continue;
         }
 
+
+        if (samples_captured < 3) {
+            printf("ERROR: Too few samples to analyze.\n");
+            sleep_ms(150);
+            continue;
+        }
 
         // ----------------------------------------------------
         // Calculate actual sample rate
@@ -1916,6 +1786,16 @@ int main()
             );
 
 
+        // IMPORTANT: Do not discard a valid sinusoidal frequency fit just
+        // because one DRDY interval was measured as unusually long.
+        // USB/interrupt jitter can delay the Pico's observation of DRDY
+        // even when the ADC itself has converted at a steady rate.
+        // A genuinely missed conversion can bias the frequency estimate,
+        // however, so report a separate timing-quality warning below.
+        // Python still receives the fit whenever calculate_frequency()
+        // succeeds, retaining its original DATA_META packet format.
+        bool timing_warning = (long_sample_intervals > 0);
+
         // ----------------------------------------------------
         // Calculate total capture time
         // ----------------------------------------------------
@@ -1954,14 +1834,14 @@ int main()
         else if (stop_reason == CAPTURE_STOP_TIME_LIMIT)
         {
             printf(
-                "Capture stopped: 4.0 second limit reached.\n"
+                "Capture stopped: 3.0 second limit reached.\n"
             );
         }
         else
         {
             printf(
                 "Capture stopped: sample buffer full "
-                "(approximately 4 seconds).\n"
+                "(buffer capacity reached).\n"
             );
         }
 
@@ -1971,11 +1851,36 @@ int main()
             measured_sample_rate
         );
 
+        // If noticeably below 15k, samples may be getting skipped.
+        // Do not mistake a lower measured polling rate for a correctly
+        // decimated 15k stream: the frequency estimate assumes that
+        // every conversion has a corresponding sample in the buffer.
+        if (measured_sample_rate < ADS_NOMINAL_SAMPLE_RATE * 0.98 ||
+            measured_sample_rate > ADS_NOMINAL_SAMPLE_RATE * 1.02)
+        {
+            printf("WARNING: measured SPS differs from 15000. "
+                   "Possible missed conversions / ADC clock mismatch.\n");
+        }
+
+
+        if (timing_warning)
+        {
+            printf("WARNING: %lu unusually long DRDY intervals detected.\n",
+                   (unsigned long)long_sample_intervals);
+            printf("The frequency fit is shown, but timing gaps may "
+                   "make it less accurate.\n");
+        }
 
         printf(
             "Measured Vpp = %.3f mV\n",
             vpp * 1000.0
         );
+        // At PGA=64, full bipolar input span is +/-2*VREF/64.
+        // A direct 360 mVpp generator input will clip severely.
+        if (vpp > 0.98 * (4.0 * ADS_VREF / ADS_PGA)) {
+            printf("WARNING: ADC at/near full-scale! Reduce input "
+                   "amplitude or PGA gain.\n");
+        }
 
 
         printf(
@@ -2012,6 +1917,12 @@ int main()
                 "Calculated frequency = %.5f Hz\n",
                 frequency
             );
+            if (timing_warning) {
+                printf("Frequency quality = CHECK TIMING "
+                       "(possible missed conversions)\n");
+            } else {
+                printf("Frequency quality = No long DRDY intervals detected\n");
+            }
 
 
             printf(
@@ -2027,7 +1938,7 @@ int main()
             );
 
             printf(
-                "Not enough valid zero crossings.\n"
+                "Check signal range, clipping, and DRDY intervals.\n"
             );
         }
 
@@ -2056,11 +1967,8 @@ int main()
         );
 
 
-        // Wait before performing another capture.
-        //
-        // This occurs AFTER all samples have already
-        // been collected and transferred, so it does not affect
-        // the frequency calculation.
-        sleep_ms(1000);
+        // Continue to the button wait state. The button must have been
+        // released, and no new press is accepted until 10 seconds
+        // after the previous accepted press.
     }
 }

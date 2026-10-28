@@ -25,11 +25,11 @@ Everything else:
 ```sh
 python3 -m venv .venv
 . .venv/bin/activate
-pip install -e '.[test]'
+pip install -e '.[test,bench]'
 brew install ngspice        # or: sudo apt-get install ngspice
 ```
 
-`make firmware` and `make test` compile the firmware on the host with `$CC`, or clang or gcc.
+`make firmware` and `make test` compile the firmware on the host with `$CC`, or clang or gcc. Building and flashing the Pico needs the Pico SDK and Arm toolchain; see [`firmware/README.md`](firmware/README.md).
 
 ## Commands
 
@@ -39,8 +39,10 @@ make firmware     # only the firmware estimator tests
 make sim          # simulate ltspice/AmplificationSim.asc and regenerate docs/simulation/
 make breadboard   # check the breadboard layout and regenerate docs/breadboard/
 make verify       # test, sim, and breadboard
+make flash        # build the Pico firmware and flash it over USB
+make plot         # plot captures from the Pico
 ```
 
 ## Status
 
-Both PCBs match their schematics, and the firmware's SPI pins match the ADS1256 header on J3. The amplifier exists only as an LTspice drawing and a breadboard layout; no op amp has been chosen. From the coil workbook and print files, the coils as built should give a best-case FID of about 2 µV, a fifth of the drawing's 10 µV. The coil forms are sized for the sensing coils to sit inside the polarizing coil, where its turn-off would induce on the order of 100 V in them, beyond what the damping switch and amplifier input are rated for. The firmware does not yet drive damping or polarization. Nothing here has been measured on hardware; see [`docs/verification-plan.md`](docs/verification-plan.md).
+Both PCBs match their schematics, and the firmware's SPI pins match the ADS1256 header on J3. The amplifier exists only as an LTspice drawing and a breadboard layout; no op amp has been chosen. From the coil workbook and print files, the coils as built should give a best-case FID of about 2 µV, a fifth of the drawing's 10 µV. The coil forms are sized for the sensing coils to sit inside the polarizing coil, where its turn-off would induce on the order of 100 V in them, beyond what the damping switch and amplifier input are rated for. The firmware now polarizes and captures on a button press but does not drive the damping switch. Nothing here has been measured on hardware; see [`docs/verification-plan.md`](docs/verification-plan.md).

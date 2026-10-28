@@ -56,14 +56,14 @@ Both op amps are LTspice `UniversalOpAmp2` models (Avol 316k, GBW 3 MHz, slew 2.
 
 ## Firmware
 
-`firmware/` is [hjvania10-rgb/PicoProgramECE455](https://github.com/hjvania10-rgb/PicoProgramECE455) at commit `e9b393a` (2026-09-30), built with Pico SDK 2.3.1 for `PICO_BOARD pico2`.
+`firmware/` is [hjvania10-rgb/PicoProgramECE455](https://github.com/hjvania10-rgb/PicoProgramECE455) at commit `3450aba` (2026-10-28), built with Pico SDK 2.3.1 for `PICO_BOARD pico2` (`make pico`, `make flash`).
 
-- SPI0 at 1 MHz, mode 1. The ADS1256 runs with its input buffer on, auto-calibration off, MUX AIN1 − AIN0, PGA 64, and DRATE 15 kSPS, and self-calibrates at start-up. A comment notes that the board delivers about 20 kSPS in practice; the fit uses the rate measured from the Pico's clock.
-- Each capture stops after 4 s, or when the AC RMS of a 100 ms window falls to 10 % of the first window's.
-- Frequency comes from positive zero crossings with hysteresis (1 % of the initial peak-to-peak), interpolated at the record mean and fitted by least squares against cycle number. Gaps between crossings are converted to whole cycles using a 2 kHz center frequency. Results outside 1.425–2.625 kHz are rejected.
+- SPI0 at 1 MHz, mode 1. The ADS1256 runs with its input buffer on, auto-calibration off, MUX AIN1 − AIN0, PGA 64, VREF taken as 2.08 V, and DRATE 15 kSPS, and self-calibrates at start-up. The fit uses the sample rate measured from the Pico's clock.
+- The start button (SW3, GP27) runs one measurement: GP0 high for 8 s to drive the polarization board, a 50 ms wait, then a capture that stops after 3 s or when the AC RMS of a 100 ms window falls to 10 % of the first window's. Presses are accepted at most every 10 s. GP0 reaches the board only on J7 pin 3, so a cable from J7 to the polarization board's J3 carries it.
+- Frequency comes from positive zero crossings with hysteresis (1 % of the initial peak-to-peak), interpolated at the record mean and fitted by least squares against cycle number. Gaps between crossings are converted to whole cycles using a 2 kHz center frequency. Results outside 1.425–2.625 kHz are rejected, and valid results get an empirical +0.05 Hz correction (about 1.2 nT).
 - The field is f / 42.57747892 MHz/T.
-- The results and the first 10 ms of samples go over USB serial to `firmware/adc_plots.py`, which plots them. Its serial port is hard-coded as `COM5`.
-- The firmware does not yet drive the damping switch (GPIO15), the polarization board, or the buttons.
+- The results and the whole record go over USB serial, the samples in binary, to `firmware/adc_plots.py`, which plots the capture and its 100–150 ms window.
+- The firmware does not drive the damping switch (GPIO15).
 
 ## Coils and FID
 
@@ -89,5 +89,5 @@ The FID amplitude follows from Curie's law. [`simulation/README.md`](simulation/
 7. **Estimator cycle counting.** The failures in issue 2 come from converting missed crossings to cycles with the fixed 2 kHz center frequency: near 1.5 kHz two periods count as three. The record also runs into noise, because the amplifier passes about twice as much noise outside the 1.5–2.5 kHz band as inside it and the 10 % stop rule cannot trigger once noise exceeds a tenth of the initial amplitude. Band-pass filtering before the crossing detector, counting with the tuned frequency, and flagging low-SNR results would help.
 8. **Simulation step.** The drawing's `.tran` limits the step to 34 µs, about 13 points per cycle. That detunes the tank in the integration and understates the FID by about 13 %. Use about 4 µs.
 9. **Parts not chosen.** No op-amp part is named. R3/R10 (50 kΩ) and C5 (4.6 nF) are not standard values; 51 kΩ and 4.7 nF are the nearest.
-10. **Control lines.** No connector routes a Pico GPIO to the polarization board's J3, and the firmware does not sequence polarization, damping, and capture.
+10. **Control lines.** The firmware drives the polarizer from GP0, which leaves the board only on J7, so J7 needs a cable to the polarization board's J3. It waits a fixed 50 ms after switching the polarizer off and never drives the damping switch (GPIO15), so damping, blanking, and turn-off pickup are not yet sequenced.
 11. **Schematic hygiene.** Twenty-two unused Pico pins have no no-connect flags, so KiCad ERC will report them.

@@ -57,6 +57,14 @@ def test_firmware_spi_pins_reach_the_ads1256_header():
     assert constants["ADS_SPI"] == "spi0"
 
 
+def test_firmware_start_button_is_sw3():
+    board = design.signal_board()
+    gpio = int(design.firmware_constants()["PIN_START_BUTTON"])
+    pressed = board.net_of("A1", board.pin_by_name("A1", f"GPIO{gpio}_ADC1"))
+    assert {board.net_of("SW3", "1"), board.net_of("SW3", "2")} == {pressed, "GND"}
+    assert board.parts["SW3"].value == "Button1"
+
+
 def test_adc_socket_and_bias_network():
     board = design.signal_board()
     # J4 pin 1 carries the amplifier output, pin 3 the buffered 2.5 V bias.
