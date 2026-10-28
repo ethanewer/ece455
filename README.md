@@ -40,7 +40,7 @@ make sim          # simulate ltspice/AmplificationSim.asc and regenerate docs/si
 make breadboard   # check the breadboard layout and regenerate docs/breadboard/
 make verify       # test, sim, and breadboard
 make flash        # build the Pico firmware and flash it over USB
-make plot         # plot captures from the Pico
+make plot         # plot captures from the Pico (sets up .venv on first use)
 ```
 
 ## Status

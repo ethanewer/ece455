@@ -20,7 +20,7 @@ make flash    # build, reboot the Pico into BOOTSEL over USB, and copy the image
 make plot     # run adc_plots.py
 ```
 
-These need the Pico SDK 2.3.1 and Arm toolchain 15.2 under `~/.pico-sdk/` (where the Raspberry Pi Pico VS Code extension installs them; override `PICO_SDK_PATH` and `PICO_TOOLCHAIN_PATH` otherwise), CMake, Ninja, and `pip install -e '.[bench]'` for `pyserial`. `make flash` cannot open the port while the plotter has it; stop the plotter first. A Pico with no running firmware needs BOOTSEL held while plugging it in.
+These need the Pico SDK 2.3.1 and Arm toolchain 15.2 under `~/.pico-sdk/` (where the Raspberry Pi Pico VS Code extension installs them; override `PICO_SDK_PATH` and `PICO_TOOLCHAIN_PATH` otherwise), CMake, and Ninja. `make plot` and `make flash` create `.venv/` with `pyserial` on first use. `make flash` cannot open the port while the plotter has it; stop the plotter first. A Pico with no running firmware needs BOOTSEL held while plugging it in.
 
 ## Host tests
 
